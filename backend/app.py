@@ -70,6 +70,11 @@ app.secret_key = SECRET_KEY
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Initialize database and load system prompt at startup (works with gunicorn)
+from database import init_db
+init_db()
+reload_system_prompt()
+
 
 # ==========================================
 # Image Compression for Vision API
@@ -947,6 +952,63 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
 
     smart_save_journey(user_id or g.user_id, journey_id, journey)
     return jsonify(event)
+
+
+# ==========================================
+# 3D API: Process Image (manual direct submission)
+# ==========================================
+@app.route("/api/process", methods=["POST"])
+def api_process():
+    """
+    Submit image for 3D model generation (direct, non-journey flow).
+
+    Form Data:
+        image: file
+        prompt: string
+    """
+    if 'image' not in request.files:
+        return jsonify(error="No image file provided"), 400
+
+    image = request.files['image']
+    prompt = request.form.get('prompt', 'object')
+
+    if not image.filename:
+        return jsonify(error="Empty filename"), 400
+
+    if not allowed_file(image.filename):
+        return jsonify(error=f"File type not allowed. Use: {ALLOWED_EXTENSIONS}"), 400
+
+    job_id = generate_job_id()
+    filename = secure_filename(image.filename)
+    image_path = UPLOAD_FOLDER / f"{job_id}_{filename}"
+    image.save(str(image_path))
+
+    simplified_prompt = simplify_prompt_for_sam3(prompt)
+    create_job(job_id, simplified_prompt, str(image_path))
+
+    glb_output_path = RESULT_FOLDER / f"{job_id}.glb"
+    cutout_output_path = RESULT_FOLDER / f"{job_id}_cutout.png"
+
+    log("PROCESS", f"New job {job_id}: prompt='{simplified_prompt}'")
+
+    def _run():
+        update_job_status(job_id, "processing", "Sending to GPU worker", 10)
+        ok, err = run_remote_3d_pipeline(
+            job_id=job_id,
+            image_path=str(image_path),
+            prompt=simplified_prompt,
+            glb_output_path=str(glb_output_path),
+            cutout_output_path=str(cutout_output_path),
+        )
+        if ok:
+            update_job_status(job_id, "completed", "Complete", 100, files={"glb": str(glb_output_path)})
+        else:
+            log("PROCESS", f"GPU worker failed: {err}")
+            create_placeholder_glb(str(glb_output_path))
+            update_job_status(job_id, "completed", "Placeholder (GPU failed)", 100, files={"glb": str(glb_output_path)})
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"job_id": job_id})
 
 
 # ==========================================
