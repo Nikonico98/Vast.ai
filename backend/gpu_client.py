@@ -12,11 +12,14 @@ from pathlib import Path
 from typing import Optional, Tuple
 from job_manager import log
 
-from config import VASTAI_GPU_URL, GPU_API_SECRET
+from config import VASTAI_GPU_URL, GPU_API_SECRET, VASTAI_BEARER_TOKEN
 
 
 def _headers():
-    return {"X-API-Secret": GPU_API_SECRET}
+    headers = {"X-API-Secret": GPU_API_SECRET}
+    if VASTAI_BEARER_TOKEN:
+        headers["Authorization"] = f"Bearer {VASTAI_BEARER_TOKEN}"
+    return headers
 
 
 def gpu_worker_health() -> dict:

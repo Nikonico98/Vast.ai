@@ -40,6 +40,9 @@ VASTAI_GPU_URL = os.getenv("VASTAI_GPU_URL", "https://your-vastai-worker.ngrok.a
 # Shared secret for authenticating requests between Hostinger and Vast.ai
 GPU_API_SECRET = os.getenv("GPU_API_SECRET", "change-me-to-a-random-secret")
 
+# Caddy Bearer token for VastAI proxy authentication
+VASTAI_BEARER_TOKEN = os.getenv("VASTAI_BEARER_TOKEN", "")
+
 # ==========================================
 # AI API Configuration (OpenAI GPT-5.2)
 # ==========================================
