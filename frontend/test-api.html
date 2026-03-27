@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test API Start</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #4f46e5;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <h1>🧪 API Start Endpoint Test</h1>
+    
+    <div class="test-box">
+        <h2>Test Controls</h2>
+        <button onclick="testWorld('Historical')">Test Historical</button>
+        <button onclick="testWorld('Fantasy')">Test Fantasy</button>
+        <button onclick="testWorld('SciFi_Earth')">Test Sci-Fi Earth</button>
+    </div>
+    
+    <div class="test-box">
+        <h2>Response Log</h2>
+        <div id="log"></div>
+    </div>
+    
+    <div class="test-box">
+        <h2>Latest Response</h2>
+        <pre id="response">No test run yet</pre>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            logDiv.innerHTML = `<div class="${color}">[${timestamp}] ${message}</div>` + logDiv.innerHTML;
+        }
+        
+        async function testWorld(worldKey) {
+            log(`Testing world: ${worldKey}`, 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        imaginary_world: worldKey
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                
+                // Display full response
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                
+                // Check important fields
+                const checks = [
+                    { field: 'journey_id', value: data.journey_id },
+                    { field: 'story_background', value: data.story_background },
+                    { field: 'goal', value: data.goal },
+                    { field: 'nodes', value: data.nodes },
+                    { field: 'nodes[0].story_html', value: data.nodes?.[0]?.story_html },
+                    { field: 'nodes[0].goal', value: data.nodes?.[0]?.goal }
+                ];
+                
+                log(`✅ Response received for ${worldKey}`, 'success');
+                
+                checks.forEach(check => {
+                    if (check.value) {
+                        const preview = typeof check.value === 'string' ? 
+                            check.value.substring(0, 50) + '...' : 
+                            `(${typeof check.value})`;
+                        log(`  ✓ ${check.field}: ${preview}`, 'success');
+                    } else {
+                        log(`  ✗ ${check.field}: MISSING`, 'error');
+                    }
+                });
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                document.getElementById('response').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        // Log page load
+        log('Test page loaded. Ready to test API.', 'info');
+    </script>
+</body>
+</html>

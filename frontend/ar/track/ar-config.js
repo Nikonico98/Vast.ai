@@ -1,0 +1,1 @@
+window.TRACK_CONFIG={debug:!1,targetSize:.6,roam:{speed:1.1,radius:6,minY:1,maxY:5},track:{duration:5e3,hitboxPadding:.5},dissolve:{duration:600},material:{metalness:.15,roughness:.85}};

@@ -1,0 +1,1 @@
+window.TAP_CONFIG={mark:{color:"#ffd54a",emissive:"#ff9900",emissiveIntensity:.7,radiusRatio:.11,minRadius:.07,maxRadius:.15,pulseScale:1.35,pulseMin:.92,pulseDuration:650,spinSpeed:0,flySpeed:1600},spawn:{duration:360,easing:"easeOutBack",heightOffset:.1},burst:{count:4,baseRadius:.012,maxDistance:.15,duration:350}};

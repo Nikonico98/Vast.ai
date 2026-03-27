@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#667eea" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Imaginary World - AI Story & 3D</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- ========== Test Mode Badge (Fixed at top-right) ========== -->
+    <div id="test-mode-badge" class="test-mode-badge hidden">
+        🧪 TEST MODE
+    </div>
+
+    <!-- ========== Global Category Badge (Fixed at top) ========== -->
+    <div id="global-category-badge" class="global-category-badge hidden">
+        <span id="global-category-icon">🌍</span>
+        <span id="global-category-name">Category</span>
+    </div>
+
+
+
+    <!-- ========== Page 0: Login/Register ========== -->
+    <section id="page-auth" class="page active">
+        <header class="page-header">
+            <h1>✨ Imaginary World</h1>
+        </header>
+
+        <div class="auth-container">
+            <!-- Tab Switcher -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">Login</button>
+                <button class="auth-tab" data-tab="register">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form active">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" name="username" placeholder="Enter your username" required
+                        minlength="1">
+                </div>
+                <div id="login-error" class="form-error"></div>
+                <button type="submit" class="auth-submit-btn">Login</button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="auth-form">
+                <div class="form-group">
+                    <label for="register-username">Username</label>
+                    <input type="text" id="register-username" name="username" placeholder="Choose a username" required
+                        minlength="1">
+                </div>
+                <div class="form-group">
+                    <label for="register-display-name">Display Name</label>
+                    <input type="text" id="register-display-name" name="display_name"
+                        placeholder="Your display name (optional)">
+                </div>
+                <div id="register-error" class="form-error"></div>
+                <button type="submit" class="auth-submit-btn">Register</button>
+            </form>
+
+            <div class="auth-divider">
+                <span>or</span>
+            </div>
+
+            <button id="guest-btn" class="guest-btn">Continue as Guest</button>
+            <p class="guest-note">Guest sessions cannot save story history</p>
+        </div>
+    </section>
+
+    <!-- ========== Page 0.5: Story History (for logged-in users) ========== -->
+    <section id="page-story-history" class="page">
+        <header class="page-header">
+            <div class="user-welcome">
+                <span id="welcome-text">👋 Welcome back!</span>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <div class="story-history-container">
+            <h2>📖 Your Stories</h2>
+
+            <div id="story-list" class="story-list">
+                <!-- Stories will be populated by JavaScript -->
+                <div class="story-list-loading">Loading your stories...</div>
+            </div>
+
+            <button id="new-story-btn" class="new-story-btn">➕ Start New Story</button>
+        </div>
+    </section>
+
+    <!-- ========== Page 1: World Selection ========== -->
+    <section id="page-world-selection" class="page">
+        <header class="page-header">
+            <button id="logout-btn-world" class="logout-btn header-logout">Logout</button>
+            <h1>✨ Imaginary World</h1>
+            <p class="subtitle">Choose an imaginary world and begin your story journey</p>
+        </header>
+
+        <div class="world-grid">
+            <button class="world-card" data-world="Historical">
+                <span class="world-icon">🏛️</span>
+                <span class="world-name">Historical</span>
+            </button>
+
+            <button class="world-card" data-world="Overlaid">
+                <span class="world-icon">🎭</span>
+                <span class="world-name">Overlaid</span>
+            </button>
+
+            <button class="world-card" data-world="Alternate">
+                <span class="world-icon">🔀</span>
+                <span class="world-name">Alternate</span>
+            </button>
+
+            <button class="world-card" data-world="SciFi_Earth">
+                <span class="world-icon">🌍</span>
+                <span class="world-name">Sci-Fi Earth</span>
+            </button>
+
+            <button class="world-card" data-world="SciFi_Galaxy">
+                <span class="world-icon">🚀</span>
+                <span class="world-name">Sci-Fi Galaxy</span>
+            </button>
+
+            <button class="world-card" data-world="Fantasy">
+                <span class="world-icon">✨</span>
+                <span class="world-name">Fantasy</span>
+            </button>
+        </div>
+
+        <!-- GPU Status Panel (collapsible, hidden in test mode) -->
+        <div class="gpu-panel collapsed test-hidden">
+            <div class="gpu-panel-header" id="gpu-panel-toggle">
+                <div class="gpu-panel-header-left">
+                    <span class="gpu-panel-title">🖥️ GPU Status</span>
+                    <span id="gpu-status-summary" class="gpu-status-summary">Detecting...</span>
+                </div>
+                <span class="gpu-toggle-icon">▼</span>
+            </div>
+            <div class="gpu-panel-body">
+                <div class="gpu-mode-options">
+                    <label class="gpu-mode-option">
+                        <input type="radio" name="gpu-mode" id="gpu-mode-parallel" value="parallel" checked>
+                        <span class="gpu-mode-label">
+                            <span class="gpu-mode-name">⚡ Parallel</span>
+                            <span class="gpu-mode-desc">Multi-GPU acceleration</span>
+                        </span>
+                    </label>
+                    <label class="gpu-mode-option">
+                        <input type="radio" name="gpu-mode" id="gpu-mode-sequential" value="sequential">
+                        <span class="gpu-mode-label">
+                            <span class="gpu-mode-name">🔒 Sequential</span>
+                            <span class="gpu-mode-desc">One job at a time</span>
+                        </span>
+                    </label>
+                </div>
+                <div id="gpu-grid" class="gpu-grid">
+                    <!-- GPU cards will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== Page 2: Story Background ========== -->
+    <section id="page-story-background" class="page">
+        <header class="page-header compact">
+            <button class="back-btn" data-target="page-world-selection">← Back</button>
+            <button class="logout-btn header-logout">Logout</button>
+        </header>
+
+        <div class="story-page-content">
+            <h1 class="story-page-title">Story Background</h1>
+
+            <!-- World Type Card -->
+            <div class="world-type-card">
+                <span id="world-type-icon" class="world-type-icon">🏛️</span>
+                <div class="world-type-info">
+                    <span id="current-world-title" class="world-type-name">Historical</span>
+                    <span id="world-setting" class="world-setting">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Story Background -->
+            <div class="story-container">
+                <div class="story-container-header">
+                    <div class="lang-switcher" data-target="story">
+                        <button class="lang-btn active" data-lang="en">EN</button>
+                        <button class="lang-btn" data-lang="zh-CN">简</button>
+                        <button class="lang-btn" data-lang="zh-TW">繁</button>
+                    </div>
+                    <button id="tts-story-btn" class="tts-btn" title="Read aloud">
+                        <span class="tts-icon">🔊</span>
+                    </button>
+                </div>
+                <div id="story-content" class="story-content">
+                    <p class="loading-text">Generating story background...</p>
+                </div>
+            </div>
+
+            <!-- Goal Section -->
+            <div class="goal-container">
+                <div class="goal-header">
+                    <span class="goal-icon">🎯</span>
+                    <span class="goal-label">Goal</span>
+                </div>
+                <p id="goal-text" class="goal-text">Loading...</p>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="story-progress-section">
+                <div class="progress-header">
+                    <span>📸 Progress:</span>
+                    <span id="progress-count">0/3</span>
+                </div>
+
+                <!-- Event Timeline -->
+                <div class="event-timeline">
+                    <div id="timeline-node-1" class="timeline-node" data-event="1">
+                        <div class="node-circle">○</div>
+                        <span class="node-label">Event 1</span>
+                    </div>
+                    <div class="timeline-line"></div>
+                    <div id="timeline-node-2" class="timeline-node" data-event="2">
+                        <div class="node-circle">○</div>
+                        <span class="node-label">Event 2</span>
+                    </div>
+                    <div class="timeline-line"></div>
+                    <div id="timeline-node-3" class="timeline-node" data-event="3">
+                        <div class="node-circle">○</div>
+                        <span class="node-label">Event 3</span>
+                    </div>
+                    <div class="timeline-line"></div>
+                    <div class="timeline-node final" data-event="end">
+                        <div class="node-circle">●</div>
+                        <span class="node-label">End</span>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-bar-container">
+                    <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%"></div>
+                </div>
+                <span id="progress-percent" class="progress-percent">0%</span>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="story-actions">
+            <button id="regenerate-story-btn" class="action-btn secondary">
+                🔄 Try Another
+            </button>
+            <button id="accept-story-btn" class="action-btn primary">
+                ✅ Confirm & Start
+            </button>
+        </div>
+    </section>
+
+    <!-- ========== Page 3: Photo Upload ========== -->
+    <section id="page-photo-upload" class="page">
+        <header class="page-header compact">
+            <button class="back-btn" data-target="page-story-background">◀ Event</button>
+            <h2 id="photo-page-title">Upload Photo</h2>
+            <span class="event-counter">
+                Photo <span id="current-event-num">1</span>/<span id="total-events">3</span>
+            </span>
+        </header>
+
+        <div class="photo-upload-content">
+            <!-- Upload Area -->
+            <div class="upload-area-large">
+                <input type="file" id="photo-input" accept="image/*" hidden />
+                <div id="upload-placeholder" class="upload-placeholder">
+                    <div class="upload-box" id="upload-box">
+                        <span class="upload-icon-large">📷</span>
+                        <span class="upload-text-main">Tap to Select</span>
+                        <span class="upload-format">📷 Camera / 📁 Gallery</span>
+                    </div>
+                </div>
+                <!-- Photo Preview (shown after selection) -->
+                <div id="photo-preview-container" class="photo-preview-container" style="display: none;">
+                    <img id="photo-preview" alt="Photo Preview" />
+                </div>
+            </div>
+
+            <!-- Tips Section -->
+            <div class="tips-container">
+                <div class="tips-header">
+                    <span class="tips-icon">💡</span>
+                    <span class="tips-label">Tips</span>
+                </div>
+                <p class="tips-text">Take a photo of a real-world object (e.g., furniture, clothing, tools,
+                    architecture, food, plants). It will be woven into your story.</p>
+            </div>
+        </div>
+
+        <!-- Journey Progress Widget (inline) -->
+        <div id="journey-progress-widget" class="journey-widget hidden">
+            <div class="journey-widget-dots" id="journey-dots"></div>
+            <div class="journey-widget-items" id="journey-items"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="photo-actions">
+            <button id="retake-photo-btn" class="action-btn secondary" style="display: none;">
+                🔄 Retake
+            </button>
+            <button id="process-photo-btn" class="action-btn primary full-width" disabled>
+                🚀 Process Photo
+            </button>
+        </div>
+    </section>
+
+    <!-- ========== Page 4: Processing Status ========== -->
+    <section id="page-processing" class="page">
+        <header class="page-header compact">
+            <button class="back-btn" data-target="page-photo-upload">← Back</button>
+            <h2>Processing...</h2>
+            <button class="logout-btn header-logout">Logout</button>
+        </header>
+
+        <div class="processing-content">
+            <!-- User Photo Echo-back -->
+            <div id="photo-echo" class="photo-echo hidden">
+                <div class="photo-echo-frame">
+                    <img id="photo-echo-img" src="" alt="Your photo" />
+                    <div class="photo-echo-overlay"></div>
+                </div>
+            </div>
+
+            <!-- Story Background (shown during processing for immersion) -->
+            <div id="processing-story-section" class="processing-story-section hidden">
+                <div class="processing-story-header">
+                    <span class="processing-story-icon">📖</span>
+                    <span class="processing-story-label">Story Background</span>
+                    <div class="lang-switcher" data-target="processing-story">
+                        <button class="lang-btn active" data-lang="en">EN</button>
+                        <button class="lang-btn" data-lang="zh-CN">简</button>
+                        <button class="lang-btn" data-lang="zh-TW">繁</button>
+                    </div>
+                    <button id="tts-processing-btn" class="tts-btn" title="Read aloud">
+                        <span class="tts-icon">🔊</span>
+                    </button>
+                </div>
+                <p id="processing-story-text" class="processing-story-text"></p>
+                <p id="processing-goal-text" class="processing-goal-text"></p>
+            </div>
+
+            <!-- World Badge System -->
+            <div class="processing-main">
+                <div id="world-badge" class="world-badge">
+                    <!-- Historical: Temple + Scroll -->
+                    <div class="badge-icon badge-historical">
+                        <span class="badge-primary">🏛️</span>
+                        <span class="badge-secondary">📜</span>
+                        <div class="badge-particles">
+                            <span class="particle dust"></span>
+                            <span class="particle dust"></span>
+                            <span class="particle dust"></span>
+                            <span class="particle dust"></span>
+                            <span class="particle dust"></span>
+                        </div>
+                    </div>
+                    <!-- Overlaid: Mask + Spiral -->
+                    <div class="badge-icon badge-overlaid">
+                        <span class="badge-primary">🎭</span>
+                        <span class="badge-secondary">🌀</span>
+                        <div class="badge-layers">
+                            <span class="layer"></span>
+                            <span class="layer"></span>
+                            <span class="layer"></span>
+                        </div>
+                    </div>
+                    <!-- SciFi_Earth: Earth + Circuit -->
+                    <div class="badge-icon badge-scifi-earth">
+                        <span class="badge-primary">🌍</span>
+                        <span class="badge-secondary">⚡</span>
+                        <div class="badge-circuit">
+                            <span class="circuit-line"></span>
+                            <span class="circuit-line"></span>
+                            <span class="circuit-dot"></span>
+                            <span class="circuit-dot"></span>
+                        </div>
+                    </div>
+                    <!-- SciFi_Galaxy: Spaceship + Galaxy -->
+                    <div class="badge-icon badge-scifi-galaxy">
+                        <span class="badge-primary">🚀</span>
+                        <span class="badge-secondary">🌌</span>
+                        <div class="badge-stars">
+                            <span class="star"></span>
+                            <span class="star"></span>
+                            <span class="star"></span>
+                            <span class="star"></span>
+                            <span class="star"></span>
+                        </div>
+                    </div>
+                    <!-- Fantasy: Wand + Crystal -->
+                    <div class="badge-icon badge-fantasy">
+                        <span class="badge-primary">🪄</span>
+                        <span class="badge-secondary">💎</span>
+                        <div class="badge-magic">
+                            <span class="sparkle"></span>
+                            <span class="sparkle"></span>
+                            <span class="sparkle"></span>
+                            <span class="sparkle"></span>
+                            <span class="sparkle"></span>
+                            <span class="sparkle"></span>
+                        </div>
+                    </div>
+                    <!-- Alternate: Fork Arrow + Mirror -->
+                    <div class="badge-icon badge-alternate">
+                        <span class="badge-primary">↗️</span>
+                        <span class="badge-secondary">🪞</span>
+                        <div class="badge-split">
+                            <span class="split-line"></span>
+                            <span class="split-line"></span>
+                        </div>
+                    </div>
+                </div>
+                <p class="processing-text">Processing your photo...</p>
+            </div>
+
+            <!-- Fun waiting messages -->
+            <div id="waiting-messages" class="waiting-messages">
+                <p id="waiting-message-text" class="waiting-message-text">✨ Magic is happening...</p>
+            </div>
+
+            <!-- Story Preview (shows during 3D generation) -->
+            <div id="story-preview-section" class="story-preview-section hidden">
+                <div class="story-preview-header">
+                    <span class="story-preview-icon">📖</span>
+                    <span class="story-preview-label">Fictional Event</span>
+                    <div class="lang-switcher" data-target="event-preview">
+                        <button class="lang-btn active" data-lang="en">EN</button>
+                        <button class="lang-btn" data-lang="zh-CN">简</button>
+                        <button class="lang-btn" data-lang="zh-TW">繁</button>
+                    </div>
+                    <button id="tts-event-btn" class="tts-btn" title="Read aloud">
+                        <span class="tts-icon">🔊</span>
+                    </button>
+                </div>
+                <div class="story-preview-content">
+                    <p id="story-preview-text" class="story-preview-text"></p>
+                    <span class="typing-cursor">|</span>
+                </div>
+                <div id="fictional-image-preview" class="fictional-image-preview hidden">
+                    <!-- Skeleton placeholder (shown while image generates) -->
+                    <div id="image-skeleton" class="image-skeleton">
+                        <div class="skeleton-shimmer"></div>
+                        <div class="skeleton-label">🎨 <span id="skeleton-label-text">Conjuring image...</span></div>
+                    </div>
+                    <!-- Actual image (hidden until loaded) -->
+                    <img id="fictional-image-preview-img" class="hidden" src="" alt="Fictional Item" />
+                    <p class="fictional-image-caption hidden">🔮 <span id="fictional-image-caption-text">Fictional
+                            Item</span>
+                    </p>
+                </div>
+                <!-- Finish Reading Button (appears after story + image are shown) -->
+                <div id="finish-reading-section" class="finish-reading-section hidden">
+                    <button id="finish-reading-btn" class="finish-reading-btn">
+                        <span class="finish-reading-icon">✅</span>
+                        <span class="finish-reading-label">Finish Reading</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Processing Steps (collapsible, below story) -->
+            <div class="processing-steps-container collapsed">
+                <div class="steps-header" id="steps-toggle-header">
+                    <span class="steps-icon">📋</span>
+                    <span class="steps-label">Processing Steps</span>
+                    <div class="steps-header-right">
+                        <span id="steps-mini-progress" class="steps-mini-progress">0%</span>
+                        <span class="steps-toggle-icon">▼</span>
+                    </div>
+                </div>
+
+                <div class="steps-body">
+
+                    <!-- Phase 1: Photo Analysis + Event (visible immediately) -->
+                    <div id="phase-1" class="processing-phase">
+                        <!-- Step 1: Photo Analysis -->
+                        <div id="step-analyze" class="process-step-card" data-status="pending">
+                            <div class="step-status-icon">⏳</div>
+                            <div class="step-content">
+                                <div class="step-title">Step 1: Photo Analysis</div>
+                                <div class="step-subtitle">Photo + Category</div>
+                                <div class="step-details" id="step-analyze-details">
+                                    <p>Analyzing your photo...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Fictional Event Generation -->
+                        <div id="step-event" class="process-step-card" data-status="pending">
+                            <div class="step-status-icon">⏸️</div>
+                            <div class="step-content">
+                                <div class="step-title">Step 2: Fictional Event Generation</div>
+                                <div class="step-subtitle">Story + Item/Character</div>
+                                <div class="step-details" id="step-event-details">
+                                    <p>Waiting...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phase 2: Fictional Image (hidden until event completes) -->
+                    <div id="phase-2" class="processing-phase phase-hidden">
+                        <!-- Step 3: Generate Fictional Image -->
+                        <div id="step-fictional-image" class="process-step-card" data-status="pending">
+                            <div class="step-status-icon">⏸️</div>
+                            <div class="step-content">
+                                <div class="step-title">Step 3: Fictional Image Generation</div>
+                                <div class="step-details" id="step-fictional-image-details">
+                                    <p>Waiting...</p>
+                                </div>
+                                <div class="step-progress">
+                                    <div class="step-progress-bar">
+                                        <div id="step-fictional-image-progress" class="step-progress-fill"
+                                            style="width: 0%">
+                                        </div>
+                                    </div>
+                                    <span id="step-fictional-image-percent" class="step-percent">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phase 3: 3D Models (hidden until image completes) -->
+                    <div id="phase-3" class="processing-phase phase-hidden">
+                        <!-- Step 4A: Photo Item 3D -->
+                        <div id="step-3d-photo" class="process-step-card" data-status="pending">
+                            <div class="step-status-icon">⏸️</div>
+                            <div class="step-content">
+                                <div class="step-title">Step 4A: Photo Item 3D</div>
+                                <div class="step-details" id="step-3d-photo-details">
+                                    <p>Waiting...</p>
+                                </div>
+                                <div class="step-progress">
+                                    <div class="step-progress-bar">
+                                        <div id="step-3d-photo-progress" class="step-progress-fill" style="width: 0%">
+                                        </div>
+                                    </div>
+                                    <span id="step-3d-photo-percent" class="step-percent">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 4B: Fictional Item 3D -->
+                        <div id="step-3d-fictional" class="process-step-card" data-status="pending">
+                            <div class="step-status-icon">⏸️</div>
+                            <div class="step-content">
+                                <div class="step-title">Step 4B: Fictional Item 3D</div>
+                                <div class="step-details" id="step-3d-fictional-details">
+                                    <p>Waiting for Step 3...</p>
+                                </div>
+                                <div class="step-progress">
+                                    <div class="step-progress-bar">
+                                        <div id="step-3d-fictional-progress" class="step-progress-fill"
+                                            style="width: 0%">
+                                        </div>
+                                    </div>
+                                    <span id="step-3d-fictional-percent" class="step-percent">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /.steps-body -->
+            </div>
+
+            <!-- Photo Puzzle Mini-Game (Fictional Image) -->
+            <div id="puzzle-game-section" class="puzzle-game-section hidden">
+                <div class="puzzle-game-header">
+                    <span class="puzzle-icon">🧩</span>
+                    <span id="puzzle-title" class="puzzle-title">Restore the Vision</span>
+                    <span class="puzzle-hint">Tap tiles to solve!</span>
+                </div>
+                <div class="puzzle-container">
+                    <div id="puzzle-board" class="puzzle-board">
+                        <!-- 9 puzzle tiles will be generated by JS -->
+                    </div>
+                </div>
+                <div class="puzzle-stats">
+                    <span id="puzzle-moves">Moves: 0</span>
+                    <span id="puzzle-timer">⏱️ 0:00</span>
+                </div>
+                <!-- 3D Progress shown below puzzle -->
+                <div id="puzzle-3d-progress" class="puzzle-3d-progress">
+                    <div class="puzzle-3d-progress-label">🔮 Materializing 3D objects...</div>
+                    <div class="puzzle-3d-progress-bar">
+                        <div id="puzzle-3d-progress-fill" class="puzzle-3d-progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Puzzle Appreciation Mode (shown after puzzle solved, waiting for 3D) -->
+            <div id="puzzle-appreciation" class="puzzle-appreciation hidden">
+                <div class="appreciation-image-wrap">
+                    <img id="appreciation-image" src="" alt="Restored Vision" />
+                </div>
+                <div class="appreciation-text">
+                    <span class="appreciation-icon">✨</span>
+                    <span id="appreciation-message">Vision Restored!</span>
+                </div>
+                <div class="appreciation-stats">
+                    <span id="appreciation-stats-text"></span>
+                </div>
+                <!-- 3D Progress in appreciation mode -->
+                <div id="appreciation-3d-progress" class="puzzle-3d-progress">
+                    <div class="puzzle-3d-progress-label">🔮 Materializing 3D objects...</div>
+                    <div class="puzzle-3d-progress-bar">
+                        <div id="appreciation-3d-progress-fill" class="puzzle-3d-progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overall Progress -->
+            <div class="overall-progress-section">
+                <div class="overall-progress-header">
+                    <span>Total Progress</span>
+                    <span id="overall-percent">0%</span>
+                </div>
+                <div class="overall-progress-bar">
+                    <div id="overall-progress-fill" class="overall-progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="time-remaining">⏱️ Estimated: <span id="time-remaining">~60s</span></p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== Page 5: Event Result ========== -->
+    <section id="page-event-result" class="page">
+        <header class="page-header compact">
+            <button class="back-btn" data-target="page-processing">◀ Back</button>
+            <h2 id="event-title">Event Result</h2>
+            <span class="event-counter">
+                Event <span id="result-event-num">1</span>/<span id="result-total-events">3</span>
+            </span>
+        </header>
+
+        <div class="event-result-content">
+            <!-- Fictional Event Section -->
+            <div class="result-section">
+                <div class="section-header">
+                    <span class="section-icon">📖</span>
+                    <span class="section-title">Fictional Event</span>
+                    <div class="lang-switcher" data-target="event-result">
+                        <button class="lang-btn active" data-lang="en">EN</button>
+                        <button class="lang-btn" data-lang="zh-CN">简</button>
+                        <button class="lang-btn" data-lang="zh-TW">繁</button>
+                    </div>
+                    <button id="tts-result-btn" class="tts-btn" title="Read aloud">
+                        <span class="tts-icon">🔊</span>
+                    </button>
+                </div>
+                <div class="story-text-box">
+                    <p id="event-story-text">You discovered a magical flower that glows with a soft light...</p>
+                </div>
+            </div>
+
+            <!-- AR Interaction Section (primary action) -->
+            <div class="result-section">
+                <div class="ar-interaction-card">
+                    <div class="ar-interaction-header">
+                        <span id="ar-interaction-icon" class="ar-interaction-icon">👆</span>
+                        <span id="ar-interaction-type" class="ar-interaction-type">Tap</span>
+                    </div>
+                    <p id="ar-interaction-desc" class="ar-interaction-desc">
+                        Tap at animated marks on the surface of the 3D object to reveal the fictional item.
+                    </p>
+                    <button id="enter-ar-interaction-btn" class="action-btn primary full-width"
+                        onclick="launchARInteraction()">
+                        🎮 Enter AR Interaction
+                    </button>
+                </div>
+            </div>
+
+            <!-- Collapsible: Event Info (contains Original Photo, Fictional Image, 3D Models) -->
+            <div class="result-section collapsible-section collapsed">
+                <div class="collapsible-header" data-toggle="collapsible">
+                    <span>📋 Event Info</span>
+                    <span class="collapse-arrow">▼</span>
+                </div>
+                <div class="collapsible-body">
+
+                    <!-- Sub-collapsible: Original Photo -->
+                    <div class="collapsible-section sub-collapsible collapsed">
+                        <div class="collapsible-header" data-toggle="collapsible">
+                            <span>📸 Original Photo</span>
+                            <span class="collapse-arrow">▼</span>
+                        </div>
+                        <div class="collapsible-body">
+                            <div class="image-card">
+                                <div class="image-container">
+                                    <img id="result-original-photo" src="" alt="Original Photo" />
+                                </div>
+                                <div class="image-card-footer">
+                                    <span class="item-icon">🔍</span>
+                                    <span id="photo-item-name" class="item-name">Object</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-collapsible: Fictional Image -->
+                    <div class="collapsible-section sub-collapsible collapsed">
+                        <div class="collapsible-header" data-toggle="collapsible">
+                            <span>🎨 Fictional Image</span>
+                            <span class="collapse-arrow">▼</span>
+                        </div>
+                        <div class="collapsible-body">
+                            <div class="image-card">
+                                <div class="image-container">
+                                    <img id="result-fictional-image" src="" alt="Fictional Image" />
+                                </div>
+                                <div class="image-card-footer">
+                                    <span class="item-icon">🔮</span>
+                                    <span id="fictional-item-name" class="item-name">Fictional Object</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-collapsible: 3D Models -->
+                    <div class="collapsible-section sub-collapsible collapsed">
+                        <div class="collapsible-header" data-toggle="collapsible">
+                            <span>📦 3D Models</span>
+                            <span class="collapse-arrow">▼</span>
+                        </div>
+                        <div class="collapsible-body">
+                            <!-- Photo Item 3D -->
+                            <div class="model-card">
+                                <div class="model-card-header">
+                                    <span id="photo-3d-title">🕯️ Photo Item 3D</span>
+                                </div>
+                                <div id="viewer-photo-item" class="model-viewer"></div>
+                                <div class="model-controls">
+                                    <span>👆 Drag to rotate ✌️ Pinch to zoom</span>
+                                </div>
+                                <button id="download-photo-model-btn" class="download-btn">
+                                    💾 Download GLB
+                                </button>
+                                <button id="ar-photo-model-btn" class="ar-btn" onclick="launchAR('photo')">
+                                    🔮 View in AR
+                                </button>
+                            </div>
+
+                            <!-- Fictional Item 3D -->
+                            <div class="model-card">
+                                <div class="model-card-header">
+                                    <span id="fictional-3d-title">◉ Fictional Item 3D</span>
+                                </div>
+                                <div id="viewer-fictional-item" class="model-viewer"></div>
+                                <div class="model-controls">
+                                    <span>👆 Drag to rotate ✌️ Pinch to zoom</span>
+                                </div>
+                                <button id="download-fictional-model-btn" class="download-btn">
+                                    💾 Download GLB
+                                </button>
+                                <button id="ar-fictional-model-btn" class="ar-btn" onclick="launchAR('fictional')">
+                                    🔮 View in AR
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Button (disabled until AR Interaction is clicked) -->
+        <div class="event-actions">
+            <button id="continue-adventure-btn" class="action-btn primary full-width" disabled>
+                📸 Next Photo (<span id="next-photo-num">2</span>/3)
+            </button>
+        </div>
+    </section>
+
+    <!-- ========== Page 6: Story Complete ========== -->
+    <section id="page-story-complete" class="page">
+        <header class="page-header compact">
+            <button class="back-btn" data-target="page-world-selection">← Home</button>
+            <h2>🎉 Story Complete!</h2>
+            <button class="logout-btn header-logout">Logout</button>
+        </header>
+
+        <div class="complete-story">
+            <div class="story-header">
+                <span class="story-label">📖 Full Story</span>
+                <div class="lang-switcher" data-target="complete-story">
+                    <button class="lang-btn active" data-lang="en">EN</button>
+                    <button class="lang-btn" data-lang="zh-CN">简</button>
+                    <button class="lang-btn" data-lang="zh-TW">繁</button>
+                </div>
+                <button id="tts-complete-btn" class="tts-btn" title="Read aloud">
+                    <span class="tts-icon">🔊</span>
+                </button>
+            </div>
+            <div id="complete-story-content" class="story-content">
+                <!-- Full story will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Collection Grid -->
+        <div class="collection-section">
+            <h3>🏆 Collected Items</h3>
+            <div id="collection-grid" class="collection-grid">
+                <!-- Item cards will be inserted here -->
+            </div>
+        </div>
+
+        <div class="complete-actions">
+            <button id="new-adventure-btn" class="action-btn primary">
+                🌟 Start New Adventure
+            </button>
+            <button id="share-story-btn" class="action-btn secondary">
+                📤 Share Story
+            </button>
+        </div>
+    </section>
+
+    <!-- ========== Fullscreen 3D Viewer Modal ========== -->
+    <div id="fullscreen-viewer-modal" class="modal" style="display: none;">
+        <div class="modal-header">
+            <span id="fullscreen-viewer-title">3D Model</span>
+            <button id="close-fullscreen-btn" class="close-btn">✕</button>
+        </div>
+        <div id="fullscreen-viewer" class="fullscreen-viewer"></div>
+        <div class="viewer-controls">
+            <small>💡 Drag to rotate | Pinch to zoom | Two-finger drag to pan</small>
+        </div>
+        <div class="modal-actions">
+            <button id="download-model-btn" class="action-btn secondary">
+                📥 Download Model
+            </button>
+        </div>
+    </div>
+
+    <!-- ========== Import Three.js ========== -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+    </script>
+
+
+
+    <!-- Reveal Transition Overlay (P2-1) -->
+    <div id="reveal-overlay" class="reveal-overlay hidden">
+        <div class="reveal-flash"></div>
+        <div class="reveal-narrative">
+            <p id="reveal-narrative-text" class="reveal-narrative-text"></p>
+        </div>
+    </div>
+
+    <!-- Ambient Sound Toggle (P2-2) — disabled -->
+
+    <!-- ========== Load Scripts ========== -->
+    <script src="config.js"></script>
+    <script src="js/ar-launcher.js"></script>
+    <script type="module" src="viewer3d.js"></script>
+    <script type="module" src="js/gpu-manager.js"></script>
+    <script type="module" src="js/story-api.js"></script>
+    <script type="module" src="js/dual-viewer.js"></script>
+    <script type="module" src="js/story.js"></script>
+</body>
+
+</html>
