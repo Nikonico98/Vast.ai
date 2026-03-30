@@ -195,6 +195,30 @@ def api_reload_template():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route('/api/update-template', methods=['POST'])
+def api_update_template():
+    """Upload template content directly (for deployment fixes)."""
+    data = request.get_json()
+    if not data or not data.get("content"):
+        return jsonify({"success": False, "error": "No content provided"}), 400
+
+    content = data["content"]
+    if len(content) < 100:
+        return jsonify({"success": False, "error": "Content too short"}), 400
+
+    try:
+        with open(str(TEMPLATE_FILE), "w", encoding="utf-8") as f:
+            f.write(content)
+        reload_system_prompt()
+        return jsonify({
+            "success": True,
+            "message": "Template updated and reloaded",
+            "template_length": len(SYSTEM_PROMPT_TEMPLATE) if SYSTEM_PROMPT_TEMPLATE else 0,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/api/template-status')
 def api_template_status():
     return jsonify({
