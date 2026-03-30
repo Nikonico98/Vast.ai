@@ -37,9 +37,9 @@ from database import (
     get_db_stats
 )
 
+import ai_service
 from ai_service import (
     OPENAI_CLIENT, OPENAI_AVAILABLE, LUMA_AVAILABLE, IMAGE_AVAILABLE,
-    SYSTEM_PROMPT_TEMPLATE, AR_INTERACTIONS,
     reload_system_prompt, chat_with_context,
     generate_opening_story, analyze_photo, generate_event,
     upload_image_to_cdn, generate_fictional_image
@@ -294,7 +294,7 @@ def api_reload_template():
         return jsonify({
             "success": True,
             "message": "Template reloaded successfully",
-            "template_length": len(SYSTEM_PROMPT_TEMPLATE) if SYSTEM_PROMPT_TEMPLATE else 0,
+            "template_length": len(ai_service.SYSTEM_PROMPT_TEMPLATE) if ai_service.SYSTEM_PROMPT_TEMPLATE else 0,
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -303,13 +303,42 @@ def api_reload_template():
 @app.route('/api/template-status')
 def api_template_status():
     return jsonify({
-        "template_loaded": SYSTEM_PROMPT_TEMPLATE is not None,
-        "template_length": len(SYSTEM_PROMPT_TEMPLATE) if SYSTEM_PROMPT_TEMPLATE else 0,
+        "template_loaded": ai_service.SYSTEM_PROMPT_TEMPLATE is not None,
+        "template_length": len(ai_service.SYSTEM_PROMPT_TEMPLATE) if ai_service.SYSTEM_PROMPT_TEMPLATE else 0,
         "template_file": str(TEMPLATE_FILE),
         "template_exists": TEMPLATE_FILE.exists(),
-        "ar_interactions": AR_INTERACTIONS,
+        "ar_interactions": ai_service.AR_INTERACTIONS,
         "format": "markdown"
     })
+
+
+@app.route('/api/test-ai')
+def api_test_ai():
+    """Debug endpoint: test OpenAI API call directly."""
+    import traceback
+    result = {
+        "openai_available": OPENAI_AVAILABLE,
+        "openai_client": OPENAI_CLIENT is not None,
+        "template_loaded": ai_service.SYSTEM_PROMPT_TEMPLATE is not None,
+        "template_length": len(ai_service.SYSTEM_PROMPT_TEMPLATE) if ai_service.SYSTEM_PROMPT_TEMPLATE else 0,
+        "model": OPENAI_MODEL,
+    }
+    if OPENAI_AVAILABLE and OPENAI_CLIENT:
+        try:
+            response = OPENAI_CLIENT.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[{"role": "user", "content": "Say hello in 5 words."}],
+                max_completion_tokens=50,
+                temperature=0.3,
+            )
+            result["test_response"] = response.choices[0].message.content
+            result["success"] = True
+        except Exception as e:
+            result["success"] = False
+            result["error"] = str(e)
+            result["error_type"] = type(e).__name__
+            result["traceback"] = traceback.format_exc()
+    return jsonify(result)
 
 
 # ==========================================
@@ -893,7 +922,7 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
             event_data["3d_item"] = line.split(":", 1)[1].strip()
 
     ar_type = ACTION_TO_AR.get(event_data["event_action_category"], "Tap")
-    ar_interaction_desc = AR_INTERACTIONS.get(ar_type, AR_INTERACTIONS_FALLBACK.get(ar_type, ""))
+    ar_interaction_desc = ai_service.AR_INTERACTIONS.get(ar_type, AR_INTERACTIONS_FALLBACK.get(ar_type, ""))
 
     # Generate fictional image
     fictional_image_url = None
@@ -1189,7 +1218,7 @@ if __name__ == "__main__":
 
     print("  📄 Loading Template...")
     reload_system_prompt()
-    template_status = "Loaded ✅" if SYSTEM_PROMPT_TEMPLATE else "Not found"
+    template_status = "Loaded ✅" if ai_service.SYSTEM_PROMPT_TEMPLATE else "Not found"
     print(f"  Template:     {template_status}")
     print("=" * 60)
     print(f"  🌐 URL: http://localhost:{SERVER_PORT}")
