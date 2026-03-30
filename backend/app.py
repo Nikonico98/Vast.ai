@@ -37,9 +37,9 @@ from database import (
     get_db_stats
 )
 
+import ai_service
 from ai_service import (
     OPENAI_CLIENT, OPENAI_AVAILABLE, LUMA_AVAILABLE, IMAGE_AVAILABLE,
-    SYSTEM_PROMPT_TEMPLATE, AR_INTERACTIONS,
     reload_system_prompt, chat_with_context,
     generate_opening_story, analyze_photo, generate_event,
     upload_image_to_cdn, generate_fictional_image
@@ -189,31 +189,7 @@ def api_reload_template():
         return jsonify({
             "success": True,
             "message": "Template reloaded successfully",
-            "template_length": len(SYSTEM_PROMPT_TEMPLATE) if SYSTEM_PROMPT_TEMPLATE else 0,
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route('/api/update-template', methods=['POST'])
-def api_update_template():
-    """Upload template content directly (for deployment fixes)."""
-    data = request.get_json()
-    if not data or not data.get("content"):
-        return jsonify({"success": False, "error": "No content provided"}), 400
-
-    content = data["content"]
-    if len(content) < 100:
-        return jsonify({"success": False, "error": "Content too short"}), 400
-
-    try:
-        with open(str(TEMPLATE_FILE), "w", encoding="utf-8") as f:
-            f.write(content)
-        reload_system_prompt()
-        return jsonify({
-            "success": True,
-            "message": "Template updated and reloaded",
-            "template_length": len(SYSTEM_PROMPT_TEMPLATE) if SYSTEM_PROMPT_TEMPLATE else 0,
+            "template_length": len(ai_service.SYSTEM_PROMPT_TEMPLATE) if ai_service.SYSTEM_PROMPT_TEMPLATE else 0,
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -222,11 +198,11 @@ def api_update_template():
 @app.route('/api/template-status')
 def api_template_status():
     return jsonify({
-        "template_loaded": SYSTEM_PROMPT_TEMPLATE is not None,
-        "template_length": len(SYSTEM_PROMPT_TEMPLATE) if SYSTEM_PROMPT_TEMPLATE else 0,
+        "template_loaded": ai_service.SYSTEM_PROMPT_TEMPLATE is not None,
+        "template_length": len(ai_service.SYSTEM_PROMPT_TEMPLATE) if ai_service.SYSTEM_PROMPT_TEMPLATE else 0,
         "template_file": str(TEMPLATE_FILE),
         "template_exists": TEMPLATE_FILE.exists(),
-        "ar_interactions": AR_INTERACTIONS,
+        "ar_interactions": ai_service.AR_INTERACTIONS,
         "format": "markdown"
     })
 
@@ -1103,7 +1079,7 @@ if __name__ == "__main__":
 
     print("  📄 Loading Template...")
     reload_system_prompt()
-    template_status = "Loaded ✅" if SYSTEM_PROMPT_TEMPLATE else "Not found"
+    template_status = "Loaded ✅" if ai_service.SYSTEM_PROMPT_TEMPLATE else "Not found"
     print(f"  Template:     {template_status}")
     print("=" * 60)
     print(f"  🌐 URL: http://localhost:{SERVER_PORT}")
