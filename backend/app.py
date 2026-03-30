@@ -812,7 +812,7 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
             event_data["3d_item"] = line.split(":", 1)[1].strip()
 
     ar_type = ACTION_TO_AR.get(event_data["event_action_category"], "Tap")
-    ar_interaction_desc = AR_INTERACTIONS.get(ar_type, AR_INTERACTIONS_FALLBACK.get(ar_type, ""))
+    ar_interaction_desc = ai_service.AR_INTERACTIONS.get(ar_type, AR_INTERACTIONS_FALLBACK.get(ar_type, ""))
 
     # Generate fictional image
     fictional_image_url = None
