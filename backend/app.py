@@ -207,6 +207,35 @@ def api_template_status():
     })
 
 
+@app.route('/api/test-ai')
+def api_test_ai():
+    """Debug endpoint: test OpenAI API call directly."""
+    import traceback
+    result = {
+        "openai_available": OPENAI_AVAILABLE,
+        "openai_client": OPENAI_CLIENT is not None,
+        "template_loaded": ai_service.SYSTEM_PROMPT_TEMPLATE is not None,
+        "template_length": len(ai_service.SYSTEM_PROMPT_TEMPLATE) if ai_service.SYSTEM_PROMPT_TEMPLATE else 0,
+        "model": OPENAI_MODEL,
+    }
+    if OPENAI_AVAILABLE and OPENAI_CLIENT:
+        try:
+            response = OPENAI_CLIENT.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[{"role": "user", "content": "Say hello in 5 words."}],
+                max_completion_tokens=50,
+                temperature=0.3,
+            )
+            result["test_response"] = response.choices[0].message.content
+            result["success"] = True
+        except Exception as e:
+            result["success"] = False
+            result["error"] = str(e)
+            result["error_type"] = type(e).__name__
+            result["traceback"] = traceback.format_exc()
+    return jsonify(result)
+
+
 # ==========================================
 # Authentication API
 # ==========================================
