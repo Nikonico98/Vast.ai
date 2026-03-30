@@ -77,6 +77,30 @@ reload_system_prompt()
 
 
 # ==========================================
+# Global JSON Error Handlers (prevent HTML error pages)
+# ==========================================
+import traceback
+
+@app.errorhandler(500)
+def handle_500(e):
+    log("ERROR", f"500 Internal Server Error: {e}")
+    traceback.print_exc()
+    return jsonify({"success": False, "error": "Internal server error"}), 500
+
+@app.errorhandler(404)
+def handle_404(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"success": False, "error": "Not found"}), 404
+    return e
+
+@app.errorhandler(405)
+def handle_405(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"success": False, "error": "Method not allowed"}), 405
+    return e
+
+
+# ==========================================
 # Image Compression for Vision API
 # ==========================================
 def compress_image_for_vision(image_path, max_dim=512, quality=80):
@@ -101,28 +125,32 @@ def compress_image_for_vision(image_path, max_dim=512, quality=80):
 # ==========================================
 @app.before_request
 def before_request():
-    from urllib.parse import urlparse
-    referer_path = urlparse(request.headers.get('Referer', '')).path
-    is_test_mode = (
-        request.path.startswith('/test')
-        or request.args.get('test') == '1'
-        or referer_path.startswith('/test')
-    )
+    try:
+        from urllib.parse import urlparse
+        referer_path = urlparse(request.headers.get('Referer', '')).path
+        is_test_mode = (
+            request.path.startswith('/test')
+            or request.args.get('test') == '1'
+            or referer_path.startswith('/test')
+        )
 
-    if is_test_mode:
-        g.data_folder = DATA_FOLDER_TEST
-        g.is_test_mode = True
-        DATA_FOLDER_TEST.mkdir(parents=True, exist_ok=True)
-        (DATA_FOLDER_TEST / "temp").mkdir(parents=True, exist_ok=True)
-    else:
-        g.data_folder = DATA_FOLDER
-        g.is_test_mode = False
+        if is_test_mode:
+            g.data_folder = DATA_FOLDER_TEST
+            g.is_test_mode = True
+            DATA_FOLDER_TEST.mkdir(parents=True, exist_ok=True)
+            (DATA_FOLDER_TEST / "temp").mkdir(parents=True, exist_ok=True)
+        else:
+            g.data_folder = DATA_FOLDER
+            g.is_test_mode = False
 
-    if "session_user_id" not in session:
-        session["session_user_id"] = str(uuid.uuid4())
-    g.user_id = session["session_user_id"]
-    g.user_path = g.data_folder / "journeys" / g.user_id
-    g.user_path.mkdir(parents=True, exist_ok=True)
+        if "session_user_id" not in session:
+            session["session_user_id"] = str(uuid.uuid4())
+        g.user_id = session["session_user_id"]
+        g.user_path = g.data_folder / "journeys" / g.user_id
+        g.user_path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        log("MIDDLEWARE", f"before_request error: {e}")
+        traceback.print_exc()
 
 
 # ==========================================
@@ -140,16 +168,93 @@ def health_check():
     })
 
 
+@app.route('/api/debug/test-db')
+def test_db():
+    """Debug endpoint to check database connectivity."""
+    from database import DB_PATH, get_db
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) as count FROM users")
+        count = cursor.fetchone()["count"]
+        conn.close()
+        return jsonify({
+            "db_path": str(DB_PATH),
+            "db_exists": DB_PATH.exists(),
+            "user_count": count,
+            "status": "ok"
+        })
+    except Exception as e:
+        return jsonify({
+            "db_path": str(DB_PATH),
+            "db_exists": DB_PATH.exists(),
+            "error": str(e),
+            "status": "error"
+        }), 500
+
+
 @app.route('/api/gpu/status', methods=['GET'])
 def gpu_status():
     """Proxy GPU status from Vast.ai worker."""
     health = gpu_worker_health()
+    gpu_count = health.get("gpu_count", 0)
+    gpu_mode = health.get("gpu_mode", "parallel")
+    sam3 = health.get("sam3", {})
+    sam3d = health.get("sam3d", {})
+
+    # Build GPU list for frontend display
+    gpus = []
+    if gpu_count > 0:
+        for i in range(gpu_count):
+            gpus.append({
+                "id": i,
+                "name": f"GPU {i}",
+                "status": "available",
+                "memory_used": 0,
+                "memory_total": 0,
+            })
+    elif health.get("status") == "healthy":
+        # VastAI reports healthy but gpu_count=0, still show as available
+        gpus.append({
+            "id": 0,
+            "name": "Vast.ai GPU Worker",
+            "status": "available",
+            "memory_used": 0,
+            "memory_total": 0,
+        })
+        gpu_count = 1
+
     return jsonify({
         "success": True,
-        "mode": "remote",
+        "mode": gpu_mode,
+        "total_gpus": gpu_count,
+        "available_gpus": gpu_count,
+        "gpus": gpus,
         "gpu_worker_url": VASTAI_GPU_URL,
         "gpu_worker_status": health,
+        "sam3": sam3,
+        "sam3d": sam3d,
     })
+
+
+@app.route('/api/gpu/mode', methods=['POST'])
+def set_gpu_mode():
+    """Proxy GPU mode change to Vast.ai worker."""
+    import requests as req
+    data = request.get_json() or {}
+    mode = data.get("mode", "parallel")
+    try:
+        r = req.post(
+            f"{VASTAI_GPU_URL}/api/gpu/mode",
+            json={"mode": mode},
+            headers={"X-API-Secret": GPU_API_SECRET},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            return jsonify(r.json())
+        return jsonify({"success": True, "mode": mode})
+    except Exception:
+        return jsonify({"success": True, "mode": mode})
 
 
 @app.route('/api/env-status')
@@ -237,21 +342,26 @@ def api_auth_register():
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_auth_login():
-    data = request.get_json() or {}
-    username = data.get("username", "").strip()
-    if not username:
-        return jsonify({"success": False, "error": "Username is required"}), 400
+    try:
+        data = request.get_json() or {}
+        username = data.get("username", "").strip()
+        if not username:
+            return jsonify({"success": False, "error": "Username is required"}), 400
 
-    user = get_user_by_username(username)
-    if user:
-        session["user_id"] = user["id"]
-        session["username"] = user["username"]
-        session["display_name"] = user["display_name"]
-        session["is_guest"] = False
-        log("AUTH", f"User logged in: {username}")
-        return jsonify({"success": True, "user": user})
-    else:
-        return jsonify({"success": False, "error": "User not found. Please register first."}), 401
+        user = get_user_by_username(username)
+        if user:
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            session["display_name"] = user["display_name"]
+            session["is_guest"] = False
+            log("AUTH", f"User logged in: {username}")
+            return jsonify({"success": True, "user": user})
+        else:
+            return jsonify({"success": False, "error": "User not found. Please register first."}), 401
+    except Exception as e:
+        log("AUTH", f"Login error: {e}")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"Server error: {str(e)}"}), 500
 
 
 @app.route('/api/auth/logout', methods=['POST'])

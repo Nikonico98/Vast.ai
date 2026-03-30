@@ -260,9 +260,13 @@ class StoryController {
     const voice = pickVoice();
     if (voice) {
       utterance.voice = voice;
-      console.log(`🗣️ TTS voice: ${voice.name} [${voice.lang}] for pref=${this._preferredLang}`);
+      console.log(
+        `🗣️ TTS voice: ${voice.name} [${voice.lang}] for pref=${this._preferredLang}`,
+      );
     } else {
-      console.warn(`⚠️ No matching voice for ${this._preferredLang}, falling back to lang=${utterance.lang}`);
+      console.warn(
+        `⚠️ No matching voice for ${this._preferredLang}, falling back to lang=${utterance.lang}`,
+      );
     }
 
     utterance.onstart = () => {
@@ -433,10 +437,16 @@ class StoryController {
     // Map target to DOM element and original text key
     const mapping = {
       story: { textEl: "story-content", goalEl: "goal-text" },
-      "processing-story": { textEl: "processing-story-text", goalEl: "processing-goal-text" },
+      "processing-story": {
+        textEl: "processing-story-text",
+        goalEl: "processing-goal-text",
+      },
       "event-preview": { textEl: "story-preview-text" },
       "event-result": { textEl: "event-story-text" },
-      "complete-story": { textEl: "complete-story-content", preserveImages: true },
+      "complete-story": {
+        textEl: "complete-story-content",
+        preserveImages: true,
+      },
     };
 
     const config = mapping[target];
@@ -497,7 +507,9 @@ class StoryController {
     el.classList.add("translating");
 
     // Show loading state on the switcher buttons for this area
-    const container = el.closest(".result-section, .story-container, .story-preview-section");
+    const container = el.closest(
+      ".result-section, .story-container, .story-preview-section",
+    );
     const loadingBtns = container
       ? container.querySelectorAll(`.lang-btn[data-lang="${lang}"]`)
       : [];
@@ -618,7 +630,8 @@ class StoryController {
 
   _findTarget(key) {
     if (key === "story-content" || key === "goal-text") return "story";
-    if (key === "processing-story-text" || key === "processing-goal-text") return "processing-story";
+    if (key === "processing-story-text" || key === "processing-goal-text")
+      return "processing-story";
     if (key === "story-preview-text") return "event-preview";
     if (key === "event-story-text") return "event-result";
     if (key === "complete-story-content") return "complete-story";
@@ -754,7 +767,11 @@ class StoryController {
 
     // Also recover when tab becomes visible again (e.g. user switches back)
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && !this._isOffline && navigator.onLine) {
+      if (
+        document.visibilityState === "visible" &&
+        !this._isOffline &&
+        navigator.onLine
+      ) {
         Logger.log("Tab became visible, checking state...");
         this.handleNetworkRecovery();
       }
@@ -833,7 +850,9 @@ class StoryController {
 
     // Only auto-recover on pages where network interruption causes a stuck state
     if (this.currentPage === PAGES.PROCESSING) {
-      Logger.log("Network recovery: on PROCESSING page, reloading journey from server...");
+      Logger.log(
+        "Network recovery: on PROCESSING page, reloading journey from server...",
+      );
       try {
         const response = await fetch(`/api/stories/${this.journeyId}`);
         const data = await response.json();
@@ -841,7 +860,9 @@ class StoryController {
           this.loadExistingJourney(data.journey);
         }
       } catch (error) {
-        Logger.warn("Network recovery fetch failed, will retry on next online event");
+        Logger.warn(
+          "Network recovery fetch failed, will retry on next online event",
+        );
       }
     }
   }
@@ -879,14 +900,14 @@ class StoryController {
   async checkAuthStatus() {
     try {
       const response = await fetch("/api/auth/me");
-      
+
       // Handle server errors gracefully
       if (!response.ok) {
         Logger.warn("Auth check failed, showing login page");
         this.navigateTo(PAGES.AUTH);
         return;
       }
-      
+
       const data = await response.json();
 
       if (data.logged_in) {
@@ -895,14 +916,14 @@ class StoryController {
         this.currentUser = data.user;
         await this.loadUserStories();
         // Try restore: URL hash → saved state → default
-        if (!this.restoreFromHash() && !await this.restoreFromSavedState()) {
+        if (!this.restoreFromHash() && !(await this.restoreFromSavedState())) {
           this.navigateTo(PAGES.STORY_HISTORY);
         }
       } else if (data.is_guest) {
         this.isLoggedIn = false;
         this.isGuest = true;
         // Try restore: URL hash → saved state → default
-        if (!this.restoreFromHash() && !await this.restoreFromSavedState()) {
+        if (!this.restoreFromHash() && !(await this.restoreFromSavedState())) {
           this.navigateTo(PAGES.WORLD_SELECTION);
         }
       } else {
@@ -941,7 +962,10 @@ class StoryController {
         if (guestData.success) {
           this.isGuest = true;
           Logger.log("Guest session auto-restored:", guestData.guest_id);
-          if (!this.restoreFromHash() && !(await this.restoreFromSavedState())) {
+          if (
+            !this.restoreFromHash() &&
+            !(await this.restoreFromSavedState())
+          ) {
             this.navigateTo(PAGES.WORLD_SELECTION);
           }
           return true;
@@ -959,7 +983,10 @@ class StoryController {
           this.currentUser = loginData.user;
           Logger.log("User session auto-restored:", loginData.user.username);
           await this.loadUserStories();
-          if (!this.restoreFromHash() && !(await this.restoreFromSavedState())) {
+          if (
+            !this.restoreFromHash() &&
+            !(await this.restoreFromSavedState())
+          ) {
             this.navigateTo(PAGES.STORY_HISTORY);
           }
           return true;
@@ -987,13 +1014,23 @@ class StoryController {
         body: JSON.stringify({ username }),
       });
 
+      if (
+        !response.ok &&
+        response.headers.get("content-type")?.indexOf("json") === -1
+      ) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.success) {
         this.isLoggedIn = true;
         this.isGuest = false;
         this.currentUser = data.user;
-        saveToStorage("iw_auth_state", { type: "user", username: data.user.username });
+        saveToStorage("iw_auth_state", {
+          type: "user",
+          username: data.user.username,
+        });
         await this.loadUserStories();
         this.navigateTo(PAGES.STORY_HISTORY);
       } else {
@@ -1028,7 +1065,10 @@ class StoryController {
         this.isLoggedIn = true;
         this.isGuest = false;
         this.currentUser = data.user;
-        saveToStorage("iw_auth_state", { type: "user", username: data.user.username });
+        saveToStorage("iw_auth_state", {
+          type: "user",
+          username: data.user.username,
+        });
         this.userStories = []; // New user has no stories
         this.navigateTo(PAGES.STORY_HISTORY);
       } else {
@@ -1057,7 +1097,10 @@ class StoryController {
       if (data.success) {
         this.isLoggedIn = false;
         this.isGuest = true;
-        saveToStorage("iw_auth_state", { type: "guest", guest_id: data.guest_id });
+        saveToStorage("iw_auth_state", {
+          type: "guest",
+          guest_id: data.guest_id,
+        });
         this.clearStoredState();
         this.resetToFirstPage();
         this.navigateTo(PAGES.WORLD_SELECTION);
@@ -1208,7 +1251,7 @@ class StoryController {
     this.journeyId = journey.journey_id;
     this.userFolderId = journey.user_id;
     this.selectedWorld = journey.imaginary_world;
-    
+
     // Get story content from the LAST node (the accepted story, not the first generated one)
     const lastNode = journey.nodes?.[journey.nodes.length - 1] || {};
     this.currentStory = {
@@ -1241,7 +1284,9 @@ class StoryController {
     if (this.events.length > 0) {
       const latestEvent = this.events[this.events.length - 1];
       if (this.isEvent3DPending(latestEvent)) {
-        Logger.log("Detected pending 3D on latest event (no marker), resuming...");
+        Logger.log(
+          "Detected pending 3D on latest event (no marker), resuming...",
+        );
         this.resumeProcessing(latestEvent, this.events.length - 1);
         return;
       }
@@ -1252,7 +1297,11 @@ class StoryController {
     const savedPage = savedState?.currentPage;
 
     // Determine which page to show
-    if (journey.status === "completed" || this.events.length >= PHOTOS_PER_STORY || savedPage === PAGES.STORY_COMPLETE) {
+    if (
+      journey.status === "completed" ||
+      this.events.length >= PHOTOS_PER_STORY ||
+      savedPage === PAGES.STORY_COMPLETE
+    ) {
       // Show completed page with all collected items
       this.buildCompleteStory();
       this.buildCollectionGrid();
@@ -1264,7 +1313,10 @@ class StoryController {
         // (continueAdventure will increment it when user clicks Continue)
         this.currentPhotoIndex = this.events.length - 1;
         const lastEvent = this.events[this.events.length - 1];
-        const eventData = this.mapBackendEvent(lastEvent, this.events.length - 1);
+        const eventData = this.mapBackendEvent(
+          lastEvent,
+          this.events.length - 1,
+        );
         this.showEventResult(eventData);
       } else {
         // In progress - go to photo upload for next event
@@ -1289,7 +1341,8 @@ class StoryController {
   isEvent3DPending(event) {
     if (!event) return false;
     const photo3dPending = event.photo_3d_job_id && !event.photo_3d_url;
-    const fictional3dPending = event.fictional_3d_job_id && !event.fictional_3d_url;
+    const fictional3dPending =
+      event.fictional_3d_job_id && !event.fictional_3d_url;
     return photo3dPending || fictional3dPending;
   }
 
@@ -1310,8 +1363,11 @@ class StoryController {
         photoPlaceCategory: backendEvent.photo_place_category,
         photoItemName: backendEvent.photo_item_name || backendEvent.photo_item,
         photoItemCategory: backendEvent.photo_item_category,
-        fictionalItemName: backendEvent.fictional_item_name || backendEvent.fictional_item_or_character,
-        fictionalLocation: backendEvent.fictional_location || backendEvent.location,
+        fictionalItemName:
+          backendEvent.fictional_item_name ||
+          backendEvent.fictional_item_or_character,
+        fictionalLocation:
+          backendEvent.fictional_location || backendEvent.location,
         photoImageUrl: backendEvent.photo_image_url,
         fictionalImageUrl: backendEvent.fictional_image_url,
         arInteraction: backendEvent.ar_interaction,
@@ -1335,7 +1391,9 @@ class StoryController {
 
       if (this.isEvent3DPending(latestEvent)) {
         // 3D still processing - resume polling
-        Logger.log("Recovery: event created, 3D still pending - resuming polling");
+        Logger.log(
+          "Recovery: event created, 3D still pending - resuming polling",
+        );
         this.resumeProcessing(latestEvent, currentCount - 1);
       } else {
         // 3D completed (or no 3D needed) - show event result directly
@@ -1391,8 +1449,11 @@ class StoryController {
 
     this.updateProcessingStep("event", "Event generated", {
       status: "completed",
-      fictionalItem: backendEvent.fictional_item_name || backendEvent.fictional_item_or_character,
-      fictionalLocation: backendEvent.fictional_location || backendEvent.location,
+      fictionalItem:
+        backendEvent.fictional_item_name ||
+        backendEvent.fictional_item_or_character,
+      fictionalLocation:
+        backendEvent.fictional_location || backendEvent.location,
       storyText: backendEvent.event_text,
     });
 
@@ -1401,7 +1462,9 @@ class StoryController {
         status: "completed",
         progress: 100,
         fictionalImageUrl: backendEvent.fictional_image_url,
-        fictionalItemName: backendEvent.fictional_item_name || backendEvent.fictional_item_or_character,
+        fictionalItemName:
+          backendEvent.fictional_item_name ||
+          backendEvent.fictional_item_or_character,
       });
     }
 
@@ -1415,8 +1478,14 @@ class StoryController {
     try {
       // If SKIP_3D_GENERATION, go straight to result
       if (CONFIG.SKIP_3D_GENERATION) {
-        this.updateProcessingStep("3d-photo", "Skipped", { status: "completed", progress: 100 });
-        this.updateProcessingStep("3d-fictional", "Skipped", { status: "completed", progress: 100 });
+        this.updateProcessingStep("3d-photo", "Skipped", {
+          status: "completed",
+          progress: 100,
+        });
+        this.updateProcessingStep("3d-fictional", "Skipped", {
+          status: "completed",
+          progress: 100,
+        });
         removeFromStorage("iw_processing_state");
         const eventData = this.mapBackendEvent(backendEvent, eventIndex);
         await delay(1000);
@@ -1435,7 +1504,9 @@ class StoryController {
           if (status.status === "completed" && status.glbUrl) {
             photoModelUrl = status.glbUrl;
           }
-        } catch (e) { /* will poll */ }
+        } catch (e) {
+          /* will poll */
+        }
       }
       if (fictionalJobId && !fictionalModelUrl) {
         try {
@@ -1443,7 +1514,9 @@ class StoryController {
           if (status.status === "completed" && status.glbUrl) {
             fictionalModelUrl = status.glbUrl;
           }
-        } catch (e) { /* will poll */ }
+        } catch (e) {
+          /* will poll */
+        }
       }
 
       const photoDone = !photoJobId || photoModelUrl;
@@ -1452,8 +1525,14 @@ class StoryController {
       // If both already complete, skip to result immediately
       if (photoDone && fictionalDone) {
         Logger.log("Recovery: both 3D models already complete");
-        this.updateProcessingStep("3d-photo", "Complete!", { status: "completed", progress: 100 });
-        this.updateProcessingStep("3d-fictional", "Complete!", { status: "completed", progress: 100 });
+        this.updateProcessingStep("3d-photo", "Complete!", {
+          status: "completed",
+          progress: 100,
+        });
+        this.updateProcessingStep("3d-fictional", "Complete!", {
+          status: "completed",
+          progress: 100,
+        });
         this.updateOverallProgress(100);
         removeFromStorage("iw_processing_state");
 
@@ -1470,47 +1549,61 @@ class StoryController {
       // Still pending - poll for 3D models
       Logger.log("Recovery: polling for pending 3D models...");
 
-      const photoPromise = (photoJobId && !photoModelUrl)
-        ? waitFor3DModel(photoJobId, (step, progress) => {
-            this.updateProcessingStep("3d-photo", "Generating 3D model...", {
-              status: "active",
-              progress: progress,
+      const photoPromise =
+        photoJobId && !photoModelUrl
+          ? waitFor3DModel(photoJobId, (step, progress) => {
+              this.updateProcessingStep("3d-photo", "Generating 3D model...", {
+                status: "active",
+                progress: progress,
+              });
+            }).then((url) => {
+              this.updateProcessingStep("3d-photo", "Complete!", {
+                status: "completed",
+                progress: 100,
+              });
+              return url;
+            })
+          : Promise.resolve(photoModelUrl).then((url) => {
+              this.updateProcessingStep(
+                "3d-photo",
+                url ? "Complete!" : "Skipped",
+                {
+                  status: "completed",
+                  progress: 100,
+                },
+              );
+              return url;
             });
-          }).then((url) => {
-            this.updateProcessingStep("3d-photo", "Complete!", {
-              status: "completed",
-              progress: 100,
-            });
-            return url;
-          })
-        : Promise.resolve(photoModelUrl).then((url) => {
-            this.updateProcessingStep("3d-photo", url ? "Complete!" : "Skipped", {
-              status: "completed",
-              progress: 100,
-            });
-            return url;
-          });
 
-      const fictionalPromise = (fictionalJobId && !fictionalModelUrl)
-        ? waitFor3DModel(fictionalJobId, (step, progress) => {
-            this.updateProcessingStep("3d-fictional", "Generating 3D model...", {
-              status: "active",
-              progress: progress,
+      const fictionalPromise =
+        fictionalJobId && !fictionalModelUrl
+          ? waitFor3DModel(fictionalJobId, (step, progress) => {
+              this.updateProcessingStep(
+                "3d-fictional",
+                "Generating 3D model...",
+                {
+                  status: "active",
+                  progress: progress,
+                },
+              );
+            }).then((url) => {
+              this.updateProcessingStep("3d-fictional", "Complete!", {
+                status: "completed",
+                progress: 100,
+              });
+              return url;
+            })
+          : Promise.resolve(fictionalModelUrl).then((url) => {
+              this.updateProcessingStep(
+                "3d-fictional",
+                url ? "Complete!" : "Skipped",
+                {
+                  status: "completed",
+                  progress: 100,
+                },
+              );
+              return url;
             });
-          }).then((url) => {
-            this.updateProcessingStep("3d-fictional", "Complete!", {
-              status: "completed",
-              progress: 100,
-            });
-            return url;
-          })
-        : Promise.resolve(fictionalModelUrl).then((url) => {
-            this.updateProcessingStep("3d-fictional", url ? "Complete!" : "Skipped", {
-              status: "completed",
-              progress: 100,
-            });
-            return url;
-          });
 
       const [finalPhotoUrl, finalFictionalUrl] = await Promise.all([
         photoPromise,
@@ -1669,7 +1762,10 @@ class StoryController {
         PAGES.PHOTO_UPLOAD,
       ];
       if (dataRequiredPages.includes(hash)) {
-        Logger.log("Hash points to data-dependent page, deferring to state restore:", hash);
+        Logger.log(
+          "Hash points to data-dependent page, deferring to state restore:",
+          hash,
+        );
         return false;
       }
       Logger.log("Restoring page from URL hash:", hash);
@@ -1704,7 +1800,9 @@ class StoryController {
     if (this.journeyId) {
       // If we were on the processing page, can't resume without server data
       if (this.currentPage === PAGES.PROCESSING) {
-        Logger.warn("Cannot resume processing without server data, going to photo upload");
+        Logger.warn(
+          "Cannot resume processing without server data, going to photo upload",
+        );
         removeFromStorage("iw_processing_state");
         this.navigateTo(PAGES.PHOTO_UPLOAD);
         this.updatePhotoUploadPage();
@@ -1811,7 +1909,9 @@ class StoryController {
     if (shouldShow) {
       // Update badge content
       if (icon) icon.textContent = WORLD_ICONS[this.selectedWorld] || "🌍";
-      if (name) name.textContent = WORLD_NAMES[this.selectedWorld] || this.selectedWorld;
+      if (name)
+        name.textContent =
+          WORLD_NAMES[this.selectedWorld] || this.selectedWorld;
 
       // Show badge
       removeClass(badge, "hidden");
@@ -1883,9 +1983,10 @@ class StoryController {
         SciFi_Galaxy: "Receiving interstellar broadcast...",
         Fantasy: "The oracle is speaking...",
       };
-      const loadingMsg = worldLoadingText[this.selectedWorld] || "Generating story background...";
-      storyContent.innerHTML =
-        `<p class="loading-text">${loadingMsg}</p>`;
+      const loadingMsg =
+        worldLoadingText[this.selectedWorld] ||
+        "Generating story background...";
+      storyContent.innerHTML = `<p class="loading-text">${loadingMsg}</p>`;
 
       // 🔄 Show loading state for goal with animation
       if (goalText) {
@@ -2116,7 +2217,11 @@ class StoryController {
   }
 
   async handlePhotoSelected(file) {
-    Logger.log("Photo selected:", file.name, `(${(file.size / 1024).toFixed(0)}KB)`);
+    Logger.log(
+      "Photo selected:",
+      file.name,
+      `(${(file.size / 1024).toFixed(0)}KB)`,
+    );
 
     // Compress image before storing (resize to 1024px max, JPEG 0.8 quality)
     const compressed = await compressImage(file, 1024, 0.8);
@@ -2208,7 +2313,9 @@ class StoryController {
 
     // Guard: prevent uploading beyond the event limit
     if (this.events.length >= PHOTOS_PER_STORY) {
-      Logger.error(`Already have ${this.events.length}/${PHOTOS_PER_STORY} events, cannot upload more`);
+      Logger.error(
+        `Already have ${this.events.length}/${PHOTOS_PER_STORY} events, cannot upload more`,
+      );
       this.showStoryComplete();
       return;
     }
@@ -2403,7 +2510,9 @@ class StoryController {
     const processingText = $$(".processing-text");
     if (processingText) {
       const goal = this.currentStory?.goal || "";
-      processingText.innerHTML = goal ? `🎯 ${goal}` : "Processing your photo...";
+      processingText.innerHTML = goal
+        ? `🎯 ${goal}`
+        : "Processing your photo...";
       processingText.style.color = ""; // Reset color
     }
 
@@ -2535,7 +2644,8 @@ class StoryController {
     const goalText = $("processing-goal-text");
     if (!section) return;
 
-    const storyBg = this.currentStory?.storyPlain || this.currentStory?.storyBackground || "";
+    const storyBg =
+      this.currentStory?.storyPlain || this.currentStory?.storyBackground || "";
     const goal = this.currentStory?.goal || "";
 
     if (storyBg) {
@@ -2567,7 +2677,10 @@ class StoryController {
     const previewImg = $("fictional-image-preview-img");
     const imgCaption = $$(".fictional-image-caption");
     if (skeleton) skeleton.classList.remove("hidden");
-    if (previewImg) { previewImg.classList.add("hidden"); previewImg.src = ""; }
+    if (previewImg) {
+      previewImg.classList.add("hidden");
+      previewImg.src = "";
+    }
     if (imgCaption) imgCaption.classList.add("hidden");
 
     // Clear any existing typewriter interval
@@ -2656,7 +2769,9 @@ class StoryController {
       Fantasy: `Conjuring ${itemName || "an enchanted vision"}...`,
     };
     if (skeletonLabel) {
-      skeletonLabel.textContent = skeletonLabels[this.selectedWorld] || `Generating ${itemName || "image"}...`;
+      skeletonLabel.textContent =
+        skeletonLabels[this.selectedWorld] ||
+        `Generating ${itemName || "image"}...`;
     }
 
     // Show the container (skeleton visible inside)
@@ -2873,22 +2988,33 @@ class StoryController {
     if (detailsEl && message) {
       // Step 1: Analyze - show photo place and item with typewriter
       if (step === "analyze" && (details.photoPlace || details.photoItem)) {
-        this.typewriteStepDetails(detailsEl, [
-          details.photoPlace ? `📍 Place: ${details.photoPlace}` : null,
-          details.photoItem ? `🔍 Item: ${details.photoItem}` : null,
-        ].filter(Boolean));
+        this.typewriteStepDetails(
+          detailsEl,
+          [
+            details.photoPlace ? `📍 Place: ${details.photoPlace}` : null,
+            details.photoItem ? `🔍 Item: ${details.photoItem}` : null,
+          ].filter(Boolean),
+        );
       }
       // Step 2: Event - show fictional item/location with typewriter, then story
       else if (step === "event" && details.status === "completed") {
-        this.typewriteStepDetails(detailsEl, [
-          details.fictionalLocation ? `📍 Location: ${details.fictionalLocation}` : null,
-          details.fictionalItem ? `🔮 Fictional: ${details.fictionalItem}` : null,
-        ].filter(Boolean), () => {
-          // After details typed, show story preview with typewriter effect
-          if (details.storyText) {
-            this.showStoryPreview(details.storyText, details);
-          }
-        });
+        this.typewriteStepDetails(
+          detailsEl,
+          [
+            details.fictionalLocation
+              ? `📍 Location: ${details.fictionalLocation}`
+              : null,
+            details.fictionalItem
+              ? `🔮 Fictional: ${details.fictionalItem}`
+              : null,
+          ].filter(Boolean),
+          () => {
+            // After details typed, show story preview with typewriter effect
+            if (details.storyText) {
+              this.showStoryPreview(details.storyText, details);
+            }
+          },
+        );
         // Show image skeleton immediately (image is generating in background)
         this.showImageSkeleton(details.fictionalItem);
 
@@ -2933,8 +3059,10 @@ class StoryController {
     // Sync 3D progress to puzzle/appreciation progress bars
     if (step === "3d-photo" || step === "3d-fictional") {
       // Calculate combined 3D progress (average of both)
-      const photoProgress = parseFloat($(`step-3d-photo-progress`)?.style.width) || 0;
-      const fictionalProgress = parseFloat($(`step-3d-fictional-progress`)?.style.width) || 0;
+      const photoProgress =
+        parseFloat($(`step-3d-photo-progress`)?.style.width) || 0;
+      const fictionalProgress =
+        parseFloat($(`step-3d-fictional-progress`)?.style.width) || 0;
       const combined3D = (photoProgress + fictionalProgress) / 2;
       this.syncPuzzle3DProgress(combined3D);
     }
@@ -3540,8 +3668,17 @@ class StoryController {
     this.events.forEach((eventData, index) => {
       const event = eventData.event || eventData;
       const text = event.storyText || event.event_text || "";
-      const imgUrl = event.fictionalImageUrl || event.fictional_image_url || eventData.fictional_image_url || "";
-      const itemName = event.fictionalItemName || event.fictional_item_name || event.fictional_item_or_character || event.item_or_character || "";
+      const imgUrl =
+        event.fictionalImageUrl ||
+        event.fictional_image_url ||
+        eventData.fictional_image_url ||
+        "";
+      const itemName =
+        event.fictionalItemName ||
+        event.fictional_item_name ||
+        event.fictional_item_or_character ||
+        event.item_or_character ||
+        "";
 
       let imgHtml = "";
       if (imgUrl) {
@@ -3932,7 +4069,9 @@ class StoryController {
       Logger.log("Puzzle: Fictional image pre-loaded");
     };
     img.onerror = () => {
-      Logger.log("Puzzle: Failed to pre-load fictional image, will retry on start");
+      Logger.log(
+        "Puzzle: Failed to pre-load fictional image, will retry on start",
+      );
       this.puzzleImageReady = false;
     };
     img.src = imageUrl;
@@ -4024,21 +4163,32 @@ class StoryController {
       } else {
         // Pick from edge/center tiles (1,3,4,5,7) — more impactful than corners
         const candidates = [1, 3, 5, 7];
-        this.puzzleState.removedTileIndex = candidates[Math.floor(Math.random() * candidates.length)];
+        this.puzzleState.removedTileIndex =
+          candidates[Math.floor(Math.random() * candidates.length)];
       }
 
       // First show the complete image briefly, then dissolve a tile
       this.showCompleteImageThenDissolve(puzzleSection);
     };
 
-    if (this._puzzleImg && this._puzzleImg.complete && this._puzzleImg.naturalWidth > 0) {
+    if (
+      this._puzzleImg &&
+      this._puzzleImg.complete &&
+      this._puzzleImg.naturalWidth > 0
+    ) {
       doSetup();
     } else {
       // Fallback: reload image
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => { this._puzzleImg = img; doSetup(); };
-      img.onerror = () => { this._puzzleImg = img; doSetup(); }; // show even if broken
+      img.onload = () => {
+        this._puzzleImg = img;
+        doSetup();
+      };
+      img.onerror = () => {
+        this._puzzleImg = img;
+        doSetup();
+      }; // show even if broken
       img.src = imageUrl;
     }
   }
@@ -4094,7 +4244,7 @@ class StoryController {
     this.puzzleState.tiles = [0, 1, 2, 3, 4, 5, 6, 7, 8];
     // Mark the removed tile position as empty (8)
     // Swap the value at removedTileValue position with value 8 at position 8
-    // Actually we keep it simpler: 
+    // Actually we keep it simpler:
     // tiles[i] = tile value displayed at position i
     // value 8 = empty slot, values 0-7 = image pieces
     // We want piece[removedTileValue] to not exist (it's the dissolved piece)
@@ -4142,7 +4292,8 @@ class StoryController {
 
     for (let i = 0; i < moves; i++) {
       const neighbors = this.getValidMoves(emptyIdx);
-      const randomNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+      const randomNeighbor =
+        neighbors[Math.floor(Math.random() * neighbors.length)];
       tiles[emptyIdx] = tiles[randomNeighbor];
       tiles[randomNeighbor] = 8;
       emptyIdx = randomNeighbor;
@@ -4188,7 +4339,10 @@ class StoryController {
 
         // Check if tile is in correct position
         // Correct: at position currentIdx, the piece whose original position == currentIdx
-        const expectedPiece = (currentIdx === removedTileValue) ? 8 : this.puzzlePieceToOriginal.indexOf(currentIdx);
+        const expectedPiece =
+          currentIdx === removedTileValue
+            ? 8
+            : this.puzzlePieceToOriginal.indexOf(currentIdx);
         if (tileValue === expectedPiece) {
           tile.classList.add("correct");
         }
@@ -4246,19 +4400,25 @@ class StoryController {
     this.puzzleState.solved = true;
     this.stopPuzzleTimer();
 
-    const timeTaken = Math.floor((Date.now() - this.puzzleState.startTime) / 1000);
+    const timeTaken = Math.floor(
+      (Date.now() - this.puzzleState.startTime) / 1000,
+    );
     const minutes = Math.floor(timeTaken / 60);
     const seconds = timeTaken % 60;
     const timeStr = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-    Logger.log(`Puzzle completed! Moves: ${this.puzzleState.moves}, Time: ${timeStr}`);
+    Logger.log(
+      `Puzzle completed! Moves: ${this.puzzleState.moves}, Time: ${timeStr}`,
+    );
 
     // Cascade animation on all tiles
     const allTiles = document.querySelectorAll(".puzzle-tile");
     allTiles.forEach((tile, idx) => {
       setTimeout(() => {
         tile.style.transform = "scale(1.05)";
-        setTimeout(() => { tile.style.transform = "scale(1)"; }, 200);
+        setTimeout(() => {
+          tile.style.transform = "scale(1)";
+        }, 200);
       }, idx * 50);
     });
 
@@ -4345,7 +4505,9 @@ class StoryController {
     const timerEl = $("puzzle-timer");
     if (movesEl) movesEl.textContent = `Moves: ${this.puzzleState.moves}`;
     if (timerEl && this.puzzleState.startTime) {
-      const elapsed = Math.floor((Date.now() - this.puzzleState.startTime) / 1000);
+      const elapsed = Math.floor(
+        (Date.now() - this.puzzleState.startTime) / 1000,
+      );
       const minutes = Math.floor(elapsed / 60);
       const seconds = elapsed % 60;
       timerEl.textContent = `\u23f1\ufe0f ${minutes}:${seconds.toString().padStart(2, "0")}`;
