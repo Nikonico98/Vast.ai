@@ -261,7 +261,7 @@ def set_gpu_mode():
 def env_status():
     """Check environment status. SAM3/SAM3D runs on Vast.ai."""
     gpu_health = gpu_worker_health()
-    gpu_ready = gpu_health.get("status") == "healthy"
+    gpu_ready = gpu_health.get("status") in ("healthy", "ok")
     return jsonify({
         "timestamp": datetime.now().isoformat(),
         "deployment": "hostinger-split",
@@ -1012,8 +1012,11 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
             photo_cutout_output = None
             fictional_cutout_output = None
 
-        # --- Photo 3D ---
-        if event.get("photo_item"):
+        # --- Parallel 3D generation: Photo + Fictional run simultaneously ---
+        def _generate_photo_3d():
+            """Thread: generate 3D model from user's real photo."""
+            if not event.get("photo_item"):
+                return
             photo_job_id = f"{journey_id}_photo_{event_index}"
             simplified_prompt = simplify_prompt_for_sam3(event["photo_item"])
             log("3D_GEN", f"[PHOTO] Sending to GPU worker: {simplified_prompt}")
@@ -1039,35 +1042,50 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
                 if user_id:
                     event["photo_3d_url"] = f"/user/{user_id}/real_3d/event_{event_index + 1}.glb"
 
-        # --- Fictional 3D ---
-        if fictional_image_path and event.get("item_or_character"):
+        def _generate_fictional_3d():
+            """Thread: generate 3D model from AI-generated fictional image."""
+            if not (fictional_image_path and event.get("item_or_character")):
+                return
             fictional_job_id = f"{journey_id}_fictional_{event_index}"
-            fi_path = Path(fictional_image_path) if fictional_image_path else None
+            fi_path = Path(fictional_image_path)
 
-            if fi_path and fi_path.exists():
-                simplified_prompt = simplify_prompt_for_sam3(event["item_or_character"])
-                log("3D_GEN", f"[FICTIONAL] Sending to GPU worker: {simplified_prompt}")
-                update_job_status(fictional_job_id, "processing", "Sending to GPU worker", 10)
+            if not fi_path.exists():
+                return
 
-                ok, err = run_remote_3d_pipeline(
-                    job_id=fictional_job_id,
-                    image_path=str(fi_path),
-                    prompt=simplified_prompt,
-                    glb_output_path=str(fictional_3d_output),
-                    cutout_output_path=str(fictional_cutout_output) if fictional_cutout_output else None,
-                )
+            simplified_prompt = simplify_prompt_for_sam3(event["item_or_character"])
+            log("3D_GEN", f"[FICTIONAL] Sending to GPU worker: {simplified_prompt}")
+            update_job_status(fictional_job_id, "processing", "Sending to GPU worker", 10)
 
-                if ok:
-                    update_job_status(fictional_job_id, "completed", "Complete", 100, files={"glb": str(fictional_3d_output)})
-                    if user_id:
-                        event["fictional_3d_url"] = f"/user/{user_id}/fictional_3d/event_{event_index + 1}.glb"
-                        event["fictional_cutout_url"] = f"/user/{user_id}/cutouts/fictional_event_{event_index + 1}.png"
-                else:
-                    log("3D_GEN", f"[FICTIONAL] Failed: {err}")
-                    create_placeholder_glb(str(fictional_3d_output))
-                    update_job_status(fictional_job_id, "completed", "Placeholder", 100, files={"glb": str(fictional_3d_output)})
-                    if user_id:
-                        event["fictional_3d_url"] = f"/user/{user_id}/fictional_3d/event_{event_index + 1}.glb"
+            ok, err = run_remote_3d_pipeline(
+                job_id=fictional_job_id,
+                image_path=str(fi_path),
+                prompt=simplified_prompt,
+                glb_output_path=str(fictional_3d_output),
+                cutout_output_path=str(fictional_cutout_output) if fictional_cutout_output else None,
+            )
+
+            if ok:
+                update_job_status(fictional_job_id, "completed", "Complete", 100, files={"glb": str(fictional_3d_output)})
+                if user_id:
+                    event["fictional_3d_url"] = f"/user/{user_id}/fictional_3d/event_{event_index + 1}.glb"
+                    event["fictional_cutout_url"] = f"/user/{user_id}/cutouts/fictional_event_{event_index + 1}.png"
+            else:
+                log("3D_GEN", f"[FICTIONAL] Failed: {err}")
+                create_placeholder_glb(str(fictional_3d_output))
+                update_job_status(fictional_job_id, "completed", "Placeholder", 100, files={"glb": str(fictional_3d_output)})
+                if user_id:
+                    event["fictional_3d_url"] = f"/user/{user_id}/fictional_3d/event_{event_index + 1}.glb"
+
+        # Launch both 3D jobs in parallel threads
+        photo_thread = threading.Thread(target=_generate_photo_3d, daemon=True)
+        fictional_thread = threading.Thread(target=_generate_fictional_3d, daemon=True)
+
+        photo_thread.start()
+        fictional_thread.start()
+
+        # Wait for both to finish before saving journey
+        photo_thread.join()
+        fictional_thread.join()
 
         smart_save_journey(user_id or saved_user_id, journey_id, journey, data_folder=saved_data_folder)
         log("3D_GEN", f"3D models generated for event {event_index}")

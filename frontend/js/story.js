@@ -2996,7 +2996,8 @@ class StoryController {
           ].filter(Boolean),
         );
       }
-      // Step 2: Event - show fictional item/location with typewriter, then story
+      // Step 2: Event - show fictional item/location with typewriter (non-blocking)
+      // Story preview and image skeleton fire immediately, no waiting for typewriter
       else if (step === "event" && details.status === "completed") {
         this.typewriteStepDetails(
           detailsEl,
@@ -3008,14 +3009,12 @@ class StoryController {
               ? `🔮 Fictional: ${details.fictionalItem}`
               : null,
           ].filter(Boolean),
-          () => {
-            // After details typed, show story preview with typewriter effect
-            if (details.storyText) {
-              this.showStoryPreview(details.storyText, details);
-            }
-          },
         );
-        // Show image skeleton immediately (image is generating in background)
+        // Show story preview immediately (don't wait for typewriter to finish)
+        if (details.storyText) {
+          this.showStoryPreview(details.storyText, details);
+        }
+        // Show image skeleton immediately
         this.showImageSkeleton(details.fictionalItem);
 
         // Reveal Phase 2 (Step 3: Image Generation)

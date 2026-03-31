@@ -25,7 +25,7 @@ def _headers():
 def gpu_worker_health() -> dict:
     """Check if the Vast.ai GPU worker is reachable and healthy."""
     try:
-        r = requests.get(f"{VASTAI_GPU_URL}/health", headers=_headers(), timeout=10)
+        r = requests.get(f"{VASTAI_GPU_URL}/api/gpu/health", headers=_headers(), timeout=10)
         return r.json()
     except Exception as e:
         return {"status": "unreachable", "error": str(e)}
