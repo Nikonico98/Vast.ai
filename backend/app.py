@@ -226,40 +226,6 @@ def gpu_status():
         "sam3d": health.get("sam3d", {}),
     })
 
-    # Build GPU list for frontend display
-    gpus = []
-    if gpu_count > 0:
-        for i in range(gpu_count):
-            gpus.append({
-                "id": i,
-                "name": f"GPU {i}",
-                "status": "available",
-                "memory_used": 0,
-                "memory_total": 0,
-            })
-    elif health.get("status") == "healthy":
-        # VastAI reports healthy but gpu_count=0, still show as available
-        gpus.append({
-            "id": 0,
-            "name": "Vast.ai GPU Worker",
-            "status": "available",
-            "memory_used": 0,
-            "memory_total": 0,
-        })
-        gpu_count = 1
-
-    return jsonify({
-        "success": True,
-        "mode": gpu_mode,
-        "total_gpus": gpu_count,
-        "available_gpus": gpu_count,
-        "gpus": gpus,
-        "gpu_worker_url": VASTAI_GPU_URL,
-        "gpu_worker_status": health,
-        "sam3": sam3,
-        "sam3d": sam3d,
-    })
-
 
 @app.route('/api/gpu/mode', methods=['POST'])
 def set_gpu_mode():

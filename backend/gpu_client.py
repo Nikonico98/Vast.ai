@@ -25,8 +25,48 @@ def _headers():
 def gpu_worker_health() -> dict:
     """Check if the Vast.ai GPU worker is reachable and healthy."""
     try:
-        r = requests.get(f"{VASTAI_GPU_URL}/api/gpu/health", headers=_headers(), timeout=10)
-        return r.json()
+        # Try the management portal endpoints first
+        health = {}
+        r = requests.get(f"{VASTAI_GPU_URL}/health", headers=_headers(), timeout=10)
+        if r.status_code == 200:
+            health = r.json()
+
+        # Get detailed GPU metrics from system-metrics
+        try:
+            r2 = requests.get(f"{VASTAI_GPU_URL}/system-metrics", headers=_headers(), timeout=10)
+            if r2.status_code == 200:
+                metrics = r2.json()
+                gpu_info = metrics.get("gpu", {})
+                health["gpu_count"] = gpu_info.get("count", gpu_info.get("nvidia_count", 0))
+                health["available_gpus"] = health["gpu_count"]
+                health["gpu_metrics"] = gpu_info
+                # Build gpu list for frontend
+                gpus = []
+                for i in range(health["gpu_count"]):
+                    gpus.append({
+                        "id": i,
+                        "name": f"GPU {i}",
+                        "status": "idle",
+                        "total_memory_mb": gpu_info.get("memory_total", 0) / max(health["gpu_count"], 1),
+                        "free_memory_mb": (gpu_info.get("memory_total", 0) - gpu_info.get("memory_used", 0)) / max(health["gpu_count"], 1),
+                        "utilization": gpu_info.get("avg_load_percent", 0),
+                    })
+                health["gpus"] = gpus
+                if health.get("status") == "ok":
+                    health["status"] = "healthy"
+        except Exception:
+            pass
+
+        # Fallback: try the old /api/gpu/health endpoint
+        if not health.get("gpu_count"):
+            try:
+                r3 = requests.get(f"{VASTAI_GPU_URL}/api/gpu/health", headers=_headers(), timeout=10)
+                if r3.status_code == 200:
+                    health.update(r3.json())
+            except Exception:
+                pass
+
+        return health if health else {"status": "unreachable", "error": "No valid response"}
     except Exception as e:
         return {"status": "unreachable", "error": str(e)}
 
