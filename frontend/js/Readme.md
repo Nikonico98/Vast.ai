@@ -1,278 +1,50 @@
-# Imaginary World 前端 js 目录说明
+# JS Modules — Frontend Business Logic
+# JS 模块 — 前端业务逻辑
 
-> 写给文科工程师的前端逻辑说明书 📖
+> **EN:** This folder contains the core frontend business logic modules. The main state machine (`story.js`) orchestrates the entire user journey, while other modules handle specific responsibilities like API communication, 3D rendering, and AR launching.
 >
-> 这个文件夹是前端的“大脑区”。如果 `index.html` 是舞台，`style.css` 是服装和灯光，那 `js/` 里的文件就是导演、场务、通讯员和发射员。
+> **中文：** 这个文件夹包含核心前端业务逻辑模块。主状态机（`story.js`）编排整个用户旅程，其他模块各自负责 API 通信、3D 渲染、AR 启动等功能。
 
 ---
 
-## 这个文件夹是干什么的？
+## File Guide / 文件说明
 
-`frontend/js/` 主要放的是前端模块化逻辑。
-
-这些文件不负责页面最底层的 HTML 骨架，也不主要负责纯视觉样式，而是负责：
-
-- 页面怎么切换
-- 用户点击后发生什么
-- 怎么和后端说话
-- 3D 预览如何工作
-- AR 页面如何被打开
-- GPU 状态如何显示
-
-你可以把这里理解成“前端控制室”。
+| File / 文件 | When to use / 什么时候用 | Description / 说明 |
+|:------------|:------------------------|:-------------------|
+| `story.js` | 🧠 **Core flow logic** / 核心流程逻辑 | The largest and most complex file. Implements the page state machine (auth → world → photo → processing → result → complete), manages photo upload, calls story-api for backend communication, displays typewriter-effect story text, polls 3D job status, triggers dual 3D viewer and AR launcher. If something is broken in the user flow, start debugging here. / 最大最复杂的文件。实现页面状态机，管理照片上传、调用 API、显示打字机效果故事文字、轮询 3D 任务、触发 3D 查看器和 AR 启动。用户流程出问题从这里开始调试。 |
+| `story-api.js` | 📡 **API communication** / API 通信 | Wraps all backend API calls — `startJourney()`, `submitPhotoEvent()`, `pollJobStatus()`, `getStoryDetails()`, etc. Handles response parsing, error extraction, base URL construction, and data normalization (maps backend field names to frontend-friendly names like `fictionalImageUrl`). / 封装所有后端 API 调用。处理响应解析、错误提取、URL 构建和数据规范化（将后端字段名映射为前端友好名称）。 |
+| `dual-viewer.js` | 👀 **Dual 3D rendering** / 双 3D 渲染 | Renders two Three.js GLB model viewers side-by-side: "Real" (from user's photo) and "Fictional" (AI-generated). Supports fullscreen toggle, loading spinner states, model swap, and orbit controls for each viewer independently. / 并排渲染两个 Three.js GLB 模型查看器。支持全屏切换、加载状态、模型交换和独立轨道控制。 |
+| `ar-launcher.js` | 🚀 **AR page routing** / AR 页面路由 | Builds the correct AR page URL based on the event's `ar_interaction_type` (Tap → `/ar/tap/`, Rotate → `/ar/rotate/`, Track → `/ar/track/`) and appends query parameters for model paths. Handles navigation to the AR sub-page. / 根据事件的 `ar_interaction_type` 构建正确的 AR 页面 URL 并附加模型路径参数。 |
+| `gpu-manager.js` | 📊 **GPU status panel** / GPU 状态面板 | Displays Vast.ai GPU worker health, instance status (running/stopped), and provides UI controls for starting, stopping, and restarting the GPU instance and its services. / 显示 GPU 工作站健康状态、实例状态，提供启停和重启的 UI 控制。 |
+| `ambient-sound.js` | 🔊 **Background audio** / 背景音频 | Ambient sound engine that plays world-themed audio loops during the story experience. Manages audio context, volume, fade in/out, and user interaction requirements for autoplay. / 环境音效引擎，在故事体验中播放世界主题音频循环。管理音频上下文、音量、淡入淡出。 |
 
 ---
 
-## 这个目录里有哪几个核心文件？
+## Recommended Reading Order / 推荐阅读顺序
 
-| 文件 | 一句话说明 | 类比 |
-|------|-----------|------|
-| `story.js` | 整个故事流程的总导演 | 🎬 导演 |
-| `story-api.js` | 负责和后端 API 通信 | 📡 通讯员 |
-| `dual-viewer.js` | 管理 3D 模型预览器 | 🖼️ 展示台管理员 |
-| `ar-launcher.js` | 打开 AR 页面 | 🚀 发射台 |
-| `gpu-manager.js` | 显示和切换 GPU 状态 | 📊 仪表盘 |
-| `ambient-sound.js` | 程序化环境音效生成 | 🔊 背景音乐 |
-
-这六个文件基本可以看成“各司其职的前端小组”。
+1. **`story.js`** — understand the state machine and overall flow first / 先理解状态机和整体流程
+2. **`story-api.js`** — understand how frontend talks to backend / 理解前后端如何通信
+3. **`dual-viewer.js`** — understand 3D model rendering / 理解 3D 模型渲染
+4. **`ar-launcher.js`** — understand AR page navigation / 理解 AR 页面跳转
 
 ---
 
-## 最重要的文件是谁？
+## Module Dependency Diagram / 模块依赖关系
 
-如果只能先理解一个，那就先看：
+```
+story.js (main controller / 主控制器)
+    ├── story-api.js    (API calls / API 调用)
+    ├── dual-viewer.js  (3D rendering / 3D 渲染)
+    ├── ar-launcher.js  (AR navigation / AR 跳转)
+    └── ambient-sound.js (audio / 音频)
 
-- `story.js`
-
-因为它掌管的是整个用户流程。
-
-用户从登录开始，到选世界、看故事、上传照片、等待处理、看 3D、进入 AR、继续下一张照片，这一整条流程，基本都是它在调度。
-
-所以你可以把它理解成：
-
-- 不是一个页面的脚本
-- 而是整个前端剧情推进系统
-
----
-
-## 每个文件到底负责什么？
-
-### `story.js` — 🎬 导演
-
-这是整个前端交互的总控文件。
-
-它负责：
-
-- 初始化页面状态
-- 绑定按钮点击、表单提交等事件
-- 管理登录、注册、Guest 登录
-- 控制页面切换
-- 调用 API 获取故事和结果
-- 驱动 3D 预览和 AR 启动
-- 处理本地存储恢复
-
-你可以把它理解成“前端状态机 + 主流程控制器”。
-
-如果用户说：
-
-- 为什么点击按钮后没跳页？
-- 为什么 Guest 登录后没进去？
-- 为什么刷新后页面状态丢了？
-
-通常第一站就该查这里。
-
-### `story-api.js` — 📡 通讯员
-
-这个文件不太负责 UI，主要负责“前端怎么和后端说话”。
-
-它封装的事情包括：
-
-- 开始一段新故事
-- 接受或重生故事背景
-- 上传照片触发事件生成
-- 等待 3D 模型完成
-- 查询任务状态
-
-你可以把它理解成前端的“外联部门”。
-
-如果页面本身没问题，但数据拿不到，或者接口报错，优先看这里。
-
-### `dual-viewer.js` — 🖼️ 展示台管理员
-
-它负责 3D 模型预览。
-
-比如在事件结果页，用户会看到：
-
-- 真实物体 3D
-- 虚构物体 3D
-
-这两个模型怎么加载、怎么摆放、怎么旋转缩放、怎么全屏查看，主要就是它在处理。
-
-如果用户说：
-
-- 模型显示不出来
-- 模型太大太小
-- 旋转缩放体验有问题
-- 全屏预览不正常
-
-那通常就要看这里。
-
-### `ar-launcher.js` — 🚀 发射台
-
-这个文件负责把当前页面里的数据，整理成 AR 页面能看懂的 URL，然后打开新标签页。
-
-它主要处理两类事：
-
-- 打开单模型 AR 查看页：`/ar/viewer/`
-- 打开双模型互动 AR 页：`/ar/tap/`、`/ar/rotate/`、`/ar/track/`
-
-你可以把它理解成：
-
-- 不负责 AR 里面怎么玩
-- 只负责把用户送进正确的 AR 房间
-
-如果用户说：
-
-- 为什么点了 AR 没打开？
-- 为什么打开的是 Tap，不是 Rotate？
-- 为什么模型 URL 传错了？
-
-那通常要查这里。
-
-### `gpu-manager.js` — 📊 仪表盘
-
-这个文件负责显示 GPU 相关状态。
-
-它更像一个运维可视化面板，不是核心故事逻辑的一部分，但对排查系统状态很有帮助。
-
-如果你看到页面里有 GPU 可用数、并行/顺序模式切换之类的东西，大概率就是它在工作。
-
-### `ambient-sound.js` — 🔊 背景音乐
-
-这个文件使用 Web Audio API 程序化生成环境音效。
-
-它的特点是：
-
-- 根据不同的幻想世界类型生成对应的背景音
-- 使用振荡器和滤波噪声合成，不需要外部音频文件
-- 支持淡入/淡出和静音切换
-
-它更接近“氛围增强器”，而不是核心业务逻辑。
-
----
-
-## 这些文件是怎么协作的？
-
-可以用一句很实用的话来记：
-
-- `story.js` 发号施令
-- `story-api.js` 去找后端拿数据
-- `dual-viewer.js` 负责把 3D 模型展示出来
-- `ar-launcher.js` 负责把用户送进 AR
-- `gpu-manager.js` 负责显示系统 GPU 状态
-
-如果画成流程，大概是这样：
-
-```text
-用户点击按钮
-   ↓
-story.js 决定下一步
-   ↓
-需要数据 → story-api.js 请求后端
-   ↓
-需要看模型 → dual-viewer.js 渲染 3D
-   ↓
-需要进 AR → ar-launcher.js 打开 AR 页面
+gpu-manager.js          (independent panel / 独立面板)
 ```
 
----
+`story.js` imports and orchestrates all other modules. `gpu-manager.js` runs independently as an admin panel.
 
-## 什么时候优先看哪个文件？
-
-| 你遇到的问题 | 优先看哪里 |
-|-------------|-----------|
-| 页面跳转不对 | `story.js` |
-| 登录 / Guest 登录出问题 | `story.js` |
-| 接口请求失败 | `story-api.js` |
-| 返回数据结构不匹配 | `story-api.js` + `story.js` |
-| 3D 模型显示异常 | `dual-viewer.js` |
-| 点击 AR 按钮没反应 | `ar-launcher.js` |
-| 进入了错误的 AR 类型 | `ar-launcher.js` |
-| GPU 状态显示不对 | `gpu-manager.js` |
+`story.js` 导入并编排所有其他模块。`gpu-manager.js` 作为管理面板独立运行。
 
 ---
 
-## 如果我想修改……
-
-| 我想要…… | 去哪里改 |
-|----------|---------|
-| 改故事流程、页面切换 | `story.js` |
-| 改登录、注册、Guest 登录逻辑 | `story.js` |
-| 改 API 请求地址或请求体 | `story-api.js` |
-| 改 3D 预览体验 | `dual-viewer.js` |
-| 改 AR 打开方式 | `ar-launcher.js` |
-| 改 GPU 面板逻辑 | `gpu-manager.js` |
-
----
-
-## 哪些概念最值得先记住？
-
-### 1. `story.js` 是主流程
-
-它不是普通小工具脚本，而是整个前端故事体验的主控室。
-
-### 2. `story-api.js` 是前后端交界处
-
-如果前端和后端“说话没说明白”，通常这里最关键。
-
-### 3. `ar-launcher.js` 只负责“打开 AR”
-
-它不是 AR 内部互动逻辑本身。
-
-真正的 AR 页面逻辑在：
-
-- `frontend/ar/`
-- 更上游的源码在 `8thWall/`
-
-### 4. `dual-viewer.js` 只管 3D 展示
-
-它不是故事生成器，也不是 API 模块，而是“看模型”的专业户。
-
----
-
-## 改这里时，有什么实用建议？
-
-### 建议 1：先判断是“流程问题”还是“展示问题”
-
-- 页面没跳、状态错了 → 先看 `story.js`
-- 数据没来、接口报错 → 先看 `story-api.js`
-- 模型不显示 → 先看 `dual-viewer.js`
-- AR 按钮行为不对 → 先看 `ar-launcher.js`
-
-### 建议 2：不要一上来就在多个文件同时乱改
-
-因为这几个模块是配合关系，不是复制关系。
-
-最好先判断是哪一层出问题，再动手。
-
-### 建议 3：看到 `window.currentEventData` 不要慌
-
-这是前端不同模块之间共享当前事件信息的一种方式。
-
-在 AR 打开、模型预览等逻辑里，它经常会出现。
-
----
-
-## 最后的实用建议
-
-如果你只记三句话，就记这三句：
-
-1. `story.js` 是前端主导演。
-2. `story-api.js` 是前后端的对话窗口。
-3. `ar-launcher.js` 是去 AR 的发射台，不是 AR 本体。
-
-这样你再回来看这个目录时，通常就不会觉得每个 JS 文件都长得一样了。
-
----
-
-_最后更新：2026年3月_
+_Last updated / 最后更新: 2026-04-01_

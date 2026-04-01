@@ -533,22 +533,28 @@ export async function processFullPhotoEvent(journeyId, photoFile, onProgress, wo
   };
 
   try {
-    // Step 1: Photo Analysis (Photo + Category)
+    // Show ALL three steps as active simultaneously (they run in parallel on backend)
     onProgress?.("analyze", getStepMsg(world, "analyze"), {
       status: "active",
     });
+    onProgress?.("event", getStepMsg(world, "event"), {
+      status: "active",
+    });
+    onProgress?.("fictional-image", getStepMsg(world, "image"), {
+      status: "active",
+      progress: 0,
+    });
+
     const event = await processPhotoEvent(journeyId, photoFile);
     result.event = event;
 
-    // === All steps fire immediately (no artificial delays) ===
-    // Step 1 completed: show analysis results (typewriter runs in background)
+    // Backend returned — mark all steps completed immediately
     onProgress?.("analyze", getStepMsg(world, "analyzeComplete"), {
       status: "completed",
       photoPlace: event.photoPlace,
       photoItem: event.photoItemName,
     });
 
-    // Step 2 completed: show fictional event (typewriter runs in background)
     onProgress?.("event", getStepMsg(world, "eventComplete"), {
       status: "completed",
       fictionalItem: event.fictionalItemName,

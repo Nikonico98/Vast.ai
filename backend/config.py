@@ -35,13 +35,17 @@ TEMPLATE_FILE = TEMPLATE_FOLDER / "prompt.md"
 # Vast.ai GPU Worker URL
 # ==========================================
 # This is the URL of your Vast.ai GPU worker (set via .env or ngrok domain)
-VASTAI_GPU_URL = os.getenv("VASTAI_GPU_URL", "https://your-vastai-worker.ngrok.app")
+VASTAI_GPU_URL = os.getenv("VASTAI_GPU_URL", "http://213.5.130.78:22939")
 
 # Shared secret for authenticating requests between Hostinger and Vast.ai
-GPU_API_SECRET = os.getenv("GPU_API_SECRET", "change-me-to-a-random-secret")
+GPU_API_SECRET = os.getenv("GPU_API_SECRET", "niko2026IWSecretKey")
 
 # Caddy Bearer token for VastAI proxy authentication
-VASTAI_BEARER_TOKEN = os.getenv("VASTAI_BEARER_TOKEN", "")
+VASTAI_BEARER_TOKEN = os.getenv("VASTAI_BEARER_TOKEN", "db9cd6a1a8a5ddb5517ac82e6b6a3d56e20b596273887ab06d24726b27d8c010")
+
+# Vast.ai Instance Management API
+VASTAI_API_KEY = os.getenv("VASTAI_API_KEY", "")
+VASTAI_INSTANCE_ID = os.getenv("VASTAI_INSTANCE_ID", "")
 
 # ==========================================
 # AI API Configuration (OpenAI GPT-5.2)

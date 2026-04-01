@@ -4122,6 +4122,167 @@ body {
     color: #666;
 }
 
+/* Vast.ai Instance Control */
+.gpu-instance-control {
+    background: #f0f4ff;
+    border: 1px solid #c8d6f0;
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.gpu-instance-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.gpu-instance-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.instance-status-badge {
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.instance-status-badge.status-running {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.instance-status-badge.status-stopped {
+    background: #fce4ec;
+    color: #c62828;
+}
+
+.instance-status-badge.status-loading {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.instance-status-badge.status-unknown {
+    background: #f5f5f5;
+    color: #666;
+}
+
+.gpu-instance-info {
+    display: flex;
+    gap: var(--spacing-md);
+    font-size: 0.78rem;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.gpu-instance-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.btn-instance {
+    padding: 6px 14px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-instance:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-instance-start {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.btn-instance-start:not(:disabled):hover {
+    background: #c8e6c9;
+}
+
+.btn-instance-stop {
+    background: #fce4ec;
+    color: #c62828;
+}
+
+.btn-instance-stop:not(:disabled):hover {
+    background: #f8bbd0;
+}
+
+.btn-services-restart {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.btn-services-restart:not(:disabled):hover {
+    background: #bbdefb;
+}
+
+.instance-error {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: #ffebee;
+    color: #c62828;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+}
+
+.instance-error.hidden {
+    display: none;
+}
+
+/* SAM3/SAM3D Service Status */
+.gpu-services-status {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    padding: 8px var(--spacing-md);
+    background: #fafafa;
+    border-radius: var(--radius-sm);
+}
+
+.service-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+}
+
+.service-name {
+    font-weight: 600;
+    color: #444;
+}
+
+.service-status-dot {
+    font-size: 1rem;
+}
+
+.service-status-dot.status-ready {
+    color: #4caf50;
+}
+
+.service-status-dot.status-loading {
+    color: #ff9800;
+}
+
+.service-status-dot.status-offline {
+    color: #f44336;
+}
+
+.service-status-dot.status-unknown {
+    color: #9e9e9e;
+}
+
 /* Mobile responsive */
 @media (max-width: 600px) {
     .gpu-panel {

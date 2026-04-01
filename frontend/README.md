@@ -1,217 +1,139 @@
-# Imaginary World 前端 - 界面指南
+# Frontend — User-Facing Web Application
+# 前端 — 用户界面 Web 应用
 
-> 写给文科工程师的前端说明书 📖
+> **EN:** This folder is the user-facing web layer — a **Single Page Application (SPA)** that handles the entire user experience: login, world selection, photo upload, story display, 3D model preview, and AR launching. Built with vanilla JavaScript (no framework), Three.js for 3D, and CSS animations.
 >
-> 前端是用户直接看到和触摸的部分。如果后端是"厨房"，前端就是"餐厅"——菜单、桌椅、灯光，都属于前端的工作。
+> **中文：** 这个文件夹是用户界面层——一个**单页应用（SPA）**，处理整个用户体验：登录、世界选择、照片上传、故事显示、3D 模型预览和 AR 启动。使用原生 JavaScript（无框架）、Three.js 做 3D、CSS 动画。
 
 ---
 
-## 这个前端做了什么？
+## What This Folder Does / 这个文件夹做了什么
 
-当用户打开 `niko.ngrok.app`，他们看到的一切——页面、按钮、动画、3D 预览、AR 体验——都由前端负责。
+| # | Responsibility / 职责 | How / 怎么做 |
+|---|---|---|
+| 1 | **Page flow** / 页面流转 | State machine manages transitions: auth → world select → photo upload → processing → result → AR / 状态机管理页面切换 |
+| 2 | **Backend communication** / 后端通信 | API wrapper methods for all backend endpoints, with error handling and retry / API 封装方法，带错误处理和重试 |
+| 3 | **Dual 3D preview** / 双 3D 模型预览 | Side-by-side Three.js viewers showing real photo 3D model and fictional item 3D model / 并排 Three.js 查看器显示照片 3D 和虚构物品 3D |
+| 4 | **AR launching** / AR 启动 | Builds AR page URLs with model paths and interaction type, navigates to appropriate AR sub-page / 构建 AR 页面 URL 并跳转到对应的 AR 子页面 |
 
-**用户的旅程：**
+---
+
+## File Guide / 文件说明
+
+| File / 文件 | When to use / 什么时候用 | Description / 说明 |
+|:------------|:------------------------|:-------------------|
+| `index.html` | 🏠 **Layout & structure** / 布局和结构 | The single HTML file for the entire SPA. Contains all page sections (auth, world-select, camera, processing, result, complete), hidden/shown by JavaScript. All text copy lives here. / 整个 SPA 的唯一 HTML 文件。包含所有页面区块，由 JavaScript 控制显示/隐藏。所有文案都在这里。 |
+| `style.css` | 🎨 **Styling** / 样式 | All styles, animations, responsive design, dark theme, loading spinners, glassmorphism effects. / 所有样式、动画、响应式设计、深色主题、加载动画、毛玻璃效果。 |
+| `app.js` | 🔧 **Shared utilities** / 公共工具 | Shared utility functions, module initialization, global event listeners, page routing. The "glue" that connects all modules. / 公共工具函数、模块初始化、全局事件监听、页面路由。连接所有模块的「胶水」。 |
+| `config.js` | ⚙️ **Configuration** / 配置 | API base URL, polling intervals, debug flags, feature toggles (e.g., `SKIP_3D_GENERATION`), timeout values. / API 基础 URL、轮询间隔、调试标志、功能开关、超时值。 |
+| `viewer3d.js` | 🎮 **Single 3D viewer** / 单模型查看器 | Three.js-based single GLB model viewer with orbit controls, lighting, auto-rotation. Used as base for dual viewer. / 基于 Three.js 的单 GLB 模型查看器，带轨道控制、灯光、自动旋转。是双模型查看器的基础。 |
+| `test-api.html` | 🧪 **API tester** / API 测试器 | Standalone HTML page for manually testing backend API endpoints. Useful for debugging. / 独立 HTML 页面，手动测试后端 API 接口。调试时有用。 |
+
+### `js/` Module Files / `js/` 模块文件
+
+| File / 文件 | When to use / 什么时候用 | Description / 说明 |
+|:------------|:------------------------|:-------------------|
+| `js/story.js` | 🧠 **Core logic (most complex)** / 核心逻辑（最复杂） | The main state machine and story flow controller. Manages the entire user journey: starting a story, handling photo uploads, displaying processing steps with typewriter effects, polling for 3D job completion, showing results, and navigating between events. This is the largest and most important frontend file. / 主状态机和故事流程控制器。管理整个用户旅程。这是最大、最重要的前端文件。 |
+| `js/story-api.js` | 📡 **API wrapper** / API 封装 | All backend API request methods — start journey, upload photo, check job status, get story details. Handles response parsing, error extraction, and data normalization. / 所有后端 API 请求方法——开始旅程、上传照片、查询任务状态、获取故事详情。处理响应解析、错误提取和数据规范化。 |
+| `js/dual-viewer.js` | 👀 **Dual 3D preview** / 双模型预览 | Side-by-side 3D model viewer showing "Real" (from photo) and "Fictional" (AI-generated) models. Supports fullscreen mode, model swapping, and loading states. / 并排 3D 模型查看器，显示「真实」和「虚构」模型。支持全屏、模型切换和加载状态。 |
+| `js/ar-launcher.js` | 🚀 **AR navigation** / AR 跳转 | Builds AR page URLs based on interaction type (Tap/Rotate/Track) and model paths. Handles navigation to the correct AR sub-page under `/ar/`. / 根据互动类型和模型路径构建 AR 页面 URL。跳转到 `/ar/` 下正确的 AR 子页面。 |
+| `js/gpu-manager.js` | 📊 **GPU panel** / GPU 面板 | GPU status monitoring panel — shows worker health, instance status, and provides start/stop/restart controls for the Vast.ai GPU instance. / GPU 状态监控面板——显示工作站健康、实例状态，提供启停控制。 |
+| `js/ambient-sound.js` | 🔊 **Sound engine** / 音效引擎 | Background ambient sound system — plays world-themed audio during the story experience. / 背景环境音效系统——在故事体验中播放世界主题音频。 |
+
+### `ar/` Sub-Pages / `ar/` AR 子页面
+
+| Folder / 文件夹 | AR Interaction / AR 互动 | Description / 说明 |
+|:------------|:------------------------|:-------------------|
+| `ar/tap/` | 👆 **Tap** / 点击 | User taps on the screen to trigger the 3D model interaction (appears, animates, reveals). Maps to `Touch` action category. / 用户点击屏幕触发 3D 模型互动。对应 `Touch` 动作类别。 |
+| `ar/rotate/` | 🔄 **Rotate** / 旋转 | User rotates the device or drags to spin the 3D model. Maps to `Turning` action category. / 用户旋转设备或拖拽来旋转 3D 模型。对应 `Turning` 动作类别。 |
+| `ar/track/` | 📍 **Track** / 追踪 | User moves the phone to follow/track a 3D model in AR space. Maps to `Following` action category. / 用户移动手机在 AR 空间中追踪 3D 模型。对应 `Following` 动作类别。 |
+| `ar/viewer/` | 🔍 **Viewer** / 查看器 | Simple single-model AR viewer without specific interaction type. / 简单的单模型 AR 查看器，无特定互动类型。 |
+
+Each AR sub-folder contains pre-built files (`index.html`, `bundle.js`, `external/`) that run independently.
+
+每个 AR 子文件夹包含预构建的文件，独立运行。
+
+---
+
+## Page Flow / 页面流转
 
 ```
-登录 → 选择幻想世界 → 阅读故事背景 → 拍照 →
-→ 等待处理 → 查看事件结果（含 3D 预览）→ 进入 AR 体验 →
-→ 拍下一张照片 → …… → 故事结束
+Auth Page / 认证页面
+  │ (login or register / 登录或注册)
+  ▼
+World Select / 世界选择
+  │ (choose 1 of 6 worlds / 选择 6 个世界之一)
+  ▼
+Opening Story / 开场故事
+  │ (AI generates story text with typewriter effect / AI 生成故事文字，打字机效果)
+  ▼
+┌─── Photo Upload / 照片上传 ◄──────────────────┐
+│     │ (take photo or select from gallery)       │
+│     ▼                                           │
+│   Processing / 处理中                            │
+│     ├─ Step 1: Analyzing photo... / 分析照片      │
+│     ├─ Step 2: Generating event... / 生成事件      │
+│     ├─ Step 3: Creating fictional image... / 生成图 │
+│     └─ Step 4: Building 3D models... / 构建 3D     │
+│     ▼                                           │
+│   Result Page / 结果页                            │
+│     ├─ Story event text (typewriter) / 故事文字    │
+│     ├─ Dual 3D viewer (real + fictional) / 双 3D   │
+│     └─ AR launch button / AR 启动按钮              │
+│     ▼                                           │
+│   (if events < 3, loop back / 事件 < 3 则循环) ──┘
+│
+▼
+Complete Page / 完成页
+  └─ Full story summary + all 3D models / 完整故事摘要 + 所有 3D 模型
 ```
 
 ---
 
-## 文件总览
+## Common Change Entry Points / 常用修改入口
 
-| 文件 | 行数 | 一句话说明 | 类比 |
-|------|------|-----------|------|
-| `index.html` | 878 | 所有页面的 HTML 结构 | 🏗️ 建筑蓝图 |
-| `style.css` | 4647 | 所有视觉样式 | 🎨 装修方案 |
-| `app.js` | 762 | 工具函数、模块初始化 | 🧰 工具箱 |
-| `config.js` | 60 | API 地址、轮询间隔等配置 | ⚙️ 遥控器设置 |
-| `viewer3d.js` | 521 | 独立 3D 查看器 | 🔍 放大镜 |
-| `js/story.js` | 4406 | 页面状态机与交互控制 | 🎬 导演 |
-| `js/story-api.js` | 766 | 与后端 API 通信 | 📡 无线电 |
-| `js/dual-viewer.js` | 1460 | 双 3D 模型对比预览 | 🖼️ 双联画框 |
-| `js/ar-launcher.js` | 186 | AR 体验启动器 | 🚀 发射台 |
-| `js/gpu-manager.js` | 259 | GPU 状态监控面板 | 📊 仪表盘 |
-| `js/ambient-sound.js` | 252 | 程序化环境音效引擎 | 🔊 背景音乐 |
+| Want to change... / 想改... | Edit this file / 编辑这个文件 |
+|---|---|
+| Text copy, layout, page structure / 文案、布局、页面结构 | `index.html` |
+| Colors, fonts, animations, responsive design / 颜色、字体、动画、响应式 | `style.css` |
+| Story flow logic, state transitions / 故事流程逻辑、状态切换 | `js/story.js` |
+| API parameters, request/response handling / API 参数、请求响应处理 | `js/story-api.js` |
+| AR page routing, URL construction / AR 页面路由、URL 构建 | `js/ar-launcher.js` |
+| 3D model display, lighting, controls / 3D 模型显示、灯光、控制 | `viewer3d.js`, `js/dual-viewer.js` |
+| API URL, polling intervals, debug flags / API 地址、轮询间隔、调试标志 | `config.js` |
 
 ---
 
-## 关键概念
+## Test Mode / 测试模式
 
-### 页面（Pages）
+Visit `/test` or add `?test=1` to enter test mode:
 
-`index.html` 包含多个 `<section>` 页面，同一时间只显示一个。`story.js` 像导演一样控制"现在该演哪一幕"。
+访问 `/test` 或加 `?test=1` 进入测试模式：
 
-| 页面 ID | 用途 | 用户看到什么 |
-|---------|------|-------------|
-| `page-auth` | 登录/注册 | 用户名输入框 |
-| `page-story-history` | 历史故事列表 | 过去的冒险记录 |
-| `page-world-selection` | 选择幻想世界 | 6 个世界卡片 |
-| `page-story-background` | 故事背景展示 | AI 生成的故事开头 |
-| `page-photo-upload` | 拍照/上传 | 相机按钮 |
-| `page-processing` | 处理等待 | 加载动画 |
-| `page-event-result` | 事件结果 | 故事 + 图片 + 3D 预览 |
-| `page-story-complete` | 故事结束 | 完整旅程回顾 |
+- Frontend shows a 🧪 TEST MODE badge / 前端显示测试模式标识
+- All data writes to `data_test/` instead of `data/` / 所有数据写到 `data_test/`
+- No impact on production users / 不影响正式用户
 
-### 3D 预览
+You can also use `test-api.html` to manually test individual API endpoints.
 
-事件结果页面有两个 3D 预览窗口（由 `dual-viewer.js` 控制）：
-- **左边**：真实物体的 3D 模型（从你的照片生成）
-- **右边**：虚构物体的 3D 模型（从 AI 图像生成）
-
-用户可以：
-- 拖拽旋转模型
-- 双指/滚轮缩放
-- 点击全屏查看
-
-### AR 启动
-
-`ar-launcher.js` 负责把用户送到 AR 体验：
-
-- **`launchAR('photo')`** → 打开 `/ar/viewer/`，单独查看真实物体 3D
-- **`launchAR('fictional')`** → 打开 `/ar/viewer/`，单独查看虚构物体 3D
-- **`launchARInteraction()`** → 打开 `/ar/tap/`、`/ar/rotate/` 或 `/ar/track/`，两个物体互动
+也可以用 `test-api.html` 手动测试单个 API 接口。
 
 ---
 
-## 文件详解
+## Troubleshooting / 故障排除
 
-### index.html — 🏗️ 建筑蓝图
+**Q: Page stuck on loading? / 页面卡在加载？**
+A: Check browser console (F12) for errors. Most likely the backend is not running or `config.js` has a wrong API URL.
+检查浏览器控制台（F12）的错误。最可能是后端没启动或 `config.js` 中 API 地址错误。
 
-整个应用的 HTML 结构。所有页面都写在这一个文件里（单页应用 SPA 模式），通过 CSS 的 `display: none` 和 JavaScript 控制显示哪一页。
+**Q: 3D models not appearing? / 3D 模型不显示？**
+A: Check if the `.glb` file URL returns 200. Common issue: Vast.ai GPU was off so no model was generated (placeholder cube may appear instead).
+检查 `.glb` 文件 URL 是否返回 200。常见问题：GPU 没开所以没生成模型（可能显示占位立方体）。
 
-**重要区域：**
-- 第 31-85 行：登录/注册页面
-- 第 551 行：AR Photo Model 按钮 → `launchAR('photo')`
-- 第 568 行：AR Fictional Model 按钮 → `launchAR('fictional')`
-- 第 589 行：AR Interaction 按钮 → `launchARInteraction()`
-
-### style.css — 🎨 装修方案
-
-所有视觉效果：颜色、字体、动画、响应式布局。使用 CSS 变量方便统一调整主题色。
-
-### app.js — 🧰 工具箱
-
-提供通用工具函数：
-- `$()` / `$$()` — 简化的 DOM 选择器（类似 jQuery）
-- `show()` / `hide()` — 显示/隐藏元素
-- `apiFetch()` — 统一的 API 请求封装
-- `isTestMode()` — 检测是否在测试模式下
-- `PollingManager` — 轮询管理器（用于等待 3D 生成完成）
-
-### config.js — ⚙️ 遥控器设置
-
-```javascript
-CONFIG = {
-  API_BASE_URL: "",              // API 地址（空 = 使用当前域名）
-  OPENAI_API_BASE_URL: "",       // OpenAI API 代理地址（空 = 使用后端转发）
-  POLLING_INTERVAL: 2000,        // 每 2 秒检查一次任务状态
-  MAX_POLLING_ATTEMPTS: 300,     // 最多检查 300 次（10 分钟）
-  PHOTOS_PER_STORY: 3,           // 每个故事拍 3 张照片
-  API_TIMEOUT: 30000,            // API 请求超时（30 秒）
-  SKIP_3D_GENERATION: false,     // 设为 true 可跳过 3D 生成（测试用）
-  DEBUG: true,                   // 显示调试日志
-}
-```
-
-同时导出了 `Logger` 工具（包含 `log`、`error`、`warn` 方法），供其他模块统一输出调试信息。
-
-### js/story.js — 🎬 导演
-
-这是最大的前端文件（4406 行），控制整个故事流程：
-
-1. 初始化页面状态机
-2. 处理用户交互（点击、拍照、滑动）
-3. 调用 `story-api.js` 与后端通信
-4. 管理 3D 模型的加载和展示
-5. 控制页面之间的切换和动画
-
-### js/story-api.js — 📡 无线电
-
-负责与后端 API 通信，封装了所有 HTTP 请求：
-
-- `startJourney()` — 告诉后端"开始新故事"
-- `feedbackStory()` — 告诉后端"我喜欢/不喜欢这个故事"
-- `processFullPhotoEvent()` — 发送照片，获取事件 + 3D 模型
-
-包含六个幻想世界的显示名称和图标。
-
-### js/dual-viewer.js — 🖼️ 双联画框
-
-使用 Three.js 渲染 3D 模型：
-- `DualViewer` — 并排显示两个 3D 模型
-- `FullscreenViewer` — 全屏查看单个模型
-- `MiniViewer` — 小窗口预览
-
-### js/ar-launcher.js — 🚀 发射台
-
-AR 体验的启动器。两种模式：
-- **单模型查看** → `/ar/viewer/?model=URL&name=Name`
-- **双模型互动** → `/ar/tap/`（或 rotate、track），携带两个模型的 URL
-
-### js/gpu-manager.js — 📊 仪表盘
-
-GPU 状态监控，每 10 秒刷新一次。显示：
-- 有多少 GPU 可用
-- 当前是并行还是顺序模式
-- 可以切换模式
-
-### js/ambient-sound.js — 🔊 背景音乐
-
-程序化环境音效引擎（252 行），使用 Web Audio API 生成背景音效：
-- 根据不同幻想世界类型生成对应的环境音
-- 使用振荡器和滤波噪声合成，无需外部音频文件
-- 支持淡入/淡出和静音切换
+**Q: AR not working on my phone? / AR 在手机上不工作？**
+A: AR requires HTTPS and a device with ARCore (Android) or ARKit (iOS) support. WebXR won't work over plain HTTP.
+AR 需要 HTTPS 和支持 ARCore（Android）或 ARKit（iOS）的设备。WebXR 不支持纯 HTTP。
 
 ---
 
-## AR 体验目录
-
-`ar/` 文件夹包含四个独立的 AR 项目（从 8thWall 迁移而来）：
-
-| 目录 | 路由 | 功能 | 说明 |
-|------|------|------|------|
-| `ar/tap/` | `/ar/tap/` | 点击互动 | 两个 3D 物体，点击触发动画 |
-| `ar/rotate/` | `/ar/rotate/` | 旋转互动 | 旋转物体发现故事线索 |
-| `ar/track/` | `/ar/track/` | 追踪互动 | 镜头跟随移动的 3D 物体 |
-| `ar/viewer/` | `/ar/viewer/` | 单模型预览 | 查看单个 3D 模型 |
-
-每个 AR 项目包含：
-- `index.html` — 入口页面
-- `bundle.js` — webpack 打包后的 JavaScript
-- `external/` — 8thWall AR SDK 文件（自托管）
-
----
-
-## 技术栈
-
-| 技术 | 用途 |
-|------|------|
-| HTML/CSS/JS | 原生网页技术，无前端框架 |
-| Three.js | 3D 模型渲染和预览 |
-| A-Frame | AR 场景构建（8thWall SDK 的基础） |
-| 8thWall XR | AR 相机追踪和场景叠加 |
-| ES Modules | JavaScript 模块化（import/export） |
-| importmap | 在 `index.html` 中映射 Three.js CDN |
-
----
-
-## 如果我想修改……
-
-| 我想要…… | 去哪里改 |
-|----------|---------|
-| 改页面文字或布局 | `index.html` |
-| 改颜色、字体、动画 | `style.css` |
-| 改故事流程逻辑 | `js/story.js` |
-| 改 API 调用方式 | `js/story-api.js` |
-| 改 3D 预览效果 | `js/dual-viewer.js` |
-| 改 AR 启动逻辑 | `js/ar-launcher.js` |
-| 改每个故事的照片数量 | `config.js` 的 `PHOTOS_PER_STORY` |
-| 跳过 3D 生成（测试用） | `config.js` 的 `SKIP_3D_GENERATION` 设为 `true` |
-| 添加新页面 | `index.html` 加 `<section>`，`story.js` 加页面切换逻辑 |
-
----
-
-_最后更新：2026年3月_
+_Last updated / 最后更新: 2026-04-01_

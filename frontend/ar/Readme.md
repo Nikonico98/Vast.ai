@@ -1,255 +1,65 @@
-# Imaginary World 前端 AR 目录说明
+# AR — Augmented Reality Experience Pages
+# AR — 增强现实体验页面
 
-> 写给文科工程师的 AR 发布目录说明书 📖
+> **EN:** This folder contains pre-built AR experience pages, one for each interaction type. These are self-contained web pages that use WebXR to display 3D models overlaid on the real world through the phone's camera. They receive model URLs and parameters via query strings from the main app.
 >
-> 这个文件夹放的不是“平时主要编辑的源码”，而是已经可以被浏览器直接打开的 AR 页面成品。
+> **中文：** 这个文件夹包含预构建的 AR 体验页面，每种互动类型一个。这些是独立的网页，使用 WebXR 通过手机摄像头将 3D 模型叠加到现实世界上。它们通过主应用的查询字符串接收模型 URL 和参数。
 
 ---
 
-## 这个文件夹是干什么的？
+## Folder Guide / 文件夹说明
 
-你可以把 `frontend/ar/` 理解成 AR 体验的“展厅入口区”。
-
-用户在主前端页面里点了 AR 按钮之后，浏览器真正打开的就是这里面的页面。
-
-如果用更形象的话说：
-
-- `8thWall/` 里的项目是施工图和工厂
-- `frontend/ar/` 里的内容是已经摆进商场橱窗的成品
-
-所以这里的特点是：
-
-- 能直接部署
-- 浏览器能直接访问
-- 大部分 JS 已经打包成 `bundle.js`
-- 日常修改逻辑时，通常不优先改这里，而是改 `8thWall/` 里的源码
+| Folder / 文件夹 | AR Type / AR 类型 | Action Category / 动作类别 | Description / 说明 |
+|:------------|:---|:---|:-------------------|
+| `tap/` | 👆 **Tap interaction** / 点击互动 | Touch | User taps on screen to place or reveal the 3D model in AR space. The model appears at the tapped position and may animate (grow, glow, bounce). Typical use: touching a magical item to activate it. / 用户点击屏幕在 AR 空间中放置或显示 3D 模型。模型出现在点击位置并可能有动画。典型场景：触摸魔法物品以激活。 |
+| `rotate/` | 🔄 **Rotate interaction** / 旋转互动 | Turning | User drags on screen or physically rotates the device to spin the 3D model. The model responds to rotation gestures. Typical use: turning a key, spinning a wheel, rotating a compass. / 用户拖拽屏幕或物理旋转设备来旋转 3D 模型。典型场景：转动钥匙、旋转轮盘、转动指南针。 |
+| `track/` | 📍 **Track interaction** / 追踪互动 | Following | User moves the phone through space to follow or chase a 3D model. The model leads the user or responds to device movement. Typical use: following a floating guide creature, chasing a wisp of light. / 用户在空间中移动手机来跟随或追踪 3D 模型。典型场景：跟随浮游引导生物、追逐光点。 |
+| `viewer/` | 🔍 **Simple viewer** / 简单查看器 | (any) | A generic AR model viewer without specific interaction mechanics. Displays the model in AR space for viewing from different angles. Used as a fallback or for direct model inspection. / 通用 AR 模型查看器，无特定互动机制。在 AR 空间中显示模型供多角度查看。用作兜底或直接模型检查。 |
 
 ---
 
-## 这个目录里有四个什么东西？
+## File Structure / 文件结构
 
-| 目录 | 路由 | 功能 | 用户看到什么 |
-|------|------|------|-------------|
-| `viewer/` | `/ar/viewer/` | 单模型 AR 预览 | 只看一个 3D 模型 |
-| `tap/` | `/ar/tap/` | 点击互动 | 两个物体，点击触发变化 |
-| `rotate/` | `/ar/rotate/` | 旋转互动 | 旋转模型，触发互动 |
-| `track/` | `/ar/track/` | 追踪互动 | 跟随移动物体完成互动 |
+Each sub-folder typically contains:
 
-你可以把它们理解成四个不同主题的 AR 房间。
+每个子文件夹通常包含：
 
-主前端会根据当前场景，把用户送进不同房间。
-
----
-
-## 每个子目录里通常有什么？
-
-每个 AR 子目录结构都很像：
-
-- `index.html`
-- `bundle.js`
-- `external/`
-- 有些项目还会有 `assets/`
-
-它们的职责可以这样理解：
-
-### `index.html`
-
-这是 AR 页面入口。
-
-浏览器打开 `/ar/tap/` 或 `/ar/viewer/` 的时候，首先加载的就是这个文件。
-
-你可以把它理解成这个 AR 房间的门。
-
-### `bundle.js`
-
-这是打包后的前端逻辑。
-
-它不是最适合人工长期维护的源码，而是“浏览器能直接执行的成品脚本”。
-
-你可以把它理解成：
-
-- 源码 = 菜谱
-- `bundle.js` = 做好的成品料理
-
-如果只是临时线上热修，可以直接改它。
-但如果是正式开发，通常应该去改源头项目，再重新构建。
-
-### `external/`
-
-这里放的是 8thWall 导出的 SDK 和相关静态资源。
-
-你可以把它理解成 AR 引擎的发动机舱。
-
-通常情况下：
-
-- 不建议随便手改
-- 也不建议轻易删除
-- 除非你非常确定是在升级 SDK，或者在修复资源路径
-
-### `assets/`
-
-放贴图、图片、视频等辅助资源。
-
-不是每个 AR 项目都有，但有的话通常就是这个 AR 页面自己的素材库。
-
----
-
-## 这里和 `8thWall/` 是什么关系？
-
-这是最容易混淆的地方。
-
-### 简单说法
-
-- `8thWall/nikotap`、`8thWall/nikorotateitem`、`8thWall/nikotrack`、`8thWall/nikoARViewer`
-  是源码工程
-- `frontend/ar/tap`、`frontend/ar/rotate`、`frontend/ar/track`、`frontend/ar/viewer`
-  是部署成品
-
-### 更实用的理解
-
-如果你要改逻辑，比如：
-
-- 星星飞行速度
-- 点击后的动画
-- 旋转互动判定
-- viewer 的模型加载方式
-
-一般应该去改：
-
-- `8thWall/.../src/app.js`
-- `8thWall/.../src/index.html`
-
-然后重新构建，再把产物复制到这里。
-
-不是优先直接改 `frontend/ar/.../bundle.js`。
-
----
-
-## 正确的修改流程是什么？
-
-如果你要正式修改 AR 功能，建议这样走：
-
-### 1. 找到对应源码工程
-
-| 你要改的页面 | 对应源码目录 |
-|-------------|-------------|
-| `ar/tap/` | `8thWall/nikotap/` |
-| `ar/rotate/` | `8thWall/nikorotateitem/` |
-| `ar/track/` | `8thWall/nikotrack/` |
-| `ar/viewer/` | `8thWall/nikoARViewer/` |
-
-### 2. 修改源码
-
-常改的位置通常是：
-
-- `src/app.js` → 互动逻辑
-- `src/index.html` → 页面结构、场景配置
-- `src/assets/` → 资源素材
-
-### 3. 重新构建
-
-例如：
-
-```bash
-cd /workspace/IW/8thWall/nikotap
-npm run build
+```
+tap/  (or rotate/, track/, viewer/)
+├── index.html      ← AR page entry point / AR 页面入口
+├── bundle.js       ← Compiled JavaScript / 编译后的 JavaScript
+└── external/       ← Third-party libraries (Three.js, WebXR polyfill, etc.)
+                       第三方库
 ```
 
-### 4. 把构建结果同步到这里
+These are **pre-built, self-contained pages** — you don't need to compile or build them. The main app navigates to them via URL with query parameters.
 
-例如：
+这些是**预构建的独立页面**——不需要编译。主应用通过带查询参数的 URL 跳转到它们。
 
-```bash
-cp -r /workspace/IW/8thWall/nikotap/dist/* /workspace/IW/frontend/ar/tap/
+---
+
+## How AR Pages Are Launched / AR 页面如何启动
+
+The `js/ar-launcher.js` module in the main app builds the URL:
+
+主应用中的 `js/ar-launcher.js` 模块构建 URL：
+
+```
+/ar/{type}/?model=/user/{user_id}/real_3d/event_1.glb&fictional=/user/{user_id}/fictional_3d/event_1.glb
 ```
 
-你可以把 `frontend/ar/` 理解成“最终上架区”，而不是“主要开发现场”。
+The AR page reads these query parameters, fetches the GLB files, and renders them in WebXR AR mode.
+
+AR 页面读取这些查询参数，获取 GLB 文件，并在 WebXR AR 模式中渲染。
 
 ---
 
-## 什么时候可以直接改这里？
+## Requirements / 要求
 
-可以，但要带着明确目的。
-
-适合直接改这里的情况：
-
-- 临时修线上问题
-- 快速验证一个非常小的改动
-- 只是调格式、注释或简单静态资源路径
-- 你明确知道这次不会再从源码重新构建覆盖它
-
-不太适合直接改这里的情况：
-
-- 长期维护的互动逻辑修改
-- 需要多人协作的功能开发
-- 之后还要继续 build 的工程
-
-原因很简单：
-
-下次重新构建时，这里的 `bundle.js` 往往会被覆盖掉。
+- **HTTPS** — WebXR requires a secure context / WebXR 需要安全上下文
+- **ARCore** (Android) or **ARKit** (iOS) — device must support AR / 设备必须支持 AR
+- **Compatible browser** — Chrome (Android) or Safari (iOS) with WebXR support / 支持 WebXR 的浏览器
 
 ---
 
-## 主前端是怎么跳到这里来的？
-
-主入口逻辑在：
-
-- `frontend/js/ar-launcher.js`
-
-它负责根据当前事件内容，决定打开：
-
-- `/ar/viewer/`
-- `/ar/tap/`
-- `/ar/rotate/`
-- `/ar/track/`
-
-所以你可以把 `frontend/js/ar-launcher.js` 理解成“导览员”，而 `frontend/ar/` 是“展馆本体”。
-
----
-
-## 如果我想修改……
-
-| 我想要…… | 优先去哪里改 |
-|----------|-------------|
-| 改单模型 AR 查看效果 | `8thWall/nikoARViewer/src/` |
-| 改 Tap 互动逻辑 | `8thWall/nikotap/src/` |
-| 改 Rotate 互动逻辑 | `8thWall/nikorotateitem/src/` |
-| 改 Track 互动逻辑 | `8thWall/nikotrack/src/` |
-| 快速看当前线上部署内容 | `frontend/ar/.../index.html`、`bundle.js` |
-| 检查 8thWall SDK 文件是否齐全 | `frontend/ar/.../external/` |
-
----
-
-## 哪些地方不要轻易动？
-
-对大多数日常开发来说，下面这些最好不要手动乱改：
-
-- `external/xr/`
-- `external/xrextras/`
-- `external/scripts/8frame-1.4.1.min.js`
-- 各种 `.LICENSE.txt`
-- 大量 `.tflite` 模型文件
-
-因为这些通常属于：
-
-- 8thWall SDK 本体
-- 第三方资源
-- 运行时依赖文件
-
-它们不是业务逻辑的好入口。
-
----
-
-## 最后的实用建议
-
-如果你只记三句话，就记这三句：
-
-1. `frontend/ar/` 是成品区，不是主要源码区。
-2. 要正式改逻辑，优先去 `8thWall/` 对应项目里改。
-3. 改完源码以后，要重新 build 并同步到这里。
-
-这样做不一定最省事，但最不容易把自己绕晕。
-
----
-
-_最后更新：2026年3月_
+_Last updated / 最后更新: 2026-04-01_

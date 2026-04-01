@@ -28,7 +28,8 @@ from config import (
     UPLOAD_FOLDER, RESULT_FOLDER, TEMPLATE_FILE,
     ALLOWED_EXTENSIONS, MAX_FILE_SIZE, SERVER_PORT, DEBUG_MODE, SECRET_KEY,
     VALID_IMAGINARY_WORLDS, WORLD_DISPLAY_NAMES, ACTION_TO_AR, AR_INTERACTIONS_FALLBACK,
-    OPENAI_MODEL, VASTAI_GPU_URL,
+    OPENAI_MODEL, VASTAI_GPU_URL, VASTAI_API_KEY, VASTAI_INSTANCE_ID,
+    GPU_API_SECRET,
 )
 
 from database import (
@@ -56,10 +57,25 @@ from job_manager import (
 from user_manager import (
     get_next_user_id, get_current_data_folder, create_user_folder,
     get_user_path, save_user_journey, load_user_journey,
-    load_journey_unified, smart_save_journey
+    load_journey_unified, smart_save_journey,
+    create_story_folder, get_next_guest_id, get_story_path, list_user_journeys,
 )
 
 from glb_processor import create_placeholder_glb
+
+
+# ==========================================
+# Per-Journey Locks (prevent concurrent photo_event for same journey)
+# ==========================================
+_journey_locks = {}
+_journey_locks_lock = threading.Lock()
+
+def get_journey_lock(journey_id: str) -> threading.Lock:
+    """Get or create a lock for a specific journey to prevent concurrent photo uploads."""
+    with _journey_locks_lock:
+        if journey_id not in _journey_locks:
+            _journey_locks[journey_id] = threading.Lock()
+        return _journey_locks[journey_id]
 
 
 # ==========================================
@@ -197,10 +213,18 @@ def test_db():
 def gpu_status():
     """Proxy GPU status from Vast.ai worker."""
     health = gpu_worker_health()
-    gpu_count = health.get("gpu_count", 0)
-    gpu_mode = health.get("gpu_mode", "parallel")
-    sam3 = health.get("sam3", {})
-    sam3d = health.get("sam3d", {})
+    
+    return jsonify({
+        "success": True,
+        "mode": health.get("gpu_mode", health.get("mode", "parallel")),
+        "total_gpus": health.get("gpu_count", health.get("total_gpus", 0)),
+        "available_gpus": health.get("available_gpus", 0),
+        "gpus": health.get("gpus", health.get("gpu_info", [])),
+        "gpu_worker_url": VASTAI_GPU_URL,
+        "gpu_worker_status": health,
+        "sam3": health.get("sam3", {}),
+        "sam3d": health.get("sam3d", {}),
+    })
 
     # Build GPU list for frontend display
     gpus = []
@@ -255,6 +279,148 @@ def set_gpu_mode():
         return jsonify({"success": True, "mode": mode})
     except Exception:
         return jsonify({"success": True, "mode": mode})
+
+
+# ==========================================
+# Vast.ai Instance Management
+# ==========================================
+VASTAI_API_BASE = "https://console.vast.ai/api/v0"
+
+def _vastai_headers():
+    return {"Authorization": f"Bearer {VASTAI_API_KEY}"}
+
+
+@app.route('/api/gpu/instance/status', methods=['GET'])
+def gpu_instance_status():
+    """Get Vast.ai instance status."""
+    if not VASTAI_API_KEY or not VASTAI_INSTANCE_ID:
+        return jsonify({
+            "success": False,
+            "configured": False,
+            "error": "VASTAI_API_KEY or VASTAI_INSTANCE_ID not set"
+        })
+
+    try:
+        r = requests.get(
+            f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
+            headers=_vastai_headers(),
+            timeout=15
+        )
+        data = r.json()
+
+        # Vast.ai wraps the instance data inside {"instances": {...}}
+        instance = data.get("instances", data)
+        if isinstance(instance, list):
+            instance = instance[0] if instance else {}
+
+        status = instance.get("actual_status", instance.get("cur_state", "unknown"))
+        gpu_name = instance.get("gpu_name", "Unknown")
+        num_gpus = instance.get("num_gpus", 0)
+        dph_total = instance.get("dph_total", 0)
+        disk_space = instance.get("disk_space", 0)
+        disk_usage = instance.get("disk_usage", instance.get("disk_util", 0))
+
+        return jsonify({
+            "success": True,
+            "configured": True,
+            "status": status,
+            "gpu_name": gpu_name,
+            "num_gpus": num_gpus,
+            "dph_total": round(dph_total, 4),
+            "disk_space": round(disk_space, 1),
+            "disk_usage": round(disk_usage, 1),
+            "instance_id": VASTAI_INSTANCE_ID,
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "configured": True,
+            "error": str(e)
+        })
+
+@app.route('/api/gpu/instance/start', methods=['POST'])
+def gpu_instance_start():
+    """Start the Vast.ai GPU instance."""
+    if not VASTAI_API_KEY or not VASTAI_INSTANCE_ID:
+        return jsonify({"success": False, "error": "Vast.ai not configured"}), 400
+
+    try:
+        r = requests.put(
+            f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
+            json={"state": "running"},
+            headers=_vastai_headers(),
+            timeout=30,
+        )
+        if r.status_code in (200, 202):
+            log("VASTAI", f"Instance {VASTAI_INSTANCE_ID} start requested")
+            return jsonify({"success": True, "message": "Instance start requested"})
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"Vast.ai API returned {r.status_code}: {r.text[:200]}",
+            }), 502
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/gpu/instance/stop', methods=['POST'])
+def gpu_instance_stop():
+    """Stop the Vast.ai GPU instance."""
+    if not VASTAI_API_KEY or not VASTAI_INSTANCE_ID:
+        return jsonify({"success": False, "error": "Vast.ai not configured"}), 400
+
+    try:
+        r = requests.put(
+            f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
+            json={"state": "stopped"},
+            headers=_vastai_headers(),
+            timeout=30,
+        )
+        if r.status_code in (200, 202):
+            log("VASTAI", f"Instance {VASTAI_INSTANCE_ID} stop requested")
+            return jsonify({"success": True, "message": "Instance stop requested"})
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"Vast.ai API returned {r.status_code}: {r.text[:200]}",
+            }), 502
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/gpu/services/status', methods=['GET'])
+def gpu_services_status():
+    """Check SAM3/SAM3D service status on the GPU worker."""
+    health = gpu_worker_health()
+    return jsonify({
+        "success": True,
+        "worker_reachable": health.get("status") in ("healthy", "ok"),
+        "sam3": health.get("sam3", {}),
+        "sam3d": health.get("sam3d", {}),
+        "gpu_mode": health.get("gpu_mode", "unknown"),
+    })
+
+
+@app.route('/api/gpu/services/restart', methods=['POST'])
+def gpu_services_restart():
+    """Request SAM3/SAM3D service restart on the GPU worker."""
+    try:
+        r = requests.post(
+            f"{VASTAI_GPU_URL}/api/gpu/restart",
+            headers={"X-API-Secret": GPU_API_SECRET},
+            timeout=30,
+        )
+        if r.status_code == 200:
+            return jsonify(r.json())
+        return jsonify({
+            "success": False,
+            "error": f"GPU worker returned {r.status_code}",
+        }), 502
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Cannot reach GPU worker: {e}",
+        }), 502
 
 
 @app.route('/api/env-status')
@@ -441,12 +607,44 @@ def api_get_stories():
     if "user_id" not in session or session.get("is_guest"):
         return jsonify({"success": False, "error": "Please login first"}), 401
 
-    stories = get_user_stories(session["user_id"])
-    for story in stories:
+    # Get stories from database
+    db_stories = get_user_stories(session["user_id"])
+
+    # Also scan filesystem for this user's journeys (handles cases where DB record failed)
+    db_user = get_user_by_id(session["user_id"])
+    username = db_user["username"] if db_user else None
+
+    # Merge: use DB stories but enrich with filesystem data
+    stories = []
+    seen_journey_ids = set()
+
+    for story in db_stories:
         journey = load_user_journey(story["user_folder_id"])
         if journey:
             story["events"] = journey.get("events", [])
             story["story_background"] = journey.get("story_background", story.get("story_background", ""))
+            story["progress"] = len(journey.get("events", []))
+            story["status"] = journey.get("status", story.get("status", "active"))
+        stories.append(story)
+        seen_journey_ids.add(story.get("journey_id"))
+
+    # Add filesystem-only journeys not in DB
+    if username:
+        fs_journeys = list_user_journeys(username)
+        for fj in fs_journeys:
+            if fj.get("journey_id") and fj["journey_id"] not in seen_journey_ids:
+                stories.append({
+                    "journey_id": fj["journey_id"],
+                    "user_folder_id": fj["user_folder_id"],
+                    "imaginary_world": fj["imaginary_world"],
+                    "title": fj["title"],
+                    "story_background": fj.get("story_background", ""),
+                    "progress": fj.get("progress", 0),
+                    "total_events": fj.get("total_events", 3),
+                    "status": fj.get("status", "active"),
+                    "created_at": fj.get("created_at", ""),
+                    "events": [],
+                })
 
     return jsonify({"success": True, "stories": stories})
 
@@ -608,16 +806,36 @@ def serve_static(filename):
 def serve_result(filename):
     return send_from_directory(str(RESULT_FOLDER), filename)
 
-@app.route('/user/<user_id>/<subfolder>/<filename>')
-def serve_user_file(user_id, subfolder, filename):
-    allowed_subfolders = ["photos", "fictional_images", "cutouts", "real_3d", "fictional_3d"]
-    if subfolder not in allowed_subfolders:
-        return jsonify(error="Invalid subfolder"), 404
+@app.route('/user/<path:user_path>')
+def serve_user_file(user_path):
+    """Serve files from user story folders.
+    Supports both new paths (eric/Historical/20260401_120000/photos/event_1.jpg)
+    and legacy paths (user_1/photos/event_1.jpg).
+    """
+    allowed_subfolders = {"photos", "fictional_images", "cutouts", "real_3d", "fictional_3d"}
+
+    # Split path to find the subfolder and filename
+    parts = user_path.split("/")
+    # Find the subfolder in the path
+    subfolder_idx = None
+    for i, part in enumerate(parts):
+        if part in allowed_subfolders:
+            subfolder_idx = i
+            break
+
+    if subfolder_idx is None or subfolder_idx + 1 >= len(parts):
+        return jsonify(error="Invalid path"), 404
+
+    # Everything before subfolder is the user_folder_id
+    user_folder_id = "/".join(parts[:subfolder_idx])
+    subfolder = parts[subfolder_idx]
+    filename = "/".join(parts[subfolder_idx + 1:])
+
     for data_folder in [get_current_data_folder(), DATA_FOLDER_TEST, DATA_FOLDER]:
-        user_folder = data_folder / user_id / subfolder
-        file_path = user_folder / filename
+        file_dir = data_folder / user_folder_id / subfolder
+        file_path = file_dir / filename
         if file_path.exists() and file_path.is_file():
-            return send_from_directory(str(user_folder), filename)
+            return send_from_directory(str(file_dir), filename)
     return jsonify(error="File not found"), 404
 
 
@@ -637,22 +855,23 @@ def api_start():
     backend_world = imaginary_world
     world_label = WORLD_DISPLAY_NAMES.get(imaginary_world, imaginary_world)
 
-    # Create user folder
+    # Create story folder with new structure: data/{username}/{world_type}/{timestamp}/
     if "user_id" in session and not session.get("is_guest"):
         from database import get_user_by_id
         db_user = get_user_by_id(session["user_id"])
         if db_user:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            user_id = f"{db_user['username']}_{timestamp}"
+            username = db_user['username']
         else:
-            user_id = get_next_user_id()
+            username = get_next_guest_id()
     else:
-        user_id = get_next_user_id()
-    create_user_folder(user_id)
+        username = get_next_guest_id()
+
+    user_folder_id, story_folder = create_story_folder(username, imaginary_world)
 
     journey_id = str(uuid.uuid4())
     journey = {
-        "user_id": user_id,
+        "user_id": user_folder_id,
+        "username": username,
         "journey_id": journey_id,
         "imaginary_world": imaginary_world,
         "backend_world": backend_world,
@@ -704,14 +923,14 @@ Title: (a captivating title, 5-10 words)"""
         "ts": time.time()
     })
 
-    save_user_journey(user_id, journey)
+    save_user_journey(user_folder_id, journey)
 
     if "user_id" in session and not session.get("is_guest"):
         try:
             create_story(
                 user_id=session["user_id"],
                 journey_id=journey_id,
-                user_folder_id=user_id,
+                user_folder_id=user_folder_id,
                 imaginary_world=imaginary_world,
                 title=journey["titles"][0] if journey["titles"] else world_label,
                 story_background=journey["story_background"]
@@ -812,6 +1031,19 @@ def api_photo_event():
     if not journey_id or not photo:
         return jsonify(error="journey_id and photo are required"), 400
 
+    # Acquire per-journey lock to prevent concurrent photo uploads (TOCTOU fix)
+    journey_lock = get_journey_lock(journey_id)
+    if not journey_lock.acquire(blocking=False):
+        return jsonify(error="A photo is already being processed for this journey. Please wait."), 429
+
+    try:
+        return _process_photo_event(journey_id, photo)
+    finally:
+        journey_lock.release()
+
+
+def _process_photo_event(journey_id, photo):
+    """Internal photo event processing, called under journey lock."""
     journey, user_folder_id = load_journey_unified(journey_id)
     if not journey:
         return jsonify(error="Journey not found"), 404
@@ -927,9 +1159,10 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
     # Generate fictional image
     fictional_image_url = None
     fictional_image_path = None
+    fictional_image_source = ""
     item_name = event_data.get("fictional_item_or_character", photo_analysis.get("photo_item", ""))
     if item_name:
-        fictional_image_url, fictional_image_path = generate_fictional_image(
+        fictional_image_url, fictional_image_path, fictional_image_source = generate_fictional_image(
             item_name, backend_world, world_label, journey_id, event_index, user_id,
             story_background=journey.get("story_background", ""),
             photo_path=str(photo_path)
@@ -968,6 +1201,7 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
         "fictional_item_name": event_data.get("fictional_item_or_character", "Fictional Character"),
         "photo_image_url": photo_image_url,
         "fictional_image_url": fictional_image_url,
+        "fictional_image_source": fictional_image_source,
         "photo_3d_job_id": photo_3d_job_id,
         "fictional_3d_job_id": fictional_3d_job_id,
         "photo_path": str(photo_path),
@@ -1038,7 +1272,7 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
             else:
                 log("3D_GEN", f"[PHOTO] Failed: {err}")
                 create_placeholder_glb(str(real_3d_output))
-                update_job_status(photo_job_id, "completed", "Placeholder", 100, files={"glb": str(real_3d_output)})
+                update_job_status(photo_job_id, "failed", "GPU failed", 100, error=err, files={"glb": str(real_3d_output)})
                 if user_id:
                     event["photo_3d_url"] = f"/user/{user_id}/real_3d/event_{event_index + 1}.glb"
 
@@ -1072,7 +1306,7 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
             else:
                 log("3D_GEN", f"[FICTIONAL] Failed: {err}")
                 create_placeholder_glb(str(fictional_3d_output))
-                update_job_status(fictional_job_id, "completed", "Placeholder", 100, files={"glb": str(fictional_3d_output)})
+                update_job_status(fictional_job_id, "failed", "GPU failed", 100, error=err, files={"glb": str(fictional_3d_output)})
                 if user_id:
                     event["fictional_3d_url"] = f"/user/{user_id}/fictional_3d/event_{event_index + 1}.glb"
 
@@ -1162,7 +1396,7 @@ def api_process():
         else:
             log("PROCESS", f"GPU worker failed: {err}")
             create_placeholder_glb(str(glb_output_path))
-            update_job_status(job_id, "completed", "Placeholder (GPU failed)", 100, files={"glb": str(glb_output_path)})
+            update_job_status(job_id, "failed", "GPU failed", 100, error=err, files={"glb": str(glb_output_path)})
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"job_id": job_id})

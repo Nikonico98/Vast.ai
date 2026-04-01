@@ -31,7 +31,7 @@ import traceback
 import requests
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List, Any
-from PIL import Image as PILImage
+from PIL import Image as PILImage, ImageDraw, ImageFont
 
 from config import (
     OPENAI_API_KEY, OPENAI_MODEL, OPENAI_TEMPERATURE,
@@ -663,6 +663,109 @@ def upload_image_to_cdn(image_path: str) -> Optional[str]:
 # ==========================================
 # Luma AI: Generate Fictional Image
 # ==========================================
+
+class LumaTransientError(Exception):
+    """Retryable Luma API error (HTTP 429/500/502/503, timeouts, network errors)."""
+    pass
+
+class LumaPermanentError(Exception):
+    """Non-retryable Luma API error (content policy, missing data)."""
+    pass
+
+
+def _save_fictional_image(image_data: bytes, user_id, journey_id, event_index):
+    """Save fictional image bytes to disk. Returns (url_path, filepath)."""
+    if user_id:
+        filename = f"event_{event_index + 1}.png"
+        fictional_images_folder = get_user_path(user_id, "fictional_images")
+        fictional_images_folder.mkdir(parents=True, exist_ok=True)
+        filepath = fictional_images_folder / filename
+        url_path = f"/user/{user_id}/fictional_images/{filename}"
+    else:
+        filename = f"fictional_{journey_id}_{event_index}.png"
+        filepath = RESULT_FOLDER / filename
+        url_path = f"/results/{filename}"
+
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+    return url_path, filepath
+
+
+def _generate_placeholder_image(
+    item_name: str,
+    backend_world: str,
+    user_id: str,
+    journey_id: str,
+    event_index: int
+) -> Tuple[str, Path]:
+    """
+    Generate a placeholder image with Pillow when Luma AI fails.
+    Returns (url_path, filepath).
+    """
+    world_colors = {
+        "Historical": (139, 115, 85),
+        "Overlaid": (85, 107, 85),
+        "Alternate": (107, 85, 60),
+        "SciFi_Earth": (26, 26, 46),
+        "SciFi_Galaxy": (15, 10, 40),
+        "Fantasy": (75, 0, 130),
+    }
+    bg_color = world_colors.get(backend_world, (75, 0, 130))
+    width, height = 512, 512
+
+    img = PILImage.new("RGB", (width, height), bg_color)
+    draw = ImageDraw.Draw(img)
+
+    # Draw "⚠ PLACEHOLDER" label at top
+    label = "PLACEHOLDER"
+    try:
+        font_label = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
+        font_item = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+    except (OSError, IOError):
+        font_label = ImageFont.load_default()
+        font_item = font_label
+
+    # Center the label
+    label_bbox = draw.textbbox((0, 0), label, font=font_label)
+    label_w = label_bbox[2] - label_bbox[0]
+    draw.text(((width - label_w) // 2, 30), label, fill=(255, 200, 80), font=font_label)
+
+    # Draw a horizontal line
+    draw.line([(40, 70), (width - 40, 70)], fill=(255, 255, 255, 128), width=1)
+
+    # Wrap and center item name
+    max_chars = 28
+    words = item_name.split()
+    lines = []
+    current_line = ""
+    for word in words:
+        if current_line and len(current_line) + 1 + len(word) > max_chars:
+            lines.append(current_line)
+            current_line = word
+        else:
+            current_line = f"{current_line} {word}".strip()
+    if current_line:
+        lines.append(current_line)
+
+    y_start = (height - len(lines) * 30) // 2
+    for i, line in enumerate(lines):
+        line_bbox = draw.textbbox((0, 0), line, font=font_item)
+        line_w = line_bbox[2] - line_bbox[0]
+        draw.text(((width - line_w) // 2, y_start + i * 30), line, fill=(255, 255, 255), font=font_item)
+
+    # Draw border
+    draw.rectangle([(4, 4), (width - 5, height - 5)], outline=(255, 200, 80), width=2)
+
+    # Save to bytes
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    url_path, filepath = _save_fictional_image(buf.read(), user_id, journey_id, event_index)
+    log("PLACEHOLDER", f"✅ Placeholder image saved: {filepath}")
+    return url_path, filepath
+
+
 def generate_fictional_image(
     item_name: str,
     backend_world: str,
@@ -672,9 +775,10 @@ def generate_fictional_image(
     user_id: str = None,
     story_background: str = None,
     photo_path: str = None
-) -> Tuple[Optional[str], Optional[Path]]:
+) -> Tuple[Optional[str], Optional[Path], str]:
     """
-    Generate an image of the fictional item or character using Luma AI.
+    Generate an image of the fictional item or character using Luma AI,
+    with retry logic and placeholder fallback.
 
     Uses async API with polling for completion.
     Supports image_ref to match camera angle/perspective from user's photo.
@@ -690,11 +794,19 @@ def generate_fictional_image(
         photo_path: Path to user's uploaded photo for camera angle reference
 
     Returns:
-        Tuple of (URL path to the generated image, actual file path) or (None, None)
+        Tuple of (URL path, file path, source) where source is "luma" or "placeholder".
+        On total failure: (None, None, "")
     """
     if not LUMA_AVAILABLE:
-        log("LUMA", "Luma AI not available - skipping image generation")
-        return None, None
+        log("LUMA", "Luma AI not available - using placeholder image")
+        try:
+            url_path, filepath = _generate_placeholder_image(
+                item_name, backend_world, user_id, journey_id, event_index
+            )
+            return url_path, filepath, "placeholder"
+        except Exception as e:
+            log("PLACEHOLDER", f"❌ Placeholder generation also failed: {e}")
+            return None, None, ""
 
     try:
         # Build world-specific style prompt
@@ -740,7 +852,6 @@ def generate_fictional_image(
         log("LUMA", f"Photo reference: {image_ref_url if image_ref_url else 'None'}")
         log("LUMA", f"Prompt: {prompt[:100]}...")
 
-        # Step 2: Start generation (async)
         headers = {
             "Authorization": f"Bearer {LUMA_API_KEY}",
             "Content-Type": "application/json",
@@ -753,7 +864,6 @@ def generate_fictional_image(
             "aspect_ratio": "1:1"
         }
 
-        # Use modify_image_ref for better camera angle matching
         if image_ref_url and use_modify_mode:
             payload["modify_image_ref"] = {
                 "url": image_ref_url,
@@ -761,99 +871,159 @@ def generate_fictional_image(
             }
             log("LUMA", "Using modify_image_ref for camera angle preservation (weight=0.85)")
 
-        # Start generation
+        # ---- Retry loop: max 3 attempts (1 initial + 2 retries) ----
+        max_retries = 2
+        backoff_delays = [3, 6]  # seconds
+        last_error = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                url_path, filepath = _luma_generate(
+                    headers, payload, user_id, journey_id, event_index
+                )
+                log("LUMA", f"✅ Fictional image generated on attempt {attempt + 1}")
+                return url_path, filepath, "luma"
+
+            except LumaPermanentError as e:
+                log("LUMA", f"❌ Permanent error (no retry): {e}")
+                last_error = e
+                break  # No point retrying content policy / structural errors
+
+            except LumaTransientError as e:
+                last_error = e
+                if attempt < max_retries:
+                    delay = backoff_delays[attempt]
+                    log("LUMA", f"⚠️ Transient error on attempt {attempt + 1}/{max_retries + 1}: {e}")
+                    log("LUMA", f"   Retrying in {delay}s...")
+                    time.sleep(delay)
+
+                    # On last retry: downgrade from modify_image_ref to text-to-image
+                    if attempt == max_retries - 1 and "modify_image_ref" in payload:
+                        log("LUMA", "   Downgrading to text-to-image mode for final retry")
+                        payload.pop("modify_image_ref", None)
+                        payload["prompt"] = f"""{story_context}Generate an image of {item_name}, {style}, three-quarter view from 30 to 60 degree angle, slight side perspective showing depth, centered composition, clean background suitable for AR overlay, professional quality, high detail"""
+                else:
+                    log("LUMA", f"❌ All {max_retries + 1} attempts exhausted. Last error: {e}")
+
+        # ---- All Luma attempts failed → placeholder fallback ----
+        log("LUMA", f"⚠️ Luma AI failed after {max_retries + 1} attempts, generating placeholder image")
+        try:
+            url_path, filepath = _generate_placeholder_image(
+                item_name, backend_world, user_id, journey_id, event_index
+            )
+            return url_path, filepath, "placeholder"
+        except Exception as e:
+            log("PLACEHOLDER", f"❌ Placeholder generation also failed: {e}")
+            return None, None, ""
+
+    except Exception as e:
+        log("LUMA", f"❌ Unexpected error in generate_fictional_image: {type(e).__name__}: {e}")
+        log("LUMA", f"Traceback: {traceback.format_exc()}")
+        # Last resort: try placeholder
+        try:
+            url_path, filepath = _generate_placeholder_image(
+                item_name, backend_world, user_id, journey_id, event_index
+            )
+            return url_path, filepath, "placeholder"
+        except Exception:
+            return None, None, ""
+
+
+def _luma_generate(headers, payload, user_id, journey_id, event_index):
+    """
+    Submit a generation request to Luma AI, poll for completion, download the result.
+    
+    Returns:
+        Tuple of (url_path, filepath) on success.
+    
+    Raises:
+        LumaTransientError: For retryable failures (HTTP 429/5xx, timeouts, network).
+        LumaPermanentError: For non-retryable failures (content policy, missing data).
+    """
+    TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
+
+    # Step 1: Start generation
+    try:
         response = requests.post(
             f"{LUMA_API_BASE}/generations/image",
             headers=headers,
             json=payload,
             timeout=30
         )
+    except (requests.ConnectionError, requests.Timeout) as e:
+        raise LumaTransientError(f"Network error starting generation: {e}")
 
-        if response.status_code != 200 and response.status_code != 201:
-            log("LUMA", f"❌ Failed to start generation: HTTP {response.status_code}")
-            log("LUMA", f"Response: {response.text}")
-            return None, None
+    if response.status_code in TRANSIENT_STATUS_CODES:
+        raise LumaTransientError(f"HTTP {response.status_code} starting generation: {response.text[:200]}")
+    if response.status_code not in (200, 201):
+        raise LumaPermanentError(f"HTTP {response.status_code} starting generation: {response.text[:200]}")
 
-        generation_data = response.json()
-        generation_id = generation_data.get("id")
+    generation_data = response.json()
+    generation_id = generation_data.get("id")
+    if not generation_id:
+        raise LumaPermanentError("No generation ID in API response")
 
-        if not generation_id:
-            log("LUMA", f"❌ No generation ID received")
-            return None, None
+    log("LUMA", f"Generation started: {generation_id}")
 
-        log("LUMA", f"Generation started: {generation_id}")
+    # Step 2: Poll for completion (max 2 minutes)
+    max_attempts = 60
+    poll_interval = 2
+    image_url = None
 
-        # Step 3: Poll for completion (max 2 minutes)
-        max_attempts = 60  # 60 attempts x 2 seconds = 2 minutes
-        poll_interval = 2  # seconds
+    for attempt in range(max_attempts):
+        time.sleep(poll_interval)
 
-        for attempt in range(max_attempts):
-            time.sleep(poll_interval)
-
+        try:
             status_response = requests.get(
                 f"{LUMA_API_BASE}/generations/{generation_id}",
                 headers=headers,
                 timeout=30
             )
+        except (requests.ConnectionError, requests.Timeout) as e:
+            log("LUMA", f"Poll attempt {attempt+1}: network error: {e}")
+            continue  # Transient poll failure, keep trying
 
-            if status_response.status_code != 200:
-                log("LUMA", f"Poll attempt {attempt+1}: HTTP {status_response.status_code}")
-                continue
+        if status_response.status_code != 200:
+            log("LUMA", f"Poll attempt {attempt+1}: HTTP {status_response.status_code}")
+            continue
 
-            status_data = status_response.json()
-            state = status_data.get("state", "unknown")
+        status_data = status_response.json()
+        state = status_data.get("state", "unknown")
 
-            if state == "completed":
-                # Get image URL from assets
-                assets = status_data.get("assets", {})
-                image_url = assets.get("image")
+        if state == "completed":
+            assets = status_data.get("assets", {})
+            image_url = assets.get("image")
+            if not image_url:
+                raise LumaPermanentError("Completed but no image URL in assets")
+            log("LUMA", f"✅ Generation completed: {image_url[:50]}...")
+            break
 
-                if not image_url:
-                    log("LUMA", f"❌ Completed but no image URL in assets")
-                    return None, None
-
-                log("LUMA", f"✅ Generation completed: {image_url[:50]}...")
-                break
-
-            elif state == "failed":
-                failure_reason = status_data.get("failure_reason", "Unknown error")
-                log("LUMA", f"❌ Generation failed: {failure_reason}")
-                return None, None
-
-            # Still processing
-            if attempt % 5 == 0:
-                log("LUMA", f"Waiting... state: {state} (attempt {attempt+1}/{max_attempts})")
-        else:
-            log("LUMA", f"❌ Generation timeout after {max_attempts * poll_interval} seconds")
-            return None, None
-
-        # Step 4: Download and save locally
-        img_response = requests.get(image_url, timeout=60)
-        if img_response.status_code == 200:
-            # Determine save path based on user structure
-            if user_id:
-                # New structure: save to user's fictional_images folder
-                filename = f"event_{event_index + 1}.png"
-                fictional_images_folder = get_user_path(user_id, "fictional_images")
-                fictional_images_folder.mkdir(parents=True, exist_ok=True)
-                filepath = fictional_images_folder / filename
-                url_path = f"/user/{user_id}/fictional_images/{filename}"
+        elif state == "failed":
+            failure_reason = status_data.get("failure_reason", "Unknown error")
+            # Content policy / moderation failures are permanent
+            if any(kw in failure_reason.lower() for kw in ("content", "policy", "moderation", "safety", "prohibited")):
+                raise LumaPermanentError(f"Generation failed (policy): {failure_reason}")
             else:
-                # Legacy structure
-                filename = f"fictional_{journey_id}_{event_index}.png"
-                filepath = RESULT_FOLDER / filename
-                url_path = f"/results/{filename}"
+                raise LumaTransientError(f"Generation failed: {failure_reason}")
 
-            with open(filepath, "wb") as f:
-                f.write(img_response.content)
-            log("LUMA", f"✅ Fictional image saved: {filepath}")
-            return url_path, filepath
-        else:
-            log("LUMA", f"❌ Failed to download image: HTTP {img_response.status_code}")
+        if attempt % 5 == 0:
+            log("LUMA", f"Waiting... state: {state} (attempt {attempt+1}/{max_attempts})")
+    else:
+        raise LumaTransientError(f"Generation timeout after {max_attempts * poll_interval}s")
 
-        return None, None
+    # Step 3: Download and save
+    try:
+        img_response = requests.get(image_url, timeout=60)
+    except (requests.ConnectionError, requests.Timeout) as e:
+        raise LumaTransientError(f"Failed to download image: {e}")
 
-    except Exception as e:
-        log("LUMA", f"❌ Error generating fictional image: {type(e).__name__}: {e}")
-        log("LUMA", f"Traceback: {traceback.format_exc()}")
-        return None, None
+    if img_response.status_code in TRANSIENT_STATUS_CODES:
+        raise LumaTransientError(f"Failed to download image: HTTP {img_response.status_code}")
+    if img_response.status_code != 200:
+        raise LumaPermanentError(f"Failed to download image: HTTP {img_response.status_code}")
+
+    url_path, filepath = _save_fictional_image(
+        img_response.content, user_id, journey_id, event_index
+    )
+    log("LUMA", f"✅ Fictional image saved: {filepath}")
+    return url_path, filepath

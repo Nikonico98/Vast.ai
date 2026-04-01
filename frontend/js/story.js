@@ -104,6 +104,7 @@ class StoryController {
     // Photo state
     this.selectedPhoto = null;
     this.selectedPhotoDataUrl = null;
+    this.isUploading = false; // Lock to prevent double-submit
 
     // Viewers
     this.dualViewer = null;
@@ -1299,8 +1300,7 @@ class StoryController {
     // Determine which page to show
     if (
       journey.status === "completed" ||
-      this.events.length >= PHOTOS_PER_STORY ||
-      savedPage === PAGES.STORY_COMPLETE
+      this.events.length >= PHOTOS_PER_STORY
     ) {
       // Show completed page with all collected items
       this.buildCompleteStory();
@@ -2311,11 +2311,19 @@ class StoryController {
       return;
     }
 
+    // Lock: prevent double-click double-submit
+    if (this.isUploading) {
+      Logger.log("Upload already in progress, ignoring duplicate click");
+      return;
+    }
+    this.isUploading = true;
+
     // Guard: prevent uploading beyond the event limit
     if (this.events.length >= PHOTOS_PER_STORY) {
       Logger.error(
         `Already have ${this.events.length}/${PHOTOS_PER_STORY} events, cannot upload more`,
       );
+      this.isUploading = false;
       this.showStoryComplete();
       return;
     }
@@ -2353,6 +2361,9 @@ class StoryController {
 
       // Clear processing state (completed successfully)
       removeFromStorage("iw_processing_state");
+
+      // Unlock upload
+      this.isUploading = false;
 
       // Store event
       const eventData = {
@@ -2395,6 +2406,8 @@ class StoryController {
       Logger.error("Photo processing failed:", error);
       // Clear processing state on error
       removeFromStorage("iw_processing_state");
+      // Unlock upload
+      this.isUploading = false;
       this.showProcessingError(error.message);
     }
   }
