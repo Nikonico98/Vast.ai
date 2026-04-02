@@ -51,6 +51,28 @@ def load_model():
     """Load SAM3 model into GPU memory (called once at startup)."""
     global model, processor, device, model_loaded
 
+    # Force float32 everywhere — prevent BFloat16 from checkpoint/autocast
+    torch.set_default_dtype(torch.float32)
+
+    # Monkey-patch perflib.fused.addmm_act: the upstream version forces bfloat16
+    # which breaks on RTX A5000 (no native bf16 matmul) and causes dtype mismatches.
+    import sam3.perflib.fused as _fused_mod
+
+    def _addmm_act_float32(activation, linear, mat1):
+        """addmm_act that stays in float32 instead of forcing bfloat16."""
+        x = torch.nn.functional.linear(mat1, linear.weight, linear.bias)
+        if activation in [torch.nn.functional.relu, torch.nn.ReLU]:
+            return torch.nn.functional.relu(x)
+        if activation in [torch.nn.functional.gelu, torch.nn.GELU]:
+            return torch.nn.functional.gelu(x)
+        raise ValueError(f"Unexpected activation {activation}")
+
+    _fused_mod.addmm_act = _addmm_act_float32
+    # Also patch it in vitdet which already imported the symbol
+    import sam3.model.vitdet as _vitdet_mod
+    _vitdet_mod.addmm_act = _addmm_act_float32
+    print("[SAM3 Server] Patched addmm_act to float32 (disabled bfloat16 fused op)")
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[SAM3 Server] Loading model on {device}...")
     start = time.time()
@@ -58,7 +80,19 @@ def load_model():
     from sam3.model_builder import build_sam3_image_model
     from sam3.model.sam3_image_processor import Sam3Processor
 
-    model = build_sam3_image_model().to(device).eval()
+    model = build_sam3_image_model().float().to(device).eval()
+
+    # Verify all params are float32
+    bf16_params = [n for n, p in model.named_parameters() if p.dtype == torch.bfloat16]
+    if bf16_params:
+        print(f"[SAM3 Server] WARNING: {len(bf16_params)} params still bfloat16, forcing float32")
+        for n, p in model.named_parameters():
+            if p.dtype != torch.float32:
+                p.data = p.data.float()
+        for n, b in model.named_buffers():
+            if b.is_floating_point() and b.dtype != torch.float32:
+                b.data = b.data.float()
+
     processor = Sam3Processor(model, confidence_threshold=0.15)
     model_loaded = True
 

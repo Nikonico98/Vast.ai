@@ -78,7 +78,14 @@ def load_model():
 
 
 def reconstruct(cutout_path, glb_path, job_id=""):
-    """Run SAM3D 3D reconstruction using the pre-loaded model."""
+    """Run SAM3D 3D reconstruction using the pre-loaded model.
+    
+    Images are capped at MAX_DIM to keep peak VRAM within safe limits.
+    If CUDA OOM occurs, retries at a smaller resolution as fallback.
+    """
+    MAX_DIM = 1024       # Cap to keep peak VRAM ~14GB (safe with SAM3's ~4GB on 24GB card)
+    OOM_FALLBACK_DIM = 768  # Emergency fallback if OOM at 1024
+
     start = time.time()
 
     # Load RGBA cutout
@@ -92,6 +99,28 @@ def reconstruct(cutout_path, glb_path, job_id=""):
     mask_pct = (mask > 0).sum() / mask.size * 100
     print(f"[SAM3D] Input: {image.shape}, mask coverage: {mask_pct:.1f}%")
 
+    # Resize if too large to cap VRAM usage
+    image, mask = _maybe_resize(image, mask, MAX_DIM)
+
+    return _do_reconstruct(image, mask, glb_path, job_id, start, OOM_FALLBACK_DIM)
+
+
+def _maybe_resize(image, mask, max_dim):
+    """Resize image and mask if max dimension exceeds max_dim."""
+    h, w = image.shape[:2]
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        new_h, new_w = int(h * scale), int(w * scale)
+        print(f"[SAM3D] Resizing {w}x{h} → {new_w}x{new_h} (VRAM cap at {max_dim}px)")
+        pil_img = Image.fromarray(image)
+        pil_mask = Image.fromarray(mask * 255)
+        image = np.array(pil_img.resize((new_w, new_h), Image.LANCZOS))
+        mask = (np.array(pil_mask.resize((new_w, new_h), Image.LANCZOS)) > 127).astype(np.uint8)
+    return image, mask
+
+
+def _do_reconstruct(image, mask, glb_path, job_id, start, oom_fallback_dim):
+    """Core reconstruction logic with OOM recovery."""
     # Per-job meshes directory to avoid race conditions
     default_meshes_dir = os.path.join(SAM3D_REPO, "notebook", "meshes")
     job_meshes_dir = os.path.join(SAM3D_REPO, "notebook", f"meshes_{job_id}")
@@ -104,11 +133,20 @@ def reconstruct(cutout_path, glb_path, job_id=""):
     for wd in watch_dirs:
         before.update(glob.glob(os.path.join(wd, "**", "*.glb"), recursive=True))
 
-    # Run inference
+    # Run inference with OOM recovery
     print(f"[SAM3D] Running inference...")
     try:
         out = inference_model(image, mask, seed=42)
         print(f"[SAM3D] Inference completed, output type: {type(out)}")
+    except torch.cuda.OutOfMemoryError:
+        torch.cuda.empty_cache()
+        gc.collect()
+        if oom_fallback_dim and max(image.shape[:2]) > oom_fallback_dim:
+            print(f"[SAM3D] ⚠️ CUDA OOM! Retrying at {oom_fallback_dim}px...")
+            image, mask = _maybe_resize(image, mask, oom_fallback_dim)
+            return _do_reconstruct(image, mask, glb_path, job_id, start, None)
+        print(f"[SAM3D] CUDA OOM even at minimum resolution")
+        return {"success": False, "error": "CUDA OOM", "time": time.time() - start}
     except Exception as e:
         print(f"[SAM3D] Inference FAILED: {e}")
         traceback.print_exc()

@@ -1,24 +1,24 @@
 #!/bin/bash
 # ==========================================
-# Start SAM3 Persistent Model Servers
+# Start SAM3 + SAM3D Persistent Model Servers
 # ==========================================
-# Architecture: SAM3 persistent + SAM3D on-demand
-#   GPU 0: SAM3 (port 5561) → handles real/photo items
-#   GPU 1: SAM3 (port 5571) → handles fictional items
-#   SAM3D: runs as on-demand subprocess per job (no persistent server)
+# Architecture: SAM3 persistent + SAM3D persistent (both in VRAM)
+#   GPU 0: SAM3 (port 5561) + SAM3D (port 5562) → real/photo items
+#   GPU 1: SAM3 (port 5571) + SAM3D (port 5572) → fictional items
 #
-# This keeps ~4GB VRAM per GPU for SAM3, leaving ~20GB free for SAM3D
-# subprocess jobs, eliminating CUDA OOM errors.
+# VRAM budget per GPU (24GB RTX A5000):
+#   SAM3 ~4GB + SAM3D ~13GB idle / ~14GB peak (1024px cap) = ~18GB
+#   Headroom: ~6GB
 #
 # Usage:
-#   bash start_model_servers.sh        # Start both SAM3 servers
-#   bash start_model_servers.sh gpu0   # Start GPU 0 SAM3 only
-#   bash start_model_servers.sh gpu1   # Start GPU 1 SAM3 only
+#   bash start_model_servers.sh        # Start all servers
+#   bash start_model_servers.sh gpu0   # Start GPU 0 (SAM3+SAM3D)
+#   bash start_model_servers.sh gpu1   # Start GPU 1 (SAM3+SAM3D)
 #   bash start_model_servers.sh stop   # Stop all servers
 #
 # Logs:
-#   /workspace/IW/logs/sam3_gpu0_server.log
-#   /workspace/IW/logs/sam3_gpu1_server.log
+#   /workspace/IW/logs/sam3_gpu{0,1}_server.log
+#   /workspace/IW/logs/sam3d_gpu{0,1}_server.log
 # ==========================================
 
 set -e
@@ -34,11 +34,13 @@ fi
 
 CONDA_BASE=$(conda info --base 2>/dev/null || echo "/opt/conda")
 
-# Port configuration — SAM3 only (SAM3D runs as on-demand subprocess)
+# Port configuration — SAM3 + SAM3D persistent servers
 SAM3_PORT_GPU0="${SAM3_SERVER_PORT_GPU0:-5561}"
 SAM3_PORT_GPU1="${SAM3_SERVER_PORT_GPU1:-5571}"
+SAM3D_PORT_GPU0="${SAM3D_SERVER_PORT_GPU0:-5562}"
+SAM3D_PORT_GPU1="${SAM3D_SERVER_PORT_GPU1:-5572}"
 
-ALL_PORTS="$SAM3_PORT_GPU0 $SAM3_PORT_GPU1"
+ALL_PORTS="$SAM3_PORT_GPU0 $SAM3_PORT_GPU1 $SAM3D_PORT_GPU0 $SAM3D_PORT_GPU1"
 
 stop_servers() {
     echo "Stopping all model servers..."
@@ -62,8 +64,20 @@ start_sam3_on_gpu() {
     echo "  SAM3@GPU$gpu_id PID: $!"
 }
 
-# NOTE: SAM3D no longer runs as persistent server.
-# It runs as on-demand subprocess via pipeline_3d.py to avoid VRAM pressure.
+start_sam3d_on_gpu() {
+    local gpu_id=$1
+    local port=$2
+    local log_file="$LOG_DIR/sam3d_gpu${gpu_id}_server.log"
+
+    echo "Starting SAM3D on GPU $gpu_id (port $port)..."
+    SAM3D_SERVER_PORT=$port CUDA_VISIBLE_DEVICES=$gpu_id bash -c "
+        source $CONDA_BASE/etc/profile.d/conda.sh
+        conda activate ${SAM3D_ENV:-sam3d-objects}
+        cd ${SAM3D_REPO:-/workspace/sam-3d-objects}
+        exec python $SCRIPT_DIR/sam3d_server.py
+    " >> "$log_file" 2>&1 &
+    echo "  SAM3D@GPU$gpu_id PID: $!"
+}
 
 wait_for_server() {
     local port=$1
@@ -88,20 +102,93 @@ wait_for_server() {
 
 start_gpu0() {
     start_sam3_on_gpu 0 "$SAM3_PORT_GPU0"
+    start_sam3d_on_gpu 0 "$SAM3D_PORT_GPU0"
 }
 
 start_gpu1() {
     start_sam3_on_gpu 1 "$SAM3_PORT_GPU1"
+    start_sam3d_on_gpu 1 "$SAM3D_PORT_GPU1"
 }
 
 wait_gpu0() {
     wait_for_server "$SAM3_PORT_GPU0" "SAM3@GPU0" 120
+    local sam3_ok=$?
+    wait_for_server "$SAM3D_PORT_GPU0" "SAM3D@GPU0" 180
+    local sam3d_ok=$?
+    [ $sam3_ok -eq 0 ] && [ $sam3d_ok -eq 0 ]
     return $?
 }
 
 wait_gpu1() {
     wait_for_server "$SAM3_PORT_GPU1" "SAM3@GPU1" 120
+    local sam3_ok=$?
+    wait_for_server "$SAM3D_PORT_GPU1" "SAM3D@GPU1" 180
+    local sam3d_ok=$?
+    [ $sam3_ok -eq 0 ] && [ $sam3d_ok -eq 0 ]
     return $?
+}
+
+# ==========================================
+# Caddy reverse proxy for gpu_app
+# ==========================================
+# Vast.ai resets /etc/Caddyfile on every instance restart.
+# This function re-injects the :8080 → localhost:5555 proxy block
+# so Hostinger can reach gpu_app via the external mapped port.
+# ==========================================
+CADDY_GPU_BLOCK='
+# GPU API Service - gpu_app on port 5555
+# External: PUBLIC_IP:VAST_TCP_PORT_8080 -> internal :8080 -> localhost:5555
+:8080 {
+	encode zstd gzip
+
+	@cors_preflight method OPTIONS
+	handle @cors_preflight {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Content-Type, X-GPU-API-Key, X-API-Secret, Authorization"
+		header Access-Control-Max-Age "86400"
+		respond 204
+	}
+
+	handle {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Content-Type, X-GPU-API-Key, X-API-Secret, Authorization"
+
+		reverse_proxy localhost:5555 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			flush_interval -1
+		}
+	}
+}
+'
+
+ensure_caddy_gpu_proxy() {
+    local caddyfile="/etc/Caddyfile"
+
+    if grep -q ":8080" "$caddyfile" 2>/dev/null; then
+        echo "  Caddy :8080 proxy already configured ✅"
+        return 0
+    fi
+
+    echo "  Caddy :8080 proxy missing — injecting..."
+
+    # Kill anything on 8080 (usually Jupyter)
+    fuser -k 8080/tcp 2>/dev/null || true
+    sleep 1
+
+    # Append the GPU API block
+    echo "$CADDY_GPU_BLOCK" >> "$caddyfile"
+
+    # Format and reload
+    caddy fmt --overwrite "$caddyfile" 2>/dev/null || true
+    if curl -s localhost:2019/load -X POST -H "Content-Type: text/caddyfile" --data-binary @"$caddyfile" | grep -q error; then
+        echo "  ⚠️ Caddy reload failed — check /etc/Caddyfile"
+        return 1
+    fi
+
+    echo "  Caddy :8080 → localhost:5555 proxy added and reloaded ✅"
 }
 
 case "${1:-all}" in
@@ -120,17 +207,19 @@ case "${1:-all}" in
         ;;
     all|"")
         echo "=========================================="
-        echo "  Starting SAM3 Persistent Model Servers"
-        echo "  GPU 0: SAM3 (:$SAM3_PORT_GPU0) → real/photo"
-        echo "  GPU 1: SAM3 (:$SAM3_PORT_GPU1) → fictional"
-        echo "  SAM3D: on-demand subprocess (no persistent server)"
+        echo "  Starting SAM3 + SAM3D Persistent Servers"
+        echo "  GPU 0: SAM3 (:$SAM3_PORT_GPU0) + SAM3D (:$SAM3D_PORT_GPU0)"
+        echo "  GPU 1: SAM3 (:$SAM3_PORT_GPU1) + SAM3D (:$SAM3D_PORT_GPU1)"
         echo "=========================================="
+
+        # ---- Ensure Caddy :8080 proxy exists (survives instance restart) ----
+        ensure_caddy_gpu_proxy
 
         # Stop existing servers first
         stop_servers 2>/dev/null || true
         sleep 1
 
-        # Start all 4 servers
+        # Start all servers (SAM3 + SAM3D on each GPU)
         start_gpu0
         start_gpu1
 
@@ -144,10 +233,9 @@ case "${1:-all}" in
         echo ""
         echo "=========================================="
         if [ $GPU0_OK -eq 0 ] && [ $GPU1_OK -eq 0 ]; then
-            echo "  ✅ Both SAM3 servers are ready!"
-            echo "  GPU 0: SAM3 → real/photo segmentation"
-            echo "  GPU 1: SAM3 → fictional segmentation"
-            echo "  SAM3D: on-demand subprocess (VRAM-safe)"
+            echo "  ✅ All servers are ready!"
+            echo "  GPU 0: SAM3 + SAM3D → real/photo"
+            echo "  GPU 1: SAM3 + SAM3D → fictional"
         else
             echo "  ⚠️ Some servers failed to start"
             echo "  Check logs in $LOG_DIR/"

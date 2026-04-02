@@ -51,7 +51,7 @@ SAM3_REPO = os.getenv("SAM3_REPO", os.path.join(WORKSPACE, "sam3"))
 SAM3D_ENV = os.getenv("SAM3D_ENV", "sam3d-objects")
 SAM3D_REPO = os.getenv("SAM3D_REPO", os.path.join(WORKSPACE, "sam-3d-objects"))
 SAM3D_CHECKPOINT = os.getenv("SAM3D_CHECKPOINT", "hf")
-# NOTE: SAM3D runs as on-demand subprocess, not persistent server.
+# NOTE: SAM3D runs as persistent server (with subprocess fallback).
 
 # Hugging Face
 HF_TOKEN = os.getenv("HF_TOKEN", "")
@@ -573,15 +573,16 @@ def gpu_download_cutout(job_id):
 # GET /api/gpu/health - Health Check
 # ==========================================
 # ==========================================
-# Model Server Health Helpers (SAM3 persistent, SAM3D on-demand)
+# Model Server Health Helpers (SAM3 + SAM3D persistent)
 # ==========================================
-# GPU 0 servers (real/photo pipeline) — SAM3 only
+# GPU 0 servers (real/photo pipeline)
 SAM3_SERVER_URL_GPU0 = os.getenv("SAM3_SERVER_URL_GPU0", "http://127.0.0.1:5561")
-# GPU 1 servers (fictional pipeline) — SAM3 only
+SAM3D_SERVER_URL_GPU0 = os.getenv("SAM3D_SERVER_URL_GPU0", "http://127.0.0.1:5562")
+# GPU 1 servers (fictional pipeline)
 SAM3_SERVER_URL_GPU1 = os.getenv("SAM3_SERVER_URL_GPU1", "http://127.0.0.1:5571")
+SAM3D_SERVER_URL_GPU1 = os.getenv("SAM3D_SERVER_URL_GPU1", "http://127.0.0.1:5572")
 # Legacy
 SAM3_SERVER_URL = os.getenv("SAM3_SERVER_URL", "http://127.0.0.1:5561")
-# NOTE: SAM3D no longer has persistent servers (runs as subprocess)
 
 def _check_model_server(base_url, timeout=3):
     """Check a persistent model server's health."""
@@ -629,21 +630,15 @@ def gpu_health():
     sam3_ok, sam3_msg = verify_sam3_environment()
     sam3d_ok, sam3d_msg = verify_sam3d_environment()
 
-    # Check all persistent model servers (SAM3 only)
+    # Check all persistent model servers (SAM3 + SAM3D)
     sam3_gpu0 = _check_model_server(SAM3_SERVER_URL_GPU0)
     sam3_gpu1 = _check_model_server(SAM3_SERVER_URL_GPU1)
+    sam3d_gpu0 = _check_model_server(SAM3D_SERVER_URL_GPU0)
+    sam3d_gpu1 = _check_model_server(SAM3D_SERVER_URL_GPU1)
 
     # Aggregate for frontend
     sam3_combined = _aggregate_service(sam3_gpu0, sam3_gpu1)
-    # SAM3D is on-demand subprocess — always "available" if env is ready
-    sam3d_on_demand = {
-        "status": "on-demand" if sam3d_ok else "env_missing",
-        "model_loaded": False,
-        "ready": sam3d_ok,
-        "loaded": False,
-        "mode": "subprocess",
-        "note": "SAM3D runs as on-demand subprocess to save VRAM",
-    }
+    sam3d_combined = _aggregate_service(sam3d_gpu0, sam3d_gpu1)
 
     return jsonify({
         "success": True,
@@ -656,13 +651,13 @@ def gpu_health():
         "sam3_ready": sam3_ok,
         "sam3d_ready": sam3d_ok,
         "sam3": sam3_combined,
-        "sam3d": sam3d_on_demand,
+        "sam3d": sam3d_combined,
         "gpu_info": gpu_info,
         "gpus": gpu_info,
-        "architecture": "sam3-persistent-sam3d-ondemand",
+        "architecture": "sam3-persistent-sam3d-persistent",
         "servers": {
-            "gpu0": {"sam3": sam3_gpu0, "sam3d": "on-demand subprocess", "role": "real/photo"},
-            "gpu1": {"sam3": sam3_gpu1, "sam3d": "on-demand subprocess", "role": "fictional"},
+            "gpu0": {"sam3": sam3_gpu0, "sam3d": sam3d_gpu0, "role": "real/photo"},
+            "gpu1": {"sam3": sam3_gpu1, "sam3d": sam3d_gpu1, "role": "fictional"},
         },
         "timestamp": datetime.utcnow().isoformat()
     })
@@ -803,7 +798,7 @@ if __name__ == "__main__":
     print(f"  GPU Count:     {GPU_POOL.get_gpu_count()}")
     print(f"  GPU Mode:      {GPU_POOL.get_mode()}")
     print(f"  SAM3 Env:      {SAM3_ENV}")
-    print(f"  SAM3D Env:     {SAM3D_ENV} (on-demand subprocess)")
+    print(f"  SAM3D Env:     {SAM3D_ENV} (persistent server)")
     print(f"  SAM3D Mode:    subprocess (not persistent - saves ~13GB VRAM/GPU)")
     print(f"  Data Dir:      {DATA_DIR}")
     print(f"  Port:          {GPU_SERVICE_PORT}")

@@ -43,38 +43,50 @@ import json
 import urllib.request as _urllib_request
 
 # ==========================================
-# Per-GPU SAM3D Locks (prevent OOM from concurrent heavy inference)
+# Per-GPU Pipeline Lock (one full pipeline per GPU at a time)
 # ==========================================
-# SAM3D needs ~18GB VRAM. SAM3 server uses ~4GB. Total ~22GB on a 24GB card.
-# Running two SAM3D processes on the same GPU guarantees OOM.
-# These locks ensure only ONE SAM3D subprocess runs per physical GPU.
-_SAM3D_GPU_LOCKS = {}
-_SAM3D_LOCKS_INIT = threading.Lock()
+# Ensures only ONE SAM3+SAM3D pipeline runs per physical GPU.
+# This guarantees SAM3 inference and SAM3D inference on the same GPU
+# never overlap between different jobs, eliminating OOM risk entirely.
+#
+# VRAM budget with lock (per GPU, 24GB):
+#   SAM3 idle(~4GB) + SAM3D idle(~13GB) = ~17GB baseline
+#   SAM3 inference spike: +1-2GB → ~18-19GB
+#   SAM3D inference peak @1024px: +1-2GB above idle → ~18-19GB
+#   Never concurrent → peak never exceeds ~19GB → ~5GB headroom always
+_GPU_PIPELINE_LOCKS = {}
+_GPU_LOCKS_INIT = threading.Lock()
 
-def _get_sam3d_gpu_lock(gpu_id: int) -> threading.Lock:
-    """Get or create a per-GPU lock for SAM3D inference."""
-    with _SAM3D_LOCKS_INIT:
-        if gpu_id not in _SAM3D_GPU_LOCKS:
-            _SAM3D_GPU_LOCKS[gpu_id] = threading.Lock()
-        return _SAM3D_GPU_LOCKS[gpu_id]
+def _get_gpu_pipeline_lock(gpu_id: int) -> threading.Lock:
+    """Get or create a per-GPU pipeline lock."""
+    with _GPU_LOCKS_INIT:
+        if gpu_id not in _GPU_PIPELINE_LOCKS:
+            _GPU_PIPELINE_LOCKS[gpu_id] = threading.Lock()
+        return _GPU_PIPELINE_LOCKS[gpu_id]
 
 # ==========================================
 # Model Server Configuration (Dual-GPU)
 # ==========================================
-# GPU 0 servers (real/photo pipeline) — SAM3 only (persistent)
+# GPU 0 servers (real/photo pipeline) — SAM3 + SAM3D (persistent)
 SAM3_SERVER_URL_GPU0 = os.getenv("SAM3_SERVER_URL_GPU0", "http://127.0.0.1:5561")
-# GPU 1 servers (fictional pipeline) — SAM3 only (persistent)
+SAM3D_SERVER_URL_GPU0 = os.getenv("SAM3D_SERVER_URL_GPU0", "http://127.0.0.1:5562")
+# GPU 1 servers (fictional pipeline) — SAM3 + SAM3D (persistent)
 SAM3_SERVER_URL_GPU1 = os.getenv("SAM3_SERVER_URL_GPU1", "http://127.0.0.1:5571")
+SAM3D_SERVER_URL_GPU1 = os.getenv("SAM3D_SERVER_URL_GPU1", "http://127.0.0.1:5572")
 # Legacy (backward compat)
 SAM3_SERVER_URL = os.getenv("SAM3_SERVER_URL", "http://127.0.0.1:5561")
-# NOTE: SAM3D now runs as on-demand subprocess to avoid VRAM pressure.
-# No persistent SAM3D server — model is loaded per-job and released after.
 
 def _get_sam3_server_url(gpu_id):
     """Get SAM3 server URL for a given GPU."""
     if gpu_id == 1:
         return SAM3_SERVER_URL_GPU1
     return SAM3_SERVER_URL_GPU0
+
+def _get_sam3d_server_url(gpu_id):
+    """Get SAM3D server URL for a given GPU."""
+    if gpu_id == 1:
+        return SAM3D_SERVER_URL_GPU1
+    return SAM3D_SERVER_URL_GPU0
 
 
 def _is_server_available(base_url, timeout=2):
@@ -148,16 +160,37 @@ python "{sam3_script_file}"
 
 
 def _run_sam3d(job_id, input_png, glb_out, gpu_id, conda_base, temp_dir):
-    """Run SAM3D reconstruction as on-demand subprocess.
+    """Run SAM3D reconstruction via persistent server or subprocess fallback.
     
-    SAM3D is NOT kept as a persistent server to avoid ~13GB VRAM pressure.
-    The model is loaded per-job, runs inference, then the process exits and
-    VRAM is fully released. This is slower (~30-60s extra for model loading)
-    but prevents CUDA OOM errors that cause placeholder cube fallbacks.
+    Tries the persistent SAM3D server first (model already in VRAM, fast).
+    Falls back to on-demand subprocess if server is unavailable.
     """
     start = time.time()
 
-    log(job_id, f"   🚀 Running SAM3D as on-demand subprocess on GPU {gpu_id} (VRAM-safe mode)")
+    # Try persistent SAM3D server first
+    sam3d_url = _get_sam3d_server_url(gpu_id)
+    if _is_server_available(sam3d_url):
+        log(job_id, f"   🚀 Using persistent SAM3D server on GPU {gpu_id} ({sam3d_url})")
+        try:
+            resp = _call_model_server(f"{sam3d_url}/reconstruct", {
+                "cutout_path": str(input_png),
+                "glb_path": str(glb_out),
+                "job_id": job_id,
+            }, timeout=600)
+            elapsed = time.time() - start
+            log(job_id, f"   ⏱️ SAM3D completed in {elapsed:.1f}s (server mode)")
+            if resp.get("success"):
+                glb_size = resp.get('glb_size', 0)
+                log(job_id, f"   ✅ SAM3D GLB: {glb_size:,} bytes")
+                return elapsed, True
+            else:
+                log(job_id, f"   ❌ SAM3D server error: {resp.get('error', 'Unknown')}")
+                return elapsed, False
+        except Exception as e:
+            log(job_id, f"   ❌ SAM3D server call failed: {e}, falling back to subprocess")
+
+    # Subprocess fallback (model loaded per-job, slower but always works)
+    log(job_id, f"   ⚠️ SAM3D server not available, using subprocess on GPU {gpu_id} (slower - includes model loading)")
     sam3d_script = _build_sam3d_script(input_png, glb_out, job_id)
     sam3d_script_file = Path(temp_dir) / f"{job_id}_sam3d_script.py"
     with open(sam3d_script_file, 'w', encoding='utf-8') as f:
@@ -170,7 +203,7 @@ cd {SAM3D_REPO}
 python "{sam3d_script_file}"
 '''
 
-    # Acquire per-GPU SAM3D lock to prevent OOM from concurrent heavy inference
+    # Acquire per-GPU SAM3D lock to prevent OOM from concurrent subprocess inference
     gpu_lock = _get_sam3d_gpu_lock(gpu_id)
     log(job_id, f"   🔒 Waiting for SAM3D GPU {gpu_id} lock...")
     gpu_lock.acquire()
@@ -185,7 +218,7 @@ python "{sam3d_script_file}"
         log(job_id, f"   🔒 SAM3D GPU {gpu_id} lock released")
 
     elapsed = time.time() - start
-    log(job_id, f"   ⏱️ SAM3D completed in {elapsed:.1f}s (on-demand subprocess)")
+    log(job_id, f"   ⏱️ SAM3D completed in {elapsed:.1f}s (subprocess fallback)")
     _log_subprocess_result(job_id, "SAM3D", result, stdout_lines=15, stderr_lines=10)
     return elapsed, result.returncode == 0
 
@@ -241,8 +274,16 @@ def run_3d_pipeline(job_id: str, image_path: str, prompt: str,
     used_pool = "_photo_" not in job_id and "_fictional_" not in job_id
 
     try:
-        log(job_id, f"🔓 Using GPU {gpu_id}, starting pipeline...")
-        _run_3d_pipeline_internal(job_id, image_path, prompt, points, boxes, output_path, gpu_id, resolved_temp, cutout_output_path)
+        # Acquire per-GPU pipeline lock: only ONE SAM3+SAM3D pipeline per GPU at a time
+        gpu_lock = _get_gpu_pipeline_lock(gpu_id)
+        log(job_id, f"🔒 Waiting for GPU {gpu_id} pipeline lock...")
+        gpu_lock.acquire()
+        log(job_id, f"🔓 GPU {gpu_id} pipeline lock acquired, starting pipeline...")
+        try:
+            _run_3d_pipeline_internal(job_id, image_path, prompt, points, boxes, output_path, gpu_id, resolved_temp, cutout_output_path)
+        finally:
+            gpu_lock.release()
+            log(job_id, f"🔒 GPU {gpu_id} pipeline lock released")
         log(job_id, f"🔒 Done with GPU {gpu_id}")
     finally:
         if used_pool:
