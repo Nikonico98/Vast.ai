@@ -100,8 +100,42 @@ def load_model():
     print(f"[SAM3 Server] Model loaded in {elapsed:.1f}s on {device}")
 
 
+MIN_COVERAGE = 0.0005   # Mask must cover at least 0.05% of image
+MAX_COVERAGE = 0.95     # Mask covering >95% is likely background-inverted / useless
+MIN_CONFIDENCE = 0.15   # Below this, mask quality is suspect
+
+
+def _extract_best_mask(masks, scores):
+    """Extract best mask from SAM3 output. Returns (mask2d, coverage, confidence) or None."""
+    if scores.numel() == 0 or masks.numel() == 0:
+        return None
+
+    best = int(torch.argmax(scores).item())
+    mask = masks[best].detach().cpu().numpy()
+    confidence = scores[best].item()
+
+    mask2d = mask[0] if mask.ndim == 3 else mask
+    mask2d = mask2d.astype(bool)
+    coverage = mask2d.sum() / mask2d.size
+
+    if coverage < MIN_COVERAGE or coverage > MAX_COVERAGE:
+        print(f"[SAM3]   Rejected: coverage={coverage*100:.2f}% (out of range), conf={confidence:.2f}")
+        return None
+    if confidence < MIN_CONFIDENCE:
+        print(f"[SAM3]   Rejected: conf={confidence:.2f} < {MIN_CONFIDENCE}, coverage={coverage*100:.2f}%")
+        return None
+
+    return mask2d, coverage, confidence
+
+
 def segment(image_path, prompt, mask_path, cutout_path):
-    """Run SAM3 segmentation using the pre-loaded model."""
+    """
+    Run SAM3 segmentation with multi-tier fallback:
+      1. Text grounding with user prompt
+      2. Text grounding with simplified single-word prompts
+      3. Geometric box prompt (center 80% of image)
+      4. Full image fallback
+    """
     start = time.time()
 
     # Load and preprocess image
@@ -132,48 +166,83 @@ def segment(image_path, prompt, mask_path, cutout_path):
 
     resized_w, resized_h = image.size
 
-    # Run segmentation
-    state = processor.set_image(image)
+    # ============================================================
+    # Multi-tier segmentation strategy
+    # ============================================================
     mask2d = None
     mask_coverage = 0.0
     confidence = 0.0
+    strategy_used = "none"
 
+    # --- Strategy 1: Text grounding with user prompt ---
     try:
+        print(f"[SAM3] Strategy 1: Text grounding with '{prompt}'")
+        state = processor.set_image(image)
         output = processor.set_text_prompt(state=state, prompt=prompt)
-        masks, scores = output["masks"], output["scores"]
-
-        if scores.numel() == 0 or masks.numel() == 0:
-            print(f"[SAM3] No objects detected for '{prompt}', using full image mask")
-            img_np = np.array(image)
-            mask2d = np.ones((img_np.shape[0], img_np.shape[1]), dtype=bool)
-        else:
-            best = int(torch.argmax(scores).item())
-            mask = masks[best].detach().cpu().numpy()
-            confidence = scores[best].item()
-
-            if mask.ndim == 3:
-                mask2d = mask[0]
-            else:
-                mask2d = mask
-            mask2d = mask2d.astype(bool)
-
-            mask_coverage = mask2d.sum() / mask2d.size
-
-            MIN_COVERAGE = 0.0001
-            MIN_CONFIDENCE = 0.3
-
-            if mask_coverage < MIN_COVERAGE or confidence < MIN_CONFIDENCE:
-                print(f"[SAM3] Low quality mask (coverage={mask_coverage:.4f}, conf={confidence:.2f}), using full image")
-                mask2d = np.ones_like(mask2d, dtype=bool)
-                mask_coverage = 1.0
-            else:
-                print(f"[SAM3] Mask accepted: {mask_coverage*100:.2f}% coverage, {confidence:.2f} confidence")
-
+        result = _extract_best_mask(output["masks"], output["scores"])
+        if result:
+            mask2d, mask_coverage, confidence = result
+            strategy_used = "text_prompt"
+            print(f"[SAM3] ✅ Strategy 1 succeeded: {mask_coverage*100:.2f}% coverage, {confidence:.2f} conf")
     except Exception as e:
-        print(f"[SAM3] Text prompt failed: {e}, using full image mask")
+        print(f"[SAM3] Strategy 1 failed: {e}")
+
+    # --- Strategy 2: Text grounding with simpler prompts ---
+    if mask2d is None:
+        # Extract meaningful words from prompt, plus generic fallbacks
+        words = [w for w in prompt.lower().split() if len(w) > 2 and w not in
+                 ("the", "main", "this", "that", "with", "and", "for")]
+        fallback_prompts = words + ["object", "item", "product", "foreground"]
+        # Deduplicate while preserving order
+        seen = set()
+        fallback_prompts = [p for p in fallback_prompts if not (p in seen or seen.add(p))]
+
+        for fp in fallback_prompts[:6]:
+            try:
+                print(f"[SAM3] Strategy 2: Text grounding with '{fp}'")
+                state = processor.set_image(image)
+                output = processor.set_text_prompt(state=state, prompt=fp)
+                result = _extract_best_mask(output["masks"], output["scores"])
+                if result:
+                    mask2d, mask_coverage, confidence = result
+                    strategy_used = f"text_fallback:{fp}"
+                    print(f"[SAM3] ✅ Strategy 2 succeeded with '{fp}': {mask_coverage*100:.2f}% coverage, {confidence:.2f} conf")
+                    break
+            except Exception as e:
+                print(f"[SAM3] Strategy 2 '{fp}' failed: {e}")
+
+    # --- Strategy 3: Geometric box prompt (center of image) ---
+    if mask2d is None:
+        # Try progressively larger center boxes
+        box_sizes = [
+            ([0.5, 0.5, 0.6, 0.6], "center 60%"),
+            ([0.5, 0.5, 0.8, 0.8], "center 80%"),
+            ([0.5, 0.5, 0.95, 0.95], "center 95%"),
+        ]
+        for box, desc in box_sizes:
+            try:
+                print(f"[SAM3] Strategy 3: Box prompt ({desc})")
+                state = processor.set_image(image)
+                output = processor.add_geometric_prompt(box=box, label=True, state=state)
+                result = _extract_best_mask(output["masks"], output["scores"])
+                if result:
+                    mask2d, mask_coverage, confidence = result
+                    strategy_used = f"box:{desc}"
+                    print(f"[SAM3] ✅ Strategy 3 succeeded with {desc}: {mask_coverage*100:.2f}% coverage, {confidence:.2f} conf")
+                    break
+            except Exception as e:
+                print(f"[SAM3] Strategy 3 '{desc}' failed: {e}")
+
+    # --- Strategy 4: Full image fallback ---
+    if mask2d is None:
+        print(f"[SAM3] ⚠️ All strategies failed — using full image mask")
         img_np = np.array(image)
         mask2d = np.ones((img_np.shape[0], img_np.shape[1]), dtype=bool)
         mask_coverage = 1.0
+        confidence = 0.0
+        strategy_used = "full_image_fallback"
+
+    print(f"[SAM3] Strategy used: {strategy_used}")
 
     # Scale mask back to original image size
     orig_w, orig_h = original_image.size
@@ -206,6 +275,7 @@ def segment(image_path, prompt, mask_path, cutout_path):
         "time": elapsed,
         "mask_coverage": float(mask_coverage),
         "confidence": float(confidence),
+        "strategy": strategy_used,
     }
 
 

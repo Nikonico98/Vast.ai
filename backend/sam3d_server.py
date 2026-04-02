@@ -99,6 +99,10 @@ def reconstruct(cutout_path, glb_path, job_id=""):
     mask_pct = (mask > 0).sum() / mask.size * 100
     print(f"[SAM3D] Input: {image.shape}, mask coverage: {mask_pct:.1f}%")
 
+    # Crop to mask bounding box — removes excess background that causes
+    # SAM3D to generate white flat planes as spurious geometry.
+    image, mask = _crop_to_mask_bbox(image, mask)
+
     # Resize if too large to cap VRAM usage
     image, mask = _maybe_resize(image, mask, MAX_DIM)
 
@@ -117,6 +121,59 @@ def _maybe_resize(image, mask, max_dim):
         image = np.array(pil_img.resize((new_w, new_h), Image.LANCZOS))
         mask = (np.array(pil_mask.resize((new_w, new_h), Image.LANCZOS)) > 127).astype(np.uint8)
     return image, mask
+
+
+def _crop_to_mask_bbox(image, mask, pad_frac=0.05):
+    """
+    Crop image and mask to the bounding box of the mask with padding.
+    Makes the result square (SAM3D expects square input for best results).
+    Prevents white-plane artifacts from large transparent regions.
+    """
+    h, w = mask.shape[:2]
+    mask_pct = (mask > 0).sum() / mask.size
+
+    # If mask is nearly full image (>95%), no useful crop — skip
+    if mask_pct > 0.95:
+        print(f"[SAM3D] Mask covers {mask_pct*100:.1f}% — skipping bbox crop")
+        return image, mask
+
+    # Find bounding box of foreground
+    rows = np.any(mask > 0, axis=1)
+    cols = np.any(mask > 0, axis=0)
+    if not rows.any():
+        print(f"[SAM3D] Warning: empty mask, skipping crop")
+        return image, mask
+
+    y_min, y_max = np.where(rows)[0][[0, -1]]
+    x_min, x_max = np.where(cols)[0][[0, -1]]
+
+    # Add padding
+    bbox_h = y_max - y_min + 1
+    bbox_w = x_max - x_min + 1
+    pad = int(max(bbox_h, bbox_w) * pad_frac)
+
+    # Make square (centered on object)
+    side = max(bbox_h, bbox_w) + 2 * pad
+    cy = (y_min + y_max) // 2
+    cx = (x_min + x_max) // 2
+
+    y1 = max(0, cy - side // 2)
+    y2 = min(h, y1 + side)
+    y1 = max(0, y2 - side)  # re-adjust if bottom-clamped
+    x1 = max(0, cx - side // 2)
+    x2 = min(w, x1 + side)
+    x1 = max(0, x2 - side)  # re-adjust if right-clamped
+
+    cropped_image = image[y1:y2, x1:x2].copy()
+    cropped_mask = mask[y1:y2, x1:x2].copy()
+
+    # Zero out any background in cropped region
+    cropped_image[cropped_mask == 0] = 0
+
+    print(f"[SAM3D] Cropped to bbox: ({x1},{y1})-({x2},{y2}) = {x2-x1}x{y2-y1} "
+          f"(was {w}x{h}, mask covers {mask_pct*100:.1f}%)")
+
+    return cropped_image, cropped_mask
 
 
 def _do_reconstruct(image, mask, glb_path, job_id, start, oom_fallback_dim):
