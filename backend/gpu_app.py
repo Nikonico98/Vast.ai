@@ -11,6 +11,7 @@ Endpoints:
     POST /api/gpu/process     - Submit image for 3D generation
     GET  /api/gpu/status/<id> - Check job status
     GET  /api/gpu/download/<id> - Download GLB result
+    GET  /api/gpu/download_cutout/<id> - Download SAM3 cutout PNG
     GET  /api/gpu/health      - Health check
     POST /api/gpu/mode        - Set parallel/sequential mode
     DELETE /api/gpu/cleanup/<id> - Clean up temp files
@@ -29,7 +30,7 @@ import urllib.request as _urllib_request
 from pathlib import Path
 from datetime import datetime
 
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, after_this_request as flask_after_this_request
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
@@ -41,7 +42,8 @@ load_dotenv()
 # ==========================================
 WORKSPACE = os.getenv("WORKSPACE", "/workspace")
 GPU_SERVICE_PORT = int(os.getenv("GPU_SERVICE_PORT", 9090))
-GPU_API_KEY = os.getenv("GPU_API_KEY", "")  # Required for authentication
+# Support both legacy and new names for easier Hostinger compatibility.
+GPU_API_KEY = os.getenv("GPU_API_KEY", os.getenv("GPU_API_SECRET", ""))
 
 # SAM3 / SAM3D paths
 SAM3_ENV = os.getenv("SAM3_ENV", "sam3")
@@ -49,6 +51,7 @@ SAM3_REPO = os.getenv("SAM3_REPO", os.path.join(WORKSPACE, "sam3"))
 SAM3D_ENV = os.getenv("SAM3D_ENV", "sam3d-objects")
 SAM3D_REPO = os.getenv("SAM3D_REPO", os.path.join(WORKSPACE, "sam-3d-objects"))
 SAM3D_CHECKPOINT = os.getenv("SAM3D_CHECKPOINT", "hf")
+# NOTE: SAM3D runs as on-demand subprocess, not persistent server.
 
 # Hugging Face
 HF_TOKEN = os.getenv("HF_TOKEN", "")
@@ -69,6 +72,46 @@ for _d in [DATA_DIR, UPLOAD_DIR, RESULT_DIR, TEMP_DIR]:
 
 # Allowed image extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+
+
+def _structured_job_paths(job_id: str, username: str = "", world_type: str = "", timestamp: str = "") -> dict:
+    """
+    Return a dict of paths for a job using the Hostinger-compatible structure:
+        temp/{username}/{world_type}/{timestamp}/
+            photos/          ← input image copy
+            cutouts/         ← SAM3 cutout PNG
+            fictional_3d/    ← GLB when world_type contains 'fictional'/'fantasy'/etc
+            real_3d/         ← GLB when world_type is real/photo
+            fictional_images/ ← (reserved for future use)
+
+    Falls back to flat paths under TEMP_DIR/{job_id}/ when metadata is missing.
+    """
+    if username and world_type and timestamp:
+        base = TEMP_DIR / username / world_type / timestamp
+    else:
+        base = TEMP_DIR / job_id
+
+    base.mkdir(parents=True, exist_ok=True)
+    for sub in ("photos", "cutouts", "fictional_3d", "real_3d", "fictional_images"):
+        (base / sub).mkdir(parents=True, exist_ok=True)
+
+    # Decide GLB subfolder by job type hint in job_id or world_type label
+    job_lower = job_id.lower()
+    world_lower = world_type.lower()
+    is_fictional = ("fictional" in job_lower or "fantasy" in job_lower or
+                    "scifi" in world_lower or "fantasy" in world_lower or
+                    "fictional" in world_lower)
+    glb_sub = "fictional_3d" if is_fictional else "real_3d"
+
+    return {
+        "base": base,
+        "photos_dir": base / "photos",
+        "cutouts_dir": base / "cutouts",
+        "glb_dir": base / glb_sub,
+        "image_path": base / "photos" / f"{job_id}_input.jpg",
+        "glb_path": base / glb_sub / f"{job_id}.glb",
+        "cutout_path": base / "cutouts" / f"{job_id}_cutout.png",
+    }
 
 # ==========================================
 # Patch config module for pipeline_3d imports
@@ -120,7 +163,7 @@ def check_api_key():
         # No API key configured = open access (dev mode)
         return
 
-    provided_key = request.headers.get("X-GPU-API-Key", "")
+    provided_key = request.headers.get("X-GPU-API-Key", "") or request.headers.get("X-API-Secret", "")
     if not provided_key or not hmac.compare_digest(provided_key, GPU_API_KEY):
         return jsonify(error="Unauthorized: Invalid or missing API key"), 401
 
@@ -162,12 +205,18 @@ def gpu_process():
     if not job_id:
         job_id = generate_job_id()
 
-    # Save uploaded image
-    filename = secure_filename(image.filename)
-    image_path = UPLOAD_DIR / f"{job_id}_{filename}"
+    # Structured temp path metadata (mirrors Hostinger layout)
+    username = request.form.get("username", "").strip()
+    world_type = request.form.get("world_type", "").strip()
+    timestamp = request.form.get("timestamp", "").strip()
+
+    paths = _structured_job_paths(job_id, username, world_type, timestamp)
+
+    # Save uploaded image into photos/ subfolder
+    image_path = paths["image_path"]
     image.save(str(image_path))
 
-    log("GPU_API", f"New job {job_id}: prompt='{prompt}', file='{filename}'")
+    log("GPU_API", f"New job {job_id}: prompt='{prompt}', base='{paths['base']}'")
 
     # Create job record
     create_job(job_id, prompt, str(image_path))
@@ -175,7 +224,7 @@ def gpu_process():
     # Start processing in background
     thread = threading.Thread(
         target=_run_gpu_job,
-        args=(job_id, str(image_path), prompt),
+        args=(job_id, str(image_path), prompt, paths),
         daemon=True
     )
     thread.start()
@@ -183,10 +232,15 @@ def gpu_process():
     return jsonify({"job_id": job_id, "status": "queued"})
 
 
-def _run_gpu_job(job_id, image_path, prompt):
+def _run_gpu_job(job_id, image_path, prompt, paths=None):
     """Background worker: run 3D pipeline for a single job."""
-    output_path = str(RESULT_DIR / f"{job_id}.glb")
-    temp_folder = str(TEMP_DIR / job_id)
+    if paths is None:
+        paths = _structured_job_paths(job_id)
+
+    output_path = str(paths["glb_path"])
+    cutout_path = str(paths["cutout_path"])
+    # Use a per-job scratch dir inside base for intermediate SAM3/SAM3D files
+    temp_folder = str(paths["base"] / "_work")
 
     try:
         run_3d_pipeline(
@@ -194,7 +248,8 @@ def _run_gpu_job(job_id, image_path, prompt):
             image_path=image_path,
             prompt=prompt,
             output_path=output_path,
-            temp_folder=temp_folder
+            temp_folder=temp_folder,
+            cutout_output_path=cutout_path,
         )
     except Exception as e:
         log("GPU_API", f"Job {job_id} failed with exception: {e}")
@@ -250,6 +305,11 @@ def gpu_process_batch():
     except (json.JSONDecodeError, TypeError):
         labels = []
 
+    # Structured path metadata (shared across all jobs in the batch)
+    username = request.form.get("username", "").strip()
+    world_type = request.form.get("world_type", "").strip()
+    timestamp = request.form.get("timestamp", "").strip()
+
     available_gpus = GPU_POOL.get_available_count()
     total_gpus = GPU_POOL.get_gpu_count()
 
@@ -270,9 +330,11 @@ def gpu_process_batch():
         job_id = job_ids[i] if i < len(job_ids) and job_ids[i] else generate_job_id()
         label = labels[i] if i < len(labels) else f"job_{i}"
 
-        # Save uploaded image
-        filename = secure_filename(image.filename)
-        image_path = UPLOAD_DIR / f"{job_id}_{filename}"
+        # Build structured paths for this job
+        paths = _structured_job_paths(job_id, username, world_type, timestamp)
+
+        # Save uploaded image into photos/ subfolder
+        image_path = paths["image_path"]
         image.save(str(image_path))
 
         log("GPU_API", f"Batch job {i}: {job_id} (label={label}, prompt='{prompt}')")
@@ -283,7 +345,7 @@ def gpu_process_batch():
         # Start processing thread
         thread = threading.Thread(
             target=_run_gpu_job,
-            args=(job_id, str(image_path), prompt),
+            args=(job_id, str(image_path), prompt, paths),
             daemon=True
         )
         threads.append(thread)
@@ -322,17 +384,33 @@ def gpu_status(job_id):
 
     job = jobs[job_id]
 
+    status = job.get("status", "unknown")
+    progress = job.get("progress", 0)
+    current_step = job.get("current_step", "")
+
+    # Detect stale completed jobs where output files no longer exist
+    if status == "completed":
+        glb_path = job.get("files", {}).get("glb")
+        if not glb_path or not Path(glb_path).exists():
+            status = "expired"
+            progress = 0
+            current_step = "Results expired - please resubmit"
+
     response = {
         "job_id": job_id,
-        "status": job.get("status", "unknown"),
-        "progress": job.get("progress", 0),
-        "current_step": job.get("current_step", ""),
+        "status": status,
+        "progress": progress,
+        "current_step": current_step,
     }
 
-    if job.get("status") == "completed":
+    if status == "completed":
         glb_path = job.get("files", {}).get("glb")
         if glb_path and Path(glb_path).exists():
             response["download_url"] = f"/api/gpu/download/{job_id}"
+
+        cutout_path = job.get("files", {}).get("cutout")
+        if cutout_path and Path(cutout_path).exists():
+            response["cutout_download_url"] = f"/api/gpu/download_cutout/{job_id}"
 
     if job.get("error"):
         response["error"] = job["error"]
@@ -370,16 +448,32 @@ def gpu_status_batch():
             continue
 
         job = jobs[job_id]
+        status = job.get("status", "unknown")
+        progress = job.get("progress", 0)
+        current_step = job.get("current_step", "")
+
+        # Detect stale completed jobs where output files no longer exist
+        if status == "completed":
+            glb_path = job.get("files", {}).get("glb")
+            if not glb_path or not Path(glb_path).exists():
+                status = "expired"
+                progress = 0
+                current_step = "Results expired - please resubmit"
+
         result = {
-            "status": job.get("status", "unknown"),
-            "progress": job.get("progress", 0),
-            "current_step": job.get("current_step", ""),
+            "status": status,
+            "progress": progress,
+            "current_step": current_step,
         }
 
-        if job.get("status") == "completed":
+        if status == "completed":
             glb_path = job.get("files", {}).get("glb")
             if glb_path and Path(glb_path).exists():
                 result["download_url"] = f"/api/gpu/download/{job_id}"
+
+            cutout_path = job.get("files", {}).get("cutout")
+            if cutout_path and Path(cutout_path).exists():
+                result["cutout_download_url"] = f"/api/gpu/download_cutout/{job_id}"
 
         if job.get("error"):
             result["error"] = job["error"]
@@ -387,7 +481,7 @@ def gpu_status_batch():
         results[job_id] = result
 
     all_completed = all(
-        r.get("status") in ("completed", "failed", "not_found")
+        r.get("status") in ("completed", "failed", "not_found", "expired")
         for r in results.values()
     )
 
@@ -417,6 +511,12 @@ def gpu_download(job_id):
     if not glb_path or not Path(glb_path).exists():
         return jsonify(error="GLB file not found"), 404
 
+    @flask_after_this_request
+    def _cleanup_glb(response):
+        if response.status_code == 200:
+            _delete_file_safe(glb_path, "GLB", job_id)
+        return response
+
     return send_file(
         glb_path,
         mimetype='model/gltf-binary',
@@ -425,21 +525,63 @@ def gpu_download(job_id):
     )
 
 
+def _delete_file_safe(path: str, label: str, job_id: str):
+    """Delete a file silently after successful download."""
+    try:
+        p = Path(path)
+        if p.exists():
+            p.unlink()
+            log("GPU_API", f"[{job_id}] Auto-deleted {label}: {path}")
+    except Exception as e:
+        log("GPU_API", f"[{job_id}] Failed to delete {label}: {e}")
+
+
+@app.route("/api/gpu/download_cutout/<job_id>", methods=["GET"])
+def gpu_download_cutout(job_id):
+    """Download the SAM3 cutout PNG."""
+    jobs = load_jobs()
+
+    if job_id not in jobs:
+        return jsonify(error="Job not found"), 404
+
+    job = jobs[job_id]
+    cutout_path = job.get("files", {}).get("cutout")
+
+    if not cutout_path:
+        fallback = RESULT_DIR / f"{job_id}_cutout.png"
+        if fallback.exists():
+            cutout_path = str(fallback)
+
+    if not cutout_path or not Path(cutout_path).exists():
+        return jsonify(error="Cutout file not found"), 404
+
+    @flask_after_this_request
+    def _cleanup_cutout(response):
+        if response.status_code == 200:
+            _delete_file_safe(cutout_path, "cutout", job_id)
+        return response
+
+    return send_file(
+        cutout_path,
+        mimetype='image/png',
+        as_attachment=True,
+        download_name=f"{job_id}_cutout.png"
+    )
+
+
 # ==========================================
 # GET /api/gpu/health - Health Check
 # ==========================================
 # ==========================================
-# Model Server Health Helpers (Dual-GPU)
+# Model Server Health Helpers (SAM3 persistent, SAM3D on-demand)
 # ==========================================
-# GPU 0 servers (real/photo pipeline)
+# GPU 0 servers (real/photo pipeline) — SAM3 only
 SAM3_SERVER_URL_GPU0 = os.getenv("SAM3_SERVER_URL_GPU0", "http://127.0.0.1:5561")
-SAM3D_SERVER_URL_GPU0 = os.getenv("SAM3D_SERVER_URL_GPU0", "http://127.0.0.1:5562")
-# GPU 1 servers (fictional pipeline)
+# GPU 1 servers (fictional pipeline) — SAM3 only
 SAM3_SERVER_URL_GPU1 = os.getenv("SAM3_SERVER_URL_GPU1", "http://127.0.0.1:5571")
-SAM3D_SERVER_URL_GPU1 = os.getenv("SAM3D_SERVER_URL_GPU1", "http://127.0.0.1:5572")
 # Legacy
 SAM3_SERVER_URL = os.getenv("SAM3_SERVER_URL", "http://127.0.0.1:5561")
-SAM3D_SERVER_URL = os.getenv("SAM3D_SERVER_URL", "http://127.0.0.1:5562")
+# NOTE: SAM3D no longer has persistent servers (runs as subprocess)
 
 def _check_model_server(base_url, timeout=3):
     """Check a persistent model server's health."""
@@ -487,15 +629,21 @@ def gpu_health():
     sam3_ok, sam3_msg = verify_sam3_environment()
     sam3d_ok, sam3d_msg = verify_sam3d_environment()
 
-    # Check all 4 persistent model servers
+    # Check all persistent model servers (SAM3 only)
     sam3_gpu0 = _check_model_server(SAM3_SERVER_URL_GPU0)
-    sam3d_gpu0 = _check_model_server(SAM3D_SERVER_URL_GPU0)
     sam3_gpu1 = _check_model_server(SAM3_SERVER_URL_GPU1)
-    sam3d_gpu1 = _check_model_server(SAM3D_SERVER_URL_GPU1)
 
-    # Aggregate for frontend (which expects single sam3/sam3d objects)
+    # Aggregate for frontend
     sam3_combined = _aggregate_service(sam3_gpu0, sam3_gpu1)
-    sam3d_combined = _aggregate_service(sam3d_gpu0, sam3d_gpu1)
+    # SAM3D is on-demand subprocess — always "available" if env is ready
+    sam3d_on_demand = {
+        "status": "on-demand" if sam3d_ok else "env_missing",
+        "model_loaded": False,
+        "ready": sam3d_ok,
+        "loaded": False,
+        "mode": "subprocess",
+        "note": "SAM3D runs as on-demand subprocess to save VRAM",
+    }
 
     return jsonify({
         "success": True,
@@ -508,13 +656,13 @@ def gpu_health():
         "sam3_ready": sam3_ok,
         "sam3d_ready": sam3d_ok,
         "sam3": sam3_combined,
-        "sam3d": sam3d_combined,
+        "sam3d": sam3d_on_demand,
         "gpu_info": gpu_info,
         "gpus": gpu_info,
-        "architecture": "dual-gpu",
+        "architecture": "sam3-persistent-sam3d-ondemand",
         "servers": {
-            "gpu0": {"sam3": sam3_gpu0, "sam3d": sam3d_gpu0, "role": "real/photo"},
-            "gpu1": {"sam3": sam3_gpu1, "sam3d": sam3d_gpu1, "role": "fictional"},
+            "gpu0": {"sam3": sam3_gpu0, "sam3d": "on-demand subprocess", "role": "real/photo"},
+            "gpu1": {"sam3": sam3_gpu1, "sam3d": "on-demand subprocess", "role": "fictional"},
         },
         "timestamp": datetime.utcnow().isoformat()
     })
@@ -577,18 +725,46 @@ def gpu_mode():
 # ==========================================
 @app.route("/api/gpu/cleanup/<job_id>", methods=["DELETE"])
 def gpu_cleanup(job_id):
-    """Clean up temp files and uploads for a completed job."""
-    # Clean temp folder
+    """Clean up all temp files for a completed job."""
+    import shutil
+
+    jobs = load_jobs()
+    job = jobs.get(job_id, {})
+
+    deleted = []
+
+    # Delete files listed in the job record
+    for key in ("glb", "cutout", "input"):
+        fpath = job.get("files", {}).get(key)
+        if fpath and Path(fpath).exists():
+            try:
+                Path(fpath).unlink()
+                deleted.append(fpath)
+            except Exception:
+                pass
+
+    # Clean per-job _work scratch dir
+    work_dir = None
+    glb_path = job.get("files", {}).get("glb", "")
+    if glb_path:
+        work_dir = Path(glb_path).parent.parent / "_work"
+    if work_dir and work_dir.exists():
+        shutil.rmtree(str(work_dir), ignore_errors=True)
+        deleted.append(str(work_dir))
+
+    # Legacy flat-dir fallback
     temp_path = TEMP_DIR / job_id
     if temp_path.exists():
-        import shutil
         shutil.rmtree(str(temp_path), ignore_errors=True)
-
-    # Clean upload
+        deleted.append(str(temp_path))
     for f in UPLOAD_DIR.glob(f"{job_id}_*"):
         f.unlink(missing_ok=True)
+        deleted.append(str(f))
+    for f in RESULT_DIR.glob(f"{job_id}*"):
+        f.unlink(missing_ok=True)
+        deleted.append(str(f))
 
-    return jsonify({"status": "cleaned", "job_id": job_id})
+    return jsonify({"status": "cleaned", "job_id": job_id, "deleted": deleted})
 
 
 # ==========================================
@@ -627,7 +803,8 @@ if __name__ == "__main__":
     print(f"  GPU Count:     {GPU_POOL.get_gpu_count()}")
     print(f"  GPU Mode:      {GPU_POOL.get_mode()}")
     print(f"  SAM3 Env:      {SAM3_ENV}")
-    print(f"  SAM3D Env:     {SAM3D_ENV}")
+    print(f"  SAM3D Env:     {SAM3D_ENV} (on-demand subprocess)")
+    print(f"  SAM3D Mode:    subprocess (not persistent - saves ~13GB VRAM/GPU)")
     print(f"  Data Dir:      {DATA_DIR}")
     print(f"  Port:          {GPU_SERVICE_PORT}")
     print(f"  API Key:       {'Configured ✅' if GPU_API_KEY else 'Not set ⚠️ (open access)'}")

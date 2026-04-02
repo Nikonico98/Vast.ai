@@ -562,8 +562,8 @@ def restore_from_frozen():
     restored = 0
 
     for env_name, yml_name, pip_name, repo_url, repo_path in [
-        (SAM3_ENV, "sam3_frozen.yml", "sam3_pip_freeze.txt", SAM3_URL, SAM3_REPO),
-        (SAM3D_ENV, "sam3d_frozen.yml", "sam3d_pip_freeze.txt", SAM3D_URL, SAM3D_REPO),
+        (SAM3_ENV, f"{SAM3_ENV}_frozen.yml", f"{SAM3_ENV}_pip_freeze.txt", SAM3_URL, SAM3_REPO),
+        (SAM3D_ENV, f"{SAM3D_ENV}_frozen.yml", f"{SAM3D_ENV}_pip_freeze.txt", SAM3D_URL, SAM3D_REPO),
     ]:
         yml_path = ENVS_DIR / yml_name
         pip_path = ENVS_DIR / pip_name

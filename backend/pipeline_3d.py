@@ -21,6 +21,7 @@ Usage:
 import os
 import shutil
 import subprocess
+import threading
 import time
 import numpy as np
 from datetime import datetime
@@ -42,23 +43,38 @@ import json
 import urllib.request as _urllib_request
 
 # ==========================================
+# Per-GPU SAM3D Locks (prevent OOM from concurrent heavy inference)
+# ==========================================
+# SAM3D needs ~18GB VRAM. SAM3 server uses ~4GB. Total ~22GB on a 24GB card.
+# Running two SAM3D processes on the same GPU guarantees OOM.
+# These locks ensure only ONE SAM3D subprocess runs per physical GPU.
+_SAM3D_GPU_LOCKS = {}
+_SAM3D_LOCKS_INIT = threading.Lock()
+
+def _get_sam3d_gpu_lock(gpu_id: int) -> threading.Lock:
+    """Get or create a per-GPU lock for SAM3D inference."""
+    with _SAM3D_LOCKS_INIT:
+        if gpu_id not in _SAM3D_GPU_LOCKS:
+            _SAM3D_GPU_LOCKS[gpu_id] = threading.Lock()
+        return _SAM3D_GPU_LOCKS[gpu_id]
+
+# ==========================================
 # Model Server Configuration (Dual-GPU)
 # ==========================================
-# GPU 0 servers (real/photo pipeline)
+# GPU 0 servers (real/photo pipeline) — SAM3 only (persistent)
 SAM3_SERVER_URL_GPU0 = os.getenv("SAM3_SERVER_URL_GPU0", "http://127.0.0.1:5561")
-SAM3D_SERVER_URL_GPU0 = os.getenv("SAM3D_SERVER_URL_GPU0", "http://127.0.0.1:5562")
-# GPU 1 servers (fictional pipeline)
+# GPU 1 servers (fictional pipeline) — SAM3 only (persistent)
 SAM3_SERVER_URL_GPU1 = os.getenv("SAM3_SERVER_URL_GPU1", "http://127.0.0.1:5571")
-SAM3D_SERVER_URL_GPU1 = os.getenv("SAM3D_SERVER_URL_GPU1", "http://127.0.0.1:5572")
 # Legacy (backward compat)
 SAM3_SERVER_URL = os.getenv("SAM3_SERVER_URL", "http://127.0.0.1:5561")
-SAM3D_SERVER_URL = os.getenv("SAM3D_SERVER_URL", "http://127.0.0.1:5562")
+# NOTE: SAM3D now runs as on-demand subprocess to avoid VRAM pressure.
+# No persistent SAM3D server — model is loaded per-job and released after.
 
-def _get_server_urls(gpu_id):
-    """Get SAM3/SAM3D server URLs for a given GPU."""
+def _get_sam3_server_url(gpu_id):
+    """Get SAM3 server URL for a given GPU."""
     if gpu_id == 1:
-        return SAM3_SERVER_URL_GPU1, SAM3D_SERVER_URL_GPU1
-    return SAM3_SERVER_URL_GPU0, SAM3D_SERVER_URL_GPU0
+        return SAM3_SERVER_URL_GPU1
+    return SAM3_SERVER_URL_GPU0
 
 
 def _is_server_available(base_url, timeout=2):
@@ -87,7 +103,7 @@ def _run_sam3(job_id, test_png, prompt, mask_png, cutout_png, gpu_id, conda_base
     """Run SAM3 segmentation via persistent server or subprocess fallback."""
     start = time.time()
 
-    sam3_url, _ = _get_server_urls(gpu_id)
+    sam3_url = _get_sam3_server_url(gpu_id)
     if _is_server_available(sam3_url):
         log(job_id, f"   🚀 Using persistent SAM3 server on GPU {gpu_id} ({sam3_url})")
         try:
@@ -131,49 +147,45 @@ python "{sam3_script_file}"
     return elapsed, result.returncode == 0
 
 
-def _run_sam3d(job_id, cutout_png, glb_out, gpu_id, conda_base, temp_dir):
-    """Run SAM3D reconstruction via persistent server or subprocess fallback."""
+def _run_sam3d(job_id, input_png, glb_out, gpu_id, conda_base, temp_dir):
+    """Run SAM3D reconstruction as on-demand subprocess.
+    
+    SAM3D is NOT kept as a persistent server to avoid ~13GB VRAM pressure.
+    The model is loaded per-job, runs inference, then the process exits and
+    VRAM is fully released. This is slower (~30-60s extra for model loading)
+    but prevents CUDA OOM errors that cause placeholder cube fallbacks.
+    """
     start = time.time()
 
-    _, sam3d_url = _get_server_urls(gpu_id)
-    if _is_server_available(sam3d_url):
-        log(job_id, f"   🚀 Using persistent SAM3D server on GPU {gpu_id} ({sam3d_url})")
-        try:
-            resp = _call_model_server(f"{sam3d_url}/reconstruct", {
-                "cutout_path": str(cutout_png),
-                "glb_path": str(glb_out),
-                "job_id": job_id,
-            }, timeout=600)
-            elapsed = time.time() - start
-            log(job_id, f"   ⏱️ SAM3D completed in {elapsed:.1f}s (server mode)")
-            if resp.get("success"):
-                glb_size = resp.get('glb_size', 0)
-                log(job_id, f"   📊 GLB size: {glb_size:,} bytes")
-                return elapsed, True
-            else:
-                log(job_id, f"   ❌ SAM3D server error: {resp.get('error', 'Unknown')}")
-                return elapsed, False
-        except Exception as e:
-            log(job_id, f"   ❌ SAM3D server call failed: {e}, falling back to subprocess")
-
-    # Subprocess fallback
-    log(job_id, "   ⚠️ SAM3D server not available, using subprocess (slower - includes model loading)")
-    sam3d_script = _build_sam3d_script(cutout_png, glb_out, job_id)
+    log(job_id, f"   🚀 Running SAM3D as on-demand subprocess on GPU {gpu_id} (VRAM-safe mode)")
+    sam3d_script = _build_sam3d_script(input_png, glb_out, job_id)
     sam3d_script_file = Path(temp_dir) / f"{job_id}_sam3d_script.py"
     with open(sam3d_script_file, 'w', encoding='utf-8') as f:
         f.write(sam3d_script)
     sam3d_cmd = f'''export CUDA_VISIBLE_DEVICES={gpu_id}
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source {conda_base}/etc/profile.d/conda.sh
 conda activate {SAM3D_ENV}
 cd {SAM3D_REPO}
 python "{sam3d_script_file}"
 '''
-    result = subprocess.run(
-        ["bash", "-c", sam3d_cmd],
-        cwd=str(SAM3D_REPO), capture_output=True, text=True, timeout=1200
-    )
+
+    # Acquire per-GPU SAM3D lock to prevent OOM from concurrent heavy inference
+    gpu_lock = _get_sam3d_gpu_lock(gpu_id)
+    log(job_id, f"   🔒 Waiting for SAM3D GPU {gpu_id} lock...")
+    gpu_lock.acquire()
+    log(job_id, f"   🔓 SAM3D GPU {gpu_id} lock acquired")
+    try:
+        result = subprocess.run(
+            ["bash", "-c", sam3d_cmd],
+            cwd=str(SAM3D_REPO), capture_output=True, text=True, timeout=1200
+        )
+    finally:
+        gpu_lock.release()
+        log(job_id, f"   🔒 SAM3D GPU {gpu_id} lock released")
+
     elapsed = time.time() - start
-    log(job_id, f"   ⏱️ SAM3D completed in {elapsed:.1f}s (subprocess mode)")
+    log(job_id, f"   ⏱️ SAM3D completed in {elapsed:.1f}s (on-demand subprocess)")
     _log_subprocess_result(job_id, "SAM3D", result, stdout_lines=15, stderr_lines=10)
     return elapsed, result.returncode == 0
 
@@ -424,10 +436,46 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
         log(job_id, "🎨 Step 3/3: SAM3D 3D Reconstruction...")
         update_job_status(job_id, "processing", "SAM3D Reconstruction", 60)
 
-        sam3d_start = time.time()
-        sam3d_time, sam3d_success = _run_sam3d(
-            job_id, str(cutout_png), str(glb_out), gpu_id, conda_base, temp_dir
-        )
+        sam3d_total_time = 0.0
+        sam3d_success = False
+        sam3d_input_used = ""
+
+        # Prefer SAM3 cutout first. If it fails, retry SAM3D with the original image
+        # before falling back to placeholder.
+        sam3d_attempts = [
+            ("SAM3 cutout", str(cutout_png)),
+            ("original image", str(test_png)),
+        ]
+
+        for attempt_idx, (attempt_name, attempt_input) in enumerate(sam3d_attempts, start=1):
+            if attempt_idx > 1:
+                update_job_status(job_id, "processing", f"SAM3D Retry ({attempt_name})", 70)
+                log(job_id, f"   🔁 Retry {attempt_idx - 1}: SAM3D using {attempt_name}")
+            else:
+                log(job_id, f"   🎯 Attempt {attempt_idx}: SAM3D using {attempt_name}")
+
+            attempt_time, attempt_success = _run_sam3d(
+                job_id, attempt_input, str(glb_out), gpu_id, conda_base, temp_dir
+            )
+            sam3d_total_time += attempt_time
+
+            glb_valid = glb_out.exists() and os.path.getsize(glb_out) > 1000
+            if attempt_success and glb_valid:
+                sam3d_success = True
+                sam3d_input_used = attempt_name
+                break
+
+            # Clean invalid partial output before next retry.
+            if glb_out.exists():
+                try:
+                    glb_size = os.path.getsize(glb_out)
+                    if glb_size <= 1000:
+                        glb_out.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+            if attempt_idx < len(sam3d_attempts):
+                log(job_id, f"   ⚠️ SAM3D attempt failed with {attempt_name}, trying next strategy...")
 
         # Check GLB output
         log(job_id, f"   📁 Checking SAM3D output:")
@@ -446,6 +494,8 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
         if not sam3d_success:
             log(job_id, f"   🔧 Creating placeholder GLB...")
             create_placeholder_glb(str(glb_out))
+        else:
+            log(job_id, f"   ✅ SAM3D succeeded with {sam3d_input_used}")
 
         if not glb_out.exists():
             log(job_id, "   ❌ SAM3D did not generate GLB file")
@@ -494,7 +544,7 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
         log(job_id, f"   📊 Performance:")
         log(job_id, f"   - Total time: {total_time:.1f}s ({total_time/60:.1f}min)")
         log(job_id, f"   - SAM3: {sam3_time:.1f}s")
-        log(job_id, f"   - SAM3D: {sam3d_time:.1f}s")
+        log(job_id, f"   - SAM3D: {sam3d_total_time:.1f}s")
         log(job_id, f"   📁 Final Results:")
         log(job_id, f"   - GLB file: {glb_out}")
         log(job_id, f"   - GLB exists: {'✅' if final_glb_exists else '❌'}")
@@ -524,12 +574,16 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
         except:
             pass
 
+        files_payload = {"glb": str(glb_out)}
+        if cutout_output_path and Path(cutout_output_path).exists():
+            files_payload["cutout"] = str(cutout_output_path)
+
         update_job_status(
             job_id,
             "completed",
             "Complete",
             100,
-            files={"glb": str(glb_out)}
+            files=files_payload
         )
 
     except subprocess.TimeoutExpired:
@@ -725,7 +779,7 @@ print("SAM3 processing done!")
 '''
 
 
-def _build_sam3d_script(cutout_png: Path, glb_out: Path, job_id: str = "") -> str:
+def _build_sam3d_script(input_png: Path, glb_out: Path, job_id: str = "") -> str:
     """Build the SAM3D reconstruction Python script as a string.
     
     Each job gets its own meshes directory to avoid race conditions
@@ -736,7 +790,7 @@ import numpy as np
 from PIL import Image
 
 print("🎨 SAM3D Starting...")
-print(f"📂 Input cutout: {cutout_png}")
+print(f"📂 Input image: {input_png}")
 print(f"📁 Output GLB: {glb_out}")
 print(f"🆔 Job ID: {job_id}")
 
@@ -744,7 +798,7 @@ os.environ["HF_HOME"] = "{WORKSPACE}/.hf_home"
 
 ROOT = "{SAM3D_REPO}"
 TAG = "{SAM3D_CHECKPOINT}"
-INPUT = "{cutout_png}"
+INPUT = "{input_png}"
 OUT_GLB = "{glb_out}"
 JOB_ID = "{job_id}"
 
@@ -789,8 +843,8 @@ except Exception as e:
     print(f"❌ Failed to load SAM3D Inference: {{e}}")
     sys.exit(1)
 
-# Load RGBA image
-print(f"🖼️ Loading RGBA cutout: {{INPUT}}")
+# Load image as RGBA (works for both cutout and original image)
+print(f"🖼️ Loading image as RGBA: {{INPUT}}")
 if not os.path.exists(INPUT):
     print(f"❌ Input file not found: {{INPUT}}")
     sys.exit(1)
@@ -798,6 +852,18 @@ if not os.path.exists(INPUT):
 rgba = np.array(Image.open(INPUT).convert("RGBA"))
 image = rgba[..., :3].copy()
 mask  = (rgba[..., 3] > 0).astype(np.uint8)
+
+# Resize large images to reduce peak VRAM usage
+# SAM3D needs ~18GB for 1536x1536; resizing to 1024 saves ~4-6GB
+MAX_DIM = 1024
+orig_h, orig_w = image.shape[:2]
+if max(orig_h, orig_w) > MAX_DIM:
+    scale = MAX_DIM / max(orig_h, orig_w)
+    new_h, new_w = int(orig_h * scale), int(orig_w * scale)
+    image = np.array(Image.fromarray(image).resize((new_w, new_h), Image.LANCZOS))
+    mask = np.array(Image.fromarray(mask * 255).resize((new_w, new_h), Image.LANCZOS))
+    mask = (mask > 127).astype(np.uint8)
+    print(f"📐 Resized from {{orig_h}}x{{orig_w}} to {{new_h}}x{{new_w}} (VRAM optimization)")
 
 # CRITICAL: Zero out background RGB so MoGe depth model doesn't treat it as a surface.
 # Without this, a white/colored background becomes a flat plate in the 3D model.
@@ -813,6 +879,12 @@ print(f"   - BG pixels zeroed: {{bg_pixel_count}} / {{total_pixels}} ({{bg_pixel
 
 print("🚀 Running SAM3D inference...")
 
+# Free any cached VRAM before inference to maximize available memory
+import torch
+import gc
+torch.cuda.empty_cache()
+gc.collect()
+
 # Track new files in BOTH default and per-job meshes directories
 # SAM3D may write to the default meshes/ dir; we watch both to be safe
 watch_dirs = [default_meshes_dir, job_meshes_dir]
@@ -823,10 +895,40 @@ for wd in watch_dirs:
 print(f"📁 Watching directories: {{watch_dirs}}")
 print(f"📄 Files before: {{len(before)}} GLB files")
 
+# Run inference with OOM retry at smaller resolution
+def _run_inference(img, msk, max_dim_override=None):
+    if max_dim_override and max(img.shape[:2]) > max_dim_override:
+        s = max_dim_override / max(img.shape[:2])
+        nh, nw = int(img.shape[0] * s), int(img.shape[1] * s)
+        img = np.array(Image.fromarray(img).resize((nw, nh), Image.LANCZOS))
+        msk = np.array(Image.fromarray(msk * 255).resize((nw, nh), Image.LANCZOS))
+        msk = (msk > 127).astype(np.uint8)
+        img[msk == 0] = 0
+        print(f"📐 OOM retry: further resized to {{nh}}x{{nw}}")
+    return inference(img, msk, seed=42)
+
+out = None
 try:
-    out = inference(image, mask, seed=42)
+    out = _run_inference(image, mask)
     print(f"✅ SAM3D inference completed")
     print(f"📊 Output type: {{type(out)}}")
+except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
+    if "out of memory" in str(e).lower() or "CUDA" in str(e):
+        print(f"⚠️ OOM on first attempt, clearing cache and retrying at 768px...")
+        torch.cuda.empty_cache()
+        gc.collect()
+        try:
+            out = _run_inference(image, mask, max_dim_override=768)
+            print(f"✅ SAM3D inference completed (OOM retry at 768px)")
+            print(f"📊 Output type: {{type(out)}}")
+        except Exception as e2:
+            print(f"❌ SAM3D inference FAILED on retry: {{e2}}")
+            print(f"⚠️ SAM3D failed, using placeholder: OOM retry also failed")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+    else:
+        raise
 except Exception as e:
     print(f"❌ SAM3D inference FAILED: {{e}}")
     print(f"⚠️ SAM3D failed, using placeholder: Inference exception")
