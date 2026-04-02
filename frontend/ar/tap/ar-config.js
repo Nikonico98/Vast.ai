@@ -1,1 +1,34 @@
-window.TAP_CONFIG={mark:{color:"#ffd54a",emissive:"#ff9900",emissiveIntensity:.7,radiusRatio:.11,minRadius:.07,maxRadius:.15,pulseScale:1.35,pulseMin:.92,pulseDuration:650,spinSpeed:0,flySpeed:1600},spawn:{duration:360,easing:"easeOutBack",heightOffset:.1},burst:{count:4,baseRadius:.012,maxDistance:.15,duration:350}};
+window.TAP_CONFIG={
+  star:{
+    count:3,
+    color:"#ffd54a",
+    emissive:"#ff9900",
+    emissiveIntensity:0.7,
+    size:0.12,
+    minSize:0.08,
+    maxSize:0.18,
+    sizeRatio:0.11,
+    pulseScale:1.35,
+    pulseMin:0.92,
+    pulseDuration:650,
+    flySpeed:1600,
+    haloColor:"#ffffff",
+    haloDuration:600,
+    fadeDuration:800
+  },
+  spawn:{
+    duration:360,
+    easing:"easeOutBack",
+    staggerDelay:300
+  },
+  burst:{
+    count:4,
+    baseRadius:0.012,
+    maxDistance:0.15,
+    duration:350
+  },
+  swap:{
+    delay:500,
+    animationDuration:400
+  }
+};

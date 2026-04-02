@@ -1861,6 +1861,12 @@ class StoryController {
       // Update journey progress mini-widget
       this.updateJourneyWidget(pageId);
 
+      // GPU panel only visible on world-selection page
+      const gpuPanel = document.querySelector(".gpu-panel");
+      if (gpuPanel) {
+        gpuPanel.style.display = (pageId === "page-world-selection") ? "" : "none";
+      }
+
       // Auto-save state on page navigation (only when journey is active)
       if (this.journeyId) {
         this.saveState();

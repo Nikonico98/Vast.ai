@@ -1,2 +1,753 @@
-/*! For license information please see bundle.js.LICENSE.txt */
-(()=>{var e={114(e){e.exports=function(e,t){this.v=e,this.k=t},e.exports.__esModule=!0,e.exports.default=e.exports},535(e,t,n){var r=n(736);function o(){var t,n,a="function"==typeof Symbol?Symbol:{},i=a.iterator||"@@iterator",s=a.toStringTag||"@@toStringTag";function l(e,o,a,i){var s=o&&o.prototype instanceof u?o:u,l=Object.create(s.prototype);return r(l,"_invoke",function(e,r,o){var a,i,s,l=0,u=o||[],d=!1,m={p:0,n:0,v:t,a:f,f:f.bind(t,4),d:function(e,n){return a=e,i=0,s=t,m.n=n,c}};function f(e,r){for(i=e,s=r,n=0;!d&&l&&!o&&n<u.length;n++){var o,a=u[n],f=m.p,p=a[2];e>3?(o=p===r)&&(s=a[(i=a[4])?5:(i=3,3)],a[4]=a[5]=t):a[0]<=f&&((o=e<2&&f<a[1])?(i=0,m.v=r,m.n=a[1]):f<p&&(o=e<3||a[0]>r||r>p)&&(a[4]=e,a[5]=r,m.n=p,i=0))}if(o||e>1)return c;throw d=!0,r}return function(o,u,p){if(l>1)throw TypeError("Generator is already running");for(d&&1===u&&f(u,p),i=u,s=p;(n=i<2?t:s)||!d;){a||(i?i<3?(i>1&&(m.n=-1),f(i,s)):m.n=s:m.v=s);try{if(l=2,a){if(i||(o="next"),n=a[o]){if(!(n=n.call(a,s)))throw TypeError("iterator result is not an object");if(!n.done)return n;s=n.value,i<2&&(i=0)}else 1===i&&(n=a.return)&&n.call(a),i<2&&(s=TypeError("The iterator does not provide a '"+o+"' method"),i=1);a=t}else if((n=(d=m.n<0)?s:e.call(r,m))!==c)break}catch(e){a=t,i=1,s=e}finally{l=1}}return{value:n,done:d}}}(e,a,i),!0),l}var c={};function u(){}function d(){}function m(){}n=Object.getPrototypeOf;var f=[][i]?n(n([][i]())):(r(n={},i,function(){return this}),n),p=m.prototype=u.prototype=Object.create(f);function y(e){return Object.setPrototypeOf?Object.setPrototypeOf(e,m):(e.__proto__=m,r(e,s,"GeneratorFunction")),e.prototype=Object.create(p),e}return d.prototype=m,r(p,"constructor",m),r(m,"constructor",d),d.displayName="GeneratorFunction",r(m,s,"GeneratorFunction"),r(p),r(p,s,"Generator"),r(p,i,function(){return this}),r(p,"toString",function(){return"[object Generator]"}),(e.exports=o=function(){return{w:l,m:y}},e.exports.__esModule=!0,e.exports.default=e.exports)()}e.exports=o,e.exports.__esModule=!0,e.exports.default=e.exports},507(e,t,n){var r=n(313);e.exports=function(e,t,n,o,a){var i=r(e,t,n,o,a);return i.next().then(function(e){return e.done?e.value:i.next()})},e.exports.__esModule=!0,e.exports.default=e.exports},313(e,t,n){var r=n(535),o=n(929);e.exports=function(e,t,n,a,i){return new o(r().w(e,t,n,a),i||Promise)},e.exports.__esModule=!0,e.exports.default=e.exports},929(e,t,n){var r=n(114),o=n(736);e.exports=function e(t,n){function a(e,o,i,s){try{var l=t[e](o),c=l.value;return c instanceof r?n.resolve(c.v).then(function(e){a("next",e,i,s)},function(e){a("throw",e,i,s)}):n.resolve(c).then(function(e){l.value=e,i(l)},function(e){return a("throw",e,i,s)})}catch(e){s(e)}}var i;this.next||(o(e.prototype),o(e.prototype,"function"==typeof Symbol&&Symbol.asyncIterator||"@asyncIterator",function(){return this})),o(this,"_invoke",function(e,t,r){function o(){return new n(function(t,n){a(e,r,t,n)})}return i=i?i.then(o,o):o()},!0)},e.exports.__esModule=!0,e.exports.default=e.exports},736(e){function t(n,r,o,a){var i=Object.defineProperty;try{i({},"",{})}catch(n){i=0}e.exports=t=function(e,n,r,o){function a(n,r){t(e,n,function(e){return this._invoke(n,r,e)})}n?i?i(e,n,{value:r,enumerable:!o,configurable:!o,writable:!o}):e[n]=r:(a("next",0),a("throw",1),a("return",2))},e.exports.__esModule=!0,e.exports.default=e.exports,t(n,r,o,a)}e.exports=t,e.exports.__esModule=!0,e.exports.default=e.exports},315(e){e.exports=function(e){var t=Object(e),n=[];for(var r in t)n.unshift(r);return function e(){for(;n.length;)if((r=n.pop())in t)return e.value=r,e.done=!1,e;return e.done=!0,e}},e.exports.__esModule=!0,e.exports.default=e.exports},51(e,t,n){var r=n(114),o=n(535),a=n(507),i=n(313),s=n(929),l=n(315),c=n(961);function u(){"use strict";var t=o(),n=t.m(u),d=(Object.getPrototypeOf?Object.getPrototypeOf(n):n.__proto__).constructor;function m(e){var t="function"==typeof e&&e.constructor;return!!t&&(t===d||"GeneratorFunction"===(t.displayName||t.name))}var f={throw:1,return:2,break:3,continue:3};function p(e){var t,n;return function(r){t||(t={stop:function(){return n(r.a,2)},catch:function(){return r.v},abrupt:function(e,t){return n(r.a,f[e],t)},delegateYield:function(e,o,a){return t.resultName=o,n(r.d,c(e),a)},finish:function(e){return n(r.f,e)}},n=function(e,n,o){r.p=t.prev,r.n=t.next;try{return e(n,o)}finally{t.next=r.n}}),t.resultName&&(t[t.resultName]=r.v,t.resultName=void 0),t.sent=r.v,t.next=r.n;try{return e.call(this,t)}finally{r.p=t.prev,r.n=t.next}}}return(e.exports=u=function(){return{wrap:function(e,n,r,o){return t.w(p(e),n,r,o&&o.reverse())},isGeneratorFunction:m,mark:t.m,awrap:function(e,t){return new r(e,t)},AsyncIterator:s,async:function(e,t,n,r,o){return(m(t)?i:a)(p(e),t,n,r,o)},keys:l,values:c}},e.exports.__esModule=!0,e.exports.default=e.exports)()}e.exports=u,e.exports.__esModule=!0,e.exports.default=e.exports},961(e,t,n){var r=n(564).default;e.exports=function(e){if(null!=e){var t=e["function"==typeof Symbol&&Symbol.iterator||"@@iterator"],n=0;if(t)return t.call(e);if("function"==typeof e.next)return e;if(!isNaN(e.length))return{next:function(){return e&&n>=e.length&&(e=void 0),{value:e&&e[n++],done:!e}}}}throw new TypeError(r(e)+" is not iterable")},e.exports.__esModule=!0,e.exports.default=e.exports},564(e){function t(n){return e.exports=t="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(e){return typeof e}:function(e){return e&&"function"==typeof Symbol&&e.constructor===Symbol&&e!==Symbol.prototype?"symbol":typeof e},e.exports.__esModule=!0,e.exports.default=e.exports,t(n)}e.exports=t,e.exports.__esModule=!0,e.exports.default=e.exports},790(e,t,n){var r=n(51)();e.exports=r;try{regeneratorRuntime=r}catch(e){"object"==typeof globalThis?globalThis.regeneratorRuntime=r:Function("r","regeneratorRuntime = r")(r)}}},t={};function n(r){var o=t[r];if(void 0!==o)return o.exports;var a=t[r]={exports:{}};return e[r](a,a.exports,n),a.exports}n.n=e=>{var t=e&&e.__esModule?()=>e.default:()=>e;return n.d(t,{a:t}),t},n.d=(e,t)=>{for(var r in t)n.o(t,r)&&!n.o(e,r)&&Object.defineProperty(e,r,{enumerable:!0,get:t[r]})},n.o=(e,t)=>Object.prototype.hasOwnProperty.call(e,t),(()=>{"use strict";function e(e,t,n,r,o,a,i){try{var s=e[a](i),l=s.value}catch(e){return void n(e)}s.done?t(l):Promise.resolve(l).then(r,o)}function t(t){return function(){var n=this,r=arguments;return new Promise(function(o,a){var i=t.apply(n,r);function s(t){e(i,o,a,s,l,"next",t)}function l(t){e(i,o,a,s,l,"throw",t)}s(void 0)})}}function r(e){return r="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(e){return typeof e}:function(e){return e&&"function"==typeof Symbol&&e.constructor===Symbol&&e!==Symbol.prototype?"symbol":typeof e},r(e)}function o(e,t,n){return(t=function(e){var t=function(e){if("object"!=r(e)||!e)return e;var t=e[Symbol.toPrimitive];if(void 0!==t){var n=t.call(e,"string");if("object"!=r(n))return n;throw new TypeError("@@toPrimitive must return a primitive value.")}return String(e)}(e);return"symbol"==r(t)?t:t+""}(t))in e?Object.defineProperty(e,t,{value:n,enumerable:!0,configurable:!0,writable:!0}):e[t]=n,e}var a=n(790),i=n.n(a);function s(e,t){var n=Object.keys(e);if(Object.getOwnPropertySymbols){var r=Object.getOwnPropertySymbols(e);t&&(r=r.filter(function(t){return Object.getOwnPropertyDescriptor(e,t).enumerable})),n.push.apply(n,r)}return n}function l(e){for(var t=1;t<arguments.length;t++){var n=null!=arguments[t]?arguments[t]:{};t%2?s(Object(n),!0).forEach(function(t){o(e,t,n[t])}):Object.getOwnPropertyDescriptors?Object.defineProperties(e,Object.getOwnPropertyDescriptors(n)):s(Object(n)).forEach(function(t){Object.defineProperty(e,t,Object.getOwnPropertyDescriptor(n,t))})}return e}console.log("✅ Tap AR Interaction loaded");var c={enabled:!1,realGlb:"#real-model-asset",fictionalGlb:"#fictional-model-asset",itemName:"Test Fictional Item"},u=function(){var e={mark:{color:"#ffd54a",emissive:"#ff9900",emissiveIntensity:.7,radiusRatio:.11,minRadius:.07,maxRadius:.15,pulseScale:1.35,pulseMin:.92,pulseDuration:650,spinSpeed:0,flySpeed:1600},spawn:{duration:360,easing:"easeOutBack",heightOffset:.1},burst:{count:4,baseRadius:.012,maxDistance:.15,duration:350}},t=window.TAP_CONFIG;if(!t||"object"!==r(t))return e;for(var n={},o=0,a=Object.keys(e);o<a.length;o++){var i=a[o];e[i]&&"object"===r(e[i])&&!Array.isArray(e[i])&&t[i]&&"object"===r(t[i])&&!Array.isArray(t[i])?n[i]=l(l({},e[i]),t[i]):n[i]=i in t?t[i]:e[i]}return console.log("⚙️ TAP_CONFIG merged from ar-config.js",n),n}();function d(e){if(!e||"string"!=typeof e)return null;var t=e.trim();if(!t)return null;if(t.startsWith("#"))return t;try{return new URL(t,window.location.href).toString()}catch(e){return console.warn("⚠️ Could not normalize model URL, using raw value:",t,e),t}}function m(e){return f.apply(this,arguments)}function f(){return(f=t(i().mark(function e(t){var n;return i().wrap(function(e){for(;;)switch(e.prev=e.next){case 0:if(t&&!t.startsWith("#")){e.next=1;break}return e.abrupt("return","invalid_url");case 1:return e.prev=1,e.next=2,fetch(t,{method:"HEAD",mode:"cors",cache:"no-store"});case 2:if(!(n=e.sent).ok){e.next=3;break}return e.abrupt("return","unknown");case 3:if(404!==n.status){e.next=4;break}return e.abrupt("return","not_found");case 4:if(401!==n.status&&403!==n.status){e.next=5;break}return e.abrupt("return","forbidden");case 5:if(!(n.status>=500)){e.next=6;break}return e.abrupt("return","server");case 6:return e.abrupt("return","http_error");case 7:return e.prev=7,e.catch(1),e.abrupt("return","network_or_cors");case 8:case"end":return e.stop()}},e,null,[[1,7]])}))).apply(this,arguments)}var p={elements:{},init:function(){this.elements={hint:document.getElementById("ar-hint"),interactionType:document.getElementById("interaction-type"),interactionHint:document.getElementById("interaction-hint"),status:document.getElementById("ar-status"),statusText:document.getElementById("status-text"),itemName:document.getElementById("item-name-display")}},show:function(){Object.values(this.elements).forEach(function(e){e&&e.classList.remove("ar-ui-hidden")})},setInteractionType:function(e){this.elements.interactionType&&(this.elements.interactionType.textContent=e);var t={Tap:"Tap the yellow mark to reveal",Rotate:"Rotate the model to reveal",Track:"Follow the moving mark"};this.elements.interactionHint&&(this.elements.interactionHint.textContent=t[e]||t.Tap)},setStatus:function(e){var t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:"waiting";this.elements.status&&(this.elements.status.className="ar-ui-hidden ".concat(t),this.elements.status.classList.remove("ar-ui-hidden")),this.elements.statusText&&(this.elements.statusText.textContent=e)},showItemName:function(e){this.elements.itemName&&(this.elements.itemName.textContent="✨ ".concat(e),this.elements.itemName.classList.add("visible"))},hideHint:function(){var e=this;this.elements.hint&&(this.elements.hint.style.opacity="0",setTimeout(function(){e.elements.hint.style.display="none"},300))}},y={realModelLoaded:!1,fictionalGlbUrl:null,realGlbUrl:null,itemName:null,realName:null,markCreated:!1,fictionalRevealed:!1,showingFictional:!1,fictionalModel:null,fictionalLoaded:!1,realModel:null,currentMark:null,isTransitioning:!1,toggleCount:0,comboCount:0,bestCombo:0,modelMaxDim:.2,flyRangeX:.1,flyRangeY:.1,flyRangeZ:.1,baseHeight:.1,markSize:.05};function v(){var e=document.getElementById("combo-display"),t=document.getElementById("combo-count");e&&t&&(t.textContent=y.comboCount,y.comboCount>=2?(e.classList.add("visible"),e.classList.remove("pop"),e.offsetWidth,e.classList.add("pop")):e.classList.remove("visible"))}function h(e){if(e)try{e.traverse(function(e){e.isMesh&&e.material&&(e.castShadow=!0,e.receiveShadow=!0,e.frustumCulled=!1,(Array.isArray(e.material)?e.material:[e.material]).forEach(function(e){e&&(e.transparent=!1,e.opacity=1,e.depthWrite=!0,e.side=THREE.DoubleSide,e.needsUpdate=!0,e.map&&e.map.encoding!==THREE.sRGBEncoding&&(e.map.encoding=THREE.sRGBEncoding),e.emissiveMap&&e.emissiveMap.encoding!==THREE.sRGBEncoding&&(e.emissiveMap.encoding=THREE.sRGBEncoding))}))})}catch(e){console.warn("⚠️ fixMaterials failed:",e)}}AFRAME.registerComponent("billboard",{schema:{spinSpeed:{type:"number",default:0}},init:function(){this._parentQuat=new THREE.Quaternion,this._cameraQuat=new THREE.Quaternion,this._spinQuat=new THREE.Quaternion,this._spinAxis=new THREE.Vector3(0,0,1),this._startTime=Date.now()},tick:function(){var e=this.el.sceneEl.camera;if(e&&this.el.object3D.parent&&(this.el.object3D.parent.getWorldQuaternion(this._parentQuat),this._parentQuat.invert(),e.getWorldQuaternion(this._cameraQuat),this.el.object3D.quaternion.copy(this._parentQuat.multiply(this._cameraQuat)),0!==this.data.spinSpeed)){var t=(Date.now()-this._startTime)/1e3,n=THREE.MathUtils.degToRad(this.data.spinSpeed*t);this._spinQuat.setFromAxisAngle(this._spinAxis,n),this.el.object3D.quaternion.multiply(this._spinQuat)}}}),AFRAME.registerComponent("random-fly",{schema:{rangeX:{type:"number",default:.3},rangeY:{type:"number",default:.3},rangeZ:{type:"number",default:.3},baseHeight:{type:"number",default:.2},speed:{type:"number",default:1200}},init:function(){var e=this;this._stopped=!1,setTimeout(function(){return e._flyToNext()},200)},_getRandomTarget:function(){return{x:2*(Math.random()-.5)*this.data.rangeX,y:this.data.baseHeight+Math.random()*this.data.rangeY,z:2*(Math.random()-.5)*this.data.rangeZ}},_flyToNext:function(){var e=this;if(!this._stopped){var t=this._getRandomTarget(),n=this.data.speed*(.7+.6*Math.random());this.el.removeAttribute("animation__fly"),this.el.setAttribute("animation__fly",{property:"position",to:"".concat(t.x.toFixed(3)," ").concat(t.y.toFixed(3)," ").concat(t.z.toFixed(3)),dur:n,easing:"easeInOutSine"}),this.el.addEventListener("animationcomplete__fly",function(){return e._flyToNext()},{once:!0})}},remove:function(){this._stopped=!0,this.el.removeAttribute("animation__fly")}});var b={_safetyTimer:null,setStatus:function(e){var t=document.getElementById("pre-ar-status");t&&(t.textContent=e)},enableStart:function(){var e=document.getElementById("enter-ar-button");e&&(e.textContent="Start AR",e.disabled=!1),this.setStatus("Model ready — tap to enter AR")},dismissOverlay:function(){if(!this._dismissed){this._dismissed=!0,this._safetyTimer&&(clearTimeout(this._safetyTimer),this._safetyTimer=null);var e=document.getElementById("pre-ar-overlay");e&&e.classList.add("is-hidden")}},_showOverlay:function(){var e=document.getElementById("pre-ar-overlay");e&&e.classList.remove("is-hidden"),this._dismissed=!1},bind:function(e){var t=this;this._dismissed=!1;var n=document.getElementById("enter-ar-button");n&&(n.addEventListener("click",function(){n.disabled||(n.disabled=!0,n.textContent="Starting AR…",e.emit("runreality"),t._safetyTimer&&clearTimeout(t._safetyTimer),t._safetyTimer=setTimeout(function(){return t.dismissOverlay()},5e3))}),e.addEventListener("realityready",function(){t.dismissOverlay()}),e.addEventListener("realityerror",function(){t._safetyTimer&&(clearTimeout(t._safetyTimer),t._safetyTimer=null),t._showOverlay(),n.textContent="AR Failed — Retry",n.disabled=!1,t.setStatus("AR failed to start.\nPlease check camera permissions.")}))}};AFRAME.registerComponent("tap-ar-interaction",{init:function(){console.log("🎮 Tap AR Interaction initializing..."),b.bind(this.el),p.init();var e=function(){var e=new URLSearchParams(window.location.search);if(c.enabled)return console.log("🧪 TEST MODE: Using local assets"),{realGlb:c.realGlb,fictionalGlb:c.fictionalGlb,interaction:"Tap",itemName:c.itemName,realName:c.realName||"Real Item"};var t=d(e.get("real_glb")),n=d(e.get("fictional_glb"));return console.log("📦 URL Parameters:",{real_glb:t?"".concat(t.substring(0,60),"..."):null,fictional_glb:n?"".concat(n.substring(0,60),"..."):null,interaction:e.get("interaction"),item_name:e.get("item_name"),real_name:e.get("real_name")}),{realGlb:t,fictionalGlb:n,interaction:e.get("interaction")||"Tap",itemName:e.get("item_name")||"Fictional Item",realName:e.get("real_name")||"Real Item"}}();if(!e.realGlb)return console.error("❌ Missing real_glb parameter"),void p.setStatus("Error: No model URL provided","error");y.fictionalGlbUrl=e.fictionalGlb,y.realGlbUrl=e.realGlb,y.itemName=e.itemName,y.realName=e.realName,p.setInteractionType(e.interaction),p.setStatus("Loading Real Item 3D...","waiting"),this.loadRealModel(e.realGlb),this.el.addEventListener("loaded",function(){p.show(),function(e){var t=document.getElementById(e);if(t){var n=t.play();void 0!==n&&n.catch(function(){console.warn("⚠️ Autoplay blocked for #".concat(e,", will retry on interaction"));var n=function(){t.play().catch(function(){}),document.removeEventListener("touchstart",n),document.removeEventListener("click",n)};document.addEventListener("touchstart",n,{once:!0}),document.addEventListener("click",n,{once:!0})})}}("star-fly-video")})},loadModelEntity:function(e,n,r){var o=r.label,a=r.retryStatusText,s=r.onLoaded,l=r.onFinalError,c=d(n);if(c){var u=0,f=function(){u+=1;var n=!1,r=null,d=function(){r&&(clearTimeout(r),r=null),e.removeEventListener("model-loaded",y),e.removeEventListener("model-error",h)},y=function(e){n||(n=!0,d(),s({event:e,attempt:u,url:c}))},v=function(){var e=t(i().mark(function e(t){var r,s,y,v=arguments;return i().wrap(function(e){for(;;)switch(e.prev=e.next){case 0:if(r=v.length>1&&void 0!==v[1]?v[1]:null,!n){e.next=1;break}return e.abrupt("return");case 1:if(n=!0,d(),"model_error"!==t){e.next=3;break}return e.next=2,m(c);case 2:y=e.sent,e.next=4;break;case 3:y=t;case 4:if(s=y,!(u<=2)){e.next=5;break}return console.warn("⚠️ ".concat(o," load failed (").concat(s,"), retrying ").concat(u+1,"/").concat(3)),a&&p.setStatus("".concat(a," (retry ").concat(u+1,"/").concat(3,")"),"waiting"),window.setTimeout(f,250),e.abrupt("return");case 5:l({attempt:u,errorType:s,event:r,url:c});case 6:case"end":return e.stop()}},e)}));return function(t){return e.apply(this,arguments)}}(),h=function(e){v("model_error",e)};e.addEventListener("model-loaded",y),e.addEventListener("model-error",h),r=window.setTimeout(function(){e.removeAttribute("gltf-model"),v("timeout")},3e4),e.removeAttribute("gltf-model"),window.setTimeout(function(){e.setAttribute("gltf-model",c)},1===u?0:250)};f()}else l({attempt:0,errorType:"invalid_url",event:null,url:n})},loadRealModel:function(e){var t=this,n=document.getElementById("realModel");n?(console.log("📥 Loading Real Item 3D:",e),this.loadModelEntity(n,e,{label:"Real Item 3D",retryStatusText:"Retrying Real Item 3D...",onLoaded:function(){console.log("✅ Real Item 3D loaded"),y.realModelLoaded=!0;var e=n.getObject3D("mesh");e&&(h(e),t.normalizeModel(n,e)),y.fictionalGlbUrl&&!y.markCreated?(t._cacheModelDimensions(n),t.preloadFictionalItem(n),t.createAnimatedMark(),y.markCreated=!0,y.realModel=n,p.setStatus("Tap the star ✨","waiting")):y.fictionalGlbUrl||p.setStatus("Real Item 3D loaded","complete"),window.dispatchEvent(new CustomEvent("ei:realModel:ready",{detail:{modelId:"realModel"}})),b.enableStart()},onFinalError:function(e){var t=e.errorType,n=e.event,r=e.url;console.error("❌ Failed to load Real Item 3D:",{errorType:t,event:n,url:r}),p.setStatus(function(e,t){switch(e){case"timeout":return"".concat(t," load timed out");case"not_found":return"".concat(t," URL returned 404");case"forbidden":return"".concat(t," was blocked (403/CORS)");case"server":return"".concat(t," server returned 5xx");case"network_or_cors":return"".concat(t," request failed (network/CORS)");case"invalid_url":return"".concat(t," URL is invalid");default:return"Failed to load ".concat(t)}}(t,"Real Item 3D"),"error")}})):console.error("❌ #realModel entity not found")},normalizeModel:function(e,t){console.log("📐 Model loaded (no scaling applied)")},_cacheModelDimensions:function(e){var t=new THREE.Box3;e.object3D.traverse(function(e){if(e.isMesh&&e.geometry){e.geometry.computeBoundingBox();var n=e.geometry.boundingBox.clone();n.applyMatrix4(e.matrixWorld),t.union(n)}});var n=new THREE.Vector3;t.getSize(n);var r=Math.max(n.x,n.y,n.z,.2),o=THREE.MathUtils.clamp(r*u.mark.radiusRatio,u.mark.minRadius,u.mark.maxRadius);y.modelMaxDim=r,y.flyRangeX=1*r,y.flyRangeY=1*r,y.flyRangeZ=1*r,y.baseHeight=.5*r,y.markSize=15*o,console.log("📐 Model dimensions cached:",{maxDim:r,markSize:y.markSize})},createAnimatedMark:function(){if(y.currentMark)console.warn("⚠️ Star already exists, skipping createAnimatedMark");else if(y.isTransitioning)console.warn("⚠️ Still transitioning, skipping createAnimatedMark");else{console.log("⭐ Creating animated star mark with random flying..."),y.showingFictional?document.getElementById("fictionalModel"):document.getElementById("realModel");var e=document.getElementById("model-holder");if(e){var t={x:(Math.random()-.5)*y.flyRangeX,y:y.baseHeight+Math.random()*y.flyRangeY,z:(Math.random()-.5)*y.flyRangeZ},n=y.markSize,r=document.createElement("a-plane");r.classList.add("can-tap","cantap"),r.setAttribute("width",n.toFixed(3)),r.setAttribute("height",n.toFixed(3)),r.setAttribute("position","".concat(t.x.toFixed(3)," ").concat(t.y.toFixed(3)," ").concat(t.z.toFixed(3))),r.setAttribute("material","\n      shader: flat;\n      transparent: true;\n      opacity: 0.001;\n      side: double;\n      depthWrite: false\n    "),r.setAttribute("billboard","spinSpeed: 0"),r.setAttribute("animation__pulse",{property:"scale",dir:"alternate",from:"".concat(u.mark.pulseMin," ").concat(u.mark.pulseMin," ").concat(u.mark.pulseMin),to:"".concat(u.mark.pulseScale," ").concat(u.mark.pulseScale," ").concat(u.mark.pulseScale),dur:u.mark.pulseDuration,easing:"linear",loop:!0}),r.setAttribute("random-fly","rangeX: ".concat(y.flyRangeX.toFixed(3),"; rangeY: ").concat(y.flyRangeY.toFixed(3),"; rangeZ: ").concat(y.flyRangeZ.toFixed(3),"; baseHeight: ").concat(y.baseHeight.toFixed(3),"; speed: ").concat(u.mark.flySpeed)),r.addEventListener("loaded",function(){var e=r.getObject3D("mesh");if(e){e.castShadow=!1,e.frustumCulled=!1;var t=document.getElementById("star-fly-video");if(t){var n=new THREE.VideoTexture(t);n.minFilter=THREE.LinearFilter,n.magFilter=THREE.LinearFilter,n.format=THREE.RGBAFormat,e.material=new THREE.MeshBasicMaterial({map:n,blending:THREE.AdditiveBlending,transparent:!0,depthWrite:!1,side:THREE.DoubleSide,toneMapped:!1})}}},{once:!0});var o=Math.max(1200,2e3-150*y.comboCount),a=this,i=o-800,s=setTimeout(function(){if(y.currentMark===r){var e=r.getObject3D("mesh");e&&e.material&&e.material.color.setHex(16729156)}},Math.max(0,i)),l=setTimeout(function(){y.currentMark===r&&(y.comboCount=0,v(),r.removeAttribute("random-fly"),r.removeAttribute("animation__fly"),r.setAttribute("animation__escape",{property:"scale",to:"0.01 0.01 0.01",dur:200,easing:"easeInBack"}),setTimeout(function(){try{r.remove()}catch(e){}y.currentMark=null,a.createAnimatedMark()},250))},o),c=!1,d=function(e){var t;c||(c=!0,clearTimeout(l),clearTimeout(s),y.comboCount++,y.comboCount>y.bestCombo&&(y.bestCombo=y.comboCount),v(),y.isTransitioning=!0,console.log("👆 Star tapped! Current:",y.showingFictional?"Fictional":"Real"),r.removeEventListener("click",d),r.removeEventListener("pointerdown",d),r.removeEventListener("touchstart",m),r.removeAttribute("random-fly"),r.removeAttribute("animation__fly"),(t=document.getElementById("sprite-burst-overlay"))&&(t.classList.remove("active"),t.offsetWidth,t.classList.add("active"),console.log("💫 Star Burst triggered!"),setTimeout(function(){t.classList.remove("active"),t.style.opacity="0",t.style.visibility="hidden"},1700)),r.setAttribute("animation__fade",{property:"material.opacity",to:0,dur:300}),r.setAttribute("animation__shrink",{property:"scale",to:"0.01 0.01 0.01",dur:300,easing:"easeInBack"}),setTimeout(function(){try{r.remove()}catch(e){}y.currentMark=null},350),a.toggleModels(),setTimeout(function(){y.isTransitioning=!1,a.createAnimatedMark()},800))},m=function(e){var t;null===(t=e.preventDefault)||void 0===t||t.call(e),d(e)};r.addEventListener("click",d),r.addEventListener("pointerdown",d),r.addEventListener("touchstart",m,{passive:!1}),e.appendChild(r),y.currentMark=r,console.log("✅ Animated star mark created with random flying + trail")}else console.warn("⚠️ model-holder not found for mark")}},toggleModels:function(){var e=document.getElementById("realModel"),t=document.getElementById("fictionalModel");if(y.showingFictional?(console.log("🔄 Switching to Real Item"),t&&t.setAttribute("visible","false"),e&&e.setAttribute("visible","true"),y.showingFictional=!1,p.showItemName(y.realName||"Real Item")):(console.log("🔄 Switching to Fictional Item"),e&&e.setAttribute("visible","false"),t&&t.setAttribute("visible","true"),y.showingFictional=!0,y.fictionalRevealed=!0,y.itemName&&p.showItemName(y.itemName)),y.toggleCount++,console.log("🔄 Toggle #".concat(y.toggleCount)),y.toggleCount>=3){var n=document.getElementById("back-to-main");n&&!n.classList.contains("visible")&&(n.classList.add("visible"),console.log("🏠 Back button shown after",y.toggleCount,"toggles"))}},hideRealItem:function(e){console.log("🌫️ Hiding Real Item..."),e.setAttribute("visible","false"),console.log("✅ Real Item hidden")},createBurstEffect:function(e,t){try{var n=new THREE.Vector3;e.object3D.getWorldPosition(n);for(var r=t.object3D.worldToLocal(n.clone()),o=u.burst,a=o.count,i=o.baseRadius,s=o.maxDistance,l=o.duration,c=function(){var e=document.createElement("a-sphere");e.setAttribute("radius",(i*(.6+.6*Math.random())).toFixed(3)),e.setAttribute("material","\n          color: ".concat(u.mark.color,";\n          emissive: ").concat(u.mark.emissive,";\n          emissiveIntensity: 0.9;\n          roughness: 0.8;\n          transparent: true;\n          opacity: 1\n        ")),e.setAttribute("position","".concat(r.x.toFixed(3)," ").concat(r.y.toFixed(3)," ").concat(r.z.toFixed(3)));var n=Math.random()*Math.PI*2,o=Math.random()*Math.PI*.66-.33*Math.PI,a=(.45+.55*Math.random())*s,c=new THREE.Vector3(Math.cos(n)*Math.cos(o)*a,Math.sin(o)*a*.6,Math.sin(n)*Math.cos(o)*a);e.setAttribute("animation__move",{property:"position",to:"".concat((r.x+c.x).toFixed(3)," ").concat((r.y+c.y).toFixed(3)," ").concat((r.z+c.z).toFixed(3)),dur:l,easing:"easeOutCubic"}),e.setAttribute("animation__fade",{property:"material.opacity",from:1,to:0,dur:l}),e.setAttribute("animation__scale",{property:"scale",to:"0.01 0.01 0.01",dur:l,easing:"easeInQuad"}),t.appendChild(e),setTimeout(function(){return e.remove()},l+60)},d=0;d<a;d++)c()}catch(e){console.warn("⚠️ Burst effect failed:",e)}},spawnFictionalItem:function(e){console.warn("⚠️ spawnFictionalItem is deprecated — use preloadFictionalItem")},preloadFictionalItem:function(e){if(y.fictionalGlbUrl){if(!y.fictionalLoaded){console.log("🎭 Preloading Fictional Item:",y.fictionalGlbUrl);var t=document.getElementById("model-holder");if(t){var n=document.createElement("a-entity");n.setAttribute("id","fictionalModel"),n.setAttribute("position","0 0 0"),n.setAttribute("visible","false"),n.setAttribute("shadow","cast: true; receive: true"),t.appendChild(n),this.loadModelEntity(n,y.fictionalGlbUrl,{label:"Fictional Item 3D",onLoaded:function(){console.log("📦 Fictional model loaded");try{var e=n.getObject3D("mesh");if(!e)return void console.warn("⚠️ Fictional mesh not found");h(e),n.setAttribute("visible","false"),y.fictionalModel=n,y.fictionalLoaded=!0,console.log("✅ Fictional Item preloaded (hidden, no scaling)")}catch(e){console.warn("⚠️ Fictional item load failed:",e)}},onFinalError:function(e){var t=e.errorType,n=e.event,r=e.url;console.error("❌ Failed to load Fictional Item:",{errorType:t,event:n,url:r})}})}else console.warn("⚠️ model-holder not found")}}else console.warn("⚠️ No fictional GLB URL")}}),document.addEventListener("DOMContentLoaded",function(){console.log("📱 DOM ready for AR Interaction (S-path optimized)")})})()})();
+/**
+ * Imaginary World - Tap AR Interaction (3-Star Mechanic)
+ * 3 stars fly simultaneously. User taps each star → halo + fadeout.
+ * After all 3 tapped → model swap (real ↔ fictional).
+ * Then 3 new stars spawn for the next round.
+ */
+
+(function () {
+  "use strict";
+
+  console.log("✅ Tap AR Interaction (3-Star) loaded");
+
+  /* ── Merged Config ── */
+  var defaultCfg = {
+    star: {
+      count: 3, color: "#ffd54a", emissive: "#ff9900", emissiveIntensity: 0.7,
+      sizeRatio: 0.11, minSize: 0.07, maxSize: 0.15,
+      pulseScale: 1.35, pulseMin: 0.92, pulseDuration: 650, spinSpeed: 0, flySpeed: 1600,
+      haloColor: "#ffffff", haloDuration: 600, fadeDuration: 800
+    },
+    spawn: { duration: 360, easing: "easeOutBack", staggerDelay: 300 },
+    burst: { count: 4, baseRadius: 0.012, maxDistance: 0.15, duration: 350 },
+    swap: { delay: 500, animationDuration: 400 }
+  };
+
+  function mergeConfig() {
+    var ext = window.TAP_CONFIG;
+    if (!ext || typeof ext !== "object") return defaultCfg;
+    var out = {};
+    Object.keys(defaultCfg).forEach(function (k) {
+      if (defaultCfg[k] && typeof defaultCfg[k] === "object" && !Array.isArray(defaultCfg[k]) &&
+          ext[k] && typeof ext[k] === "object" && !Array.isArray(ext[k])) {
+        out[k] = Object.assign({}, defaultCfg[k], ext[k]);
+      } else {
+        out[k] = k in ext ? ext[k] : defaultCfg[k];
+      }
+    });
+    console.log("⚙️ TAP_CONFIG merged", out);
+    return out;
+  }
+
+  var CFG = mergeConfig();
+
+  /* ── Test mode (disabled by default) ── */
+  var TEST = { enabled: false, realGlb: "#real-model-asset", fictionalGlb: "#fictional-model-asset",
+               itemName: "Test Fictional Item", realName: "Test Real Item" };
+
+  /* ── Global State ── */
+  var state = {
+    realModelLoaded: false, fictionalGlbUrl: null, realGlbUrl: null,
+    itemName: null, realName: null, starsCreated: false,
+    fictionalRevealed: false, showingFictional: false,
+    fictionalModel: null, fictionalLoaded: false, realModel: null,
+    activeStars: [], tappedCount: 0,
+    totalStars: CFG.star.count || 3,
+    isTransitioning: false, toggleCount: 0, roundCount: 0,
+    modelMaxDim: 0.2, flyRangeX: 0.1, flyRangeY: 0.1, flyRangeZ: 0.1,
+    baseHeight: 0.1, starSize: 0.05
+  };
+
+  /* ── URL Helpers ── */
+  function normalizeUrl(url) {
+    if (!url || typeof url !== "string") return null;
+    var t = url.trim();
+    if (!t) return null;
+    if (t.startsWith("#")) return t;
+    try { return new URL(t, window.location.href).toString(); }
+    catch (e) { return t; }
+  }
+
+  /* ── Star Counter UI ── */
+  function updateStarCounter() {
+    var el = document.getElementById("star-counter");
+    if (!el) return;
+    var dots = "";
+    for (var i = 0; i < state.totalStars; i++) {
+      dots += i < state.tappedCount ? "★ " : "☆ ";
+    }
+    el.textContent = dots.trim();
+    el.style.color = (state.tappedCount >= state.totalStars) ? "#4caf50" : "#ffd54a";
+  }
+
+  /* ── Material Fix ── */
+  function fixMaterials(object) {
+    if (!object) return;
+    try {
+      object.traverse(function (node) {
+        if (node.isMesh && node.material) {
+          node.castShadow = true; node.receiveShadow = true; node.frustumCulled = false;
+          var mats = Array.isArray(node.material) ? node.material : [node.material];
+          mats.forEach(function (mat) {
+            if (mat) {
+              mat.transparent = false; mat.opacity = 1; mat.depthWrite = true;
+              mat.side = THREE.DoubleSide; mat.needsUpdate = true;
+              if (mat.map && mat.map.encoding !== THREE.sRGBEncoding) mat.map.encoding = THREE.sRGBEncoding;
+              if (mat.emissiveMap && mat.emissiveMap.encoding !== THREE.sRGBEncoding) mat.emissiveMap.encoding = THREE.sRGBEncoding;
+            }
+          });
+        }
+      });
+    } catch (e) { console.warn("⚠️ fixMaterials:", e); }
+  }
+
+  /* ── Billboard Component ── */
+  AFRAME.registerComponent("billboard", {
+    schema: { spinSpeed: { type: "number", default: 0 } },
+    init: function () {
+      this._parentQuat = new THREE.Quaternion();
+      this._cameraQuat = new THREE.Quaternion();
+      this._spinQuat = new THREE.Quaternion();
+      this._spinAxis = new THREE.Vector3(0, 0, 1);
+      this._startTime = Date.now();
+    },
+    tick: function () {
+      var cam = this.el.sceneEl.camera;
+      if (!cam || !this.el.object3D.parent) return;
+      this.el.object3D.parent.getWorldQuaternion(this._parentQuat);
+      this._parentQuat.invert();
+      cam.getWorldQuaternion(this._cameraQuat);
+      this.el.object3D.quaternion.copy(this._parentQuat.multiply(this._cameraQuat));
+      if (this.data.spinSpeed !== 0) {
+        var elapsed = (Date.now() - this._startTime) / 1000;
+        var angle = THREE.MathUtils.degToRad(this.data.spinSpeed * elapsed);
+        this._spinQuat.setFromAxisAngle(this._spinAxis, angle);
+        this.el.object3D.quaternion.multiply(this._spinQuat);
+      }
+    }
+  });
+
+  /* ── Random-Fly Component ── */
+  AFRAME.registerComponent("random-fly", {
+    schema: {
+      rangeX: { type: "number", default: 0.3 },
+      rangeY: { type: "number", default: 0.3 },
+      rangeZ: { type: "number", default: 0.3 },
+      baseHeight: { type: "number", default: 0.2 },
+      speed: { type: "number", default: 1200 }
+    },
+    init: function () {
+      var self = this;
+      this._stopped = false;
+      setTimeout(function () { self._flyToNext(); }, 100 + Math.random() * 400);
+    },
+    _getRandomTarget: function () {
+      return {
+        x: 2 * (Math.random() - 0.5) * this.data.rangeX,
+        y: this.data.baseHeight + Math.random() * this.data.rangeY,
+        z: 2 * (Math.random() - 0.5) * this.data.rangeZ
+      };
+    },
+    _flyToNext: function () {
+      var self = this;
+      if (this._stopped) return;
+      var t = this._getRandomTarget();
+      var dur = this.data.speed * (0.7 + 0.6 * Math.random());
+      this.el.removeAttribute("animation__fly");
+      this.el.setAttribute("animation__fly", {
+        property: "position",
+        to: t.x.toFixed(3) + " " + t.y.toFixed(3) + " " + t.z.toFixed(3),
+        dur: dur, easing: "easeInOutSine"
+      });
+      this.el.addEventListener("animationcomplete__fly", function () { self._flyToNext(); }, { once: true });
+    },
+    remove: function () {
+      this._stopped = true;
+      this.el.removeAttribute("animation__fly");
+    }
+  });
+
+  /* ── Pre-AR Overlay ── */
+  var preAROverlay = {
+    _safetyTimer: null, _dismissed: false,
+    setStatus: function (msg) {
+      var el = document.getElementById("pre-ar-status");
+      if (el) el.textContent = msg;
+    },
+    enableStart: function () {
+      var btn = document.getElementById("enter-ar-button");
+      if (btn) { btn.textContent = "Start AR"; btn.disabled = false; }
+      this.setStatus("Model ready — tap to enter AR");
+    },
+    dismissOverlay: function () {
+      if (!this._dismissed) {
+        this._dismissed = true;
+        if (this._safetyTimer) { clearTimeout(this._safetyTimer); this._safetyTimer = null; }
+        var ov = document.getElementById("pre-ar-overlay");
+        if (ov) ov.classList.add("is-hidden");
+      }
+    },
+    _showOverlay: function () {
+      var ov = document.getElementById("pre-ar-overlay");
+      if (ov) ov.classList.remove("is-hidden");
+      this._dismissed = false;
+    },
+    bind: function (scene) {
+      var self = this;
+      this._dismissed = false;
+      var btn = document.getElementById("enter-ar-button");
+      if (btn) {
+        btn.addEventListener("click", function () {
+          if (!btn.disabled) {
+            btn.disabled = true; btn.textContent = "Starting AR…";
+            scene.emit("runreality");
+            if (self._safetyTimer) clearTimeout(self._safetyTimer);
+            self._safetyTimer = setTimeout(function () { self.dismissOverlay(); }, 5000);
+          }
+        });
+        scene.addEventListener("realityready", function () { self.dismissOverlay(); });
+        scene.addEventListener("realityerror", function () {
+          if (self._safetyTimer) { clearTimeout(self._safetyTimer); self._safetyTimer = null; }
+          self._showOverlay();
+          btn.textContent = "AR Failed — Retry"; btn.disabled = false;
+          self.setStatus("AR failed to start.\nPlease check camera permissions.");
+        });
+      }
+    }
+  };
+
+  /* ── UI Manager ── */
+  var UI = {
+    elements: {},
+    init: function () {
+      this.elements = {
+        hint: document.getElementById("ar-hint"),
+        interactionType: document.getElementById("interaction-type"),
+        interactionHint: document.getElementById("interaction-hint"),
+        status: document.getElementById("ar-status"),
+        statusText: document.getElementById("status-text"),
+        itemName: document.getElementById("item-name-display"),
+        starCounter: document.getElementById("star-counter")
+      };
+    },
+    show: function () {
+      Object.values(this.elements).forEach(function (el) {
+        if (el) el.classList.remove("ar-ui-hidden");
+      });
+    },
+    setInteractionType: function (type) {
+      if (this.elements.interactionType) this.elements.interactionType.textContent = type;
+      if (this.elements.interactionHint) this.elements.interactionHint.textContent = "Tap all 3 flying stars!";
+    },
+    setStatus: function (msg, cls) {
+      cls = cls || "waiting";
+      if (this.elements.status) {
+        this.elements.status.className = cls;
+        this.elements.status.classList.remove("ar-ui-hidden");
+      }
+      if (this.elements.statusText) this.elements.statusText.textContent = msg;
+    },
+    showItemName: function (name) {
+      if (this.elements.itemName) {
+        this.elements.itemName.textContent = "✨ " + name;
+        this.elements.itemName.classList.add("visible");
+      }
+    },
+    hideItemName: function () {
+      if (this.elements.itemName) this.elements.itemName.classList.remove("visible");
+    }
+  };
+
+  /* ── Model Load with Retry ── */
+  function loadModelEntity(element, modelUrl, opts) {
+    var label = opts.label || "Model";
+    var retryStatusText = opts.retryStatusText;
+    var onLoaded = opts.onLoaded;
+    var onFinalError = opts.onFinalError;
+    var url = normalizeUrl(modelUrl);
+    if (!url) { onFinalError({ attempt: 0, errorType: "invalid_url", url: modelUrl }); return; }
+
+    var attemptCount = 0;
+    var loadImpl = function () {
+      attemptCount++;
+      var done = false;
+      var timeoutHandle = null;
+
+      var cleanup = function () {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        element.removeEventListener("model-loaded", onSuccess);
+        element.removeEventListener("model-error", onError);
+      };
+
+      var onSuccess = function () {
+        if (done) return; done = true; cleanup();
+        onLoaded({ attempt: attemptCount, url: url });
+      };
+
+      var onError = function (evt) { handleErr("model_error", evt); };
+
+      var handleErr = function (errorType, event) {
+        if (done) return; done = true; cleanup();
+        var code = errorType;
+        if (errorType === "model_error") {
+          fetch(url, { method: "HEAD", mode: "cors", cache: "no-store" }).then(function (r) {
+            if (!r.ok) {
+              if (r.status === 404) code = "not_found";
+              else if (r.status === 401 || r.status === 403) code = "forbidden";
+              else if (r.status >= 500) code = "server";
+              else code = "http_error";
+            }
+          }).catch(function () { code = "network_or_cors"; }).finally(function () {
+            retryOrFail(code, event);
+          });
+        } else {
+          retryOrFail(code, event);
+        }
+      };
+
+      var retryOrFail = function (code, event) {
+        if (attemptCount <= 2) {
+          console.warn("⚠️ " + label + " load failed (" + code + "), retrying " + (attemptCount + 1) + "/3");
+          if (retryStatusText) UI.setStatus(retryStatusText + " (retry " + (attemptCount + 1) + "/3)", "waiting");
+          setTimeout(loadImpl, 250);
+        } else {
+          onFinalError({ attempt: attemptCount, errorType: code, event: event, url: url });
+        }
+      };
+
+      timeoutHandle = setTimeout(function () {
+        element.removeAttribute("gltf-model");
+        handleErr("timeout");
+      }, 30000);
+
+      element.removeAttribute("gltf-model");
+      setTimeout(function () { element.setAttribute("gltf-model", url); }, attemptCount === 1 ? 0 : 250);
+      element.addEventListener("model-loaded", onSuccess);
+      element.addEventListener("model-error", onError);
+    };
+
+    loadImpl();
+  }
+
+  /* ── Halo Effect ── */
+  function createHaloEffect(starEl) {
+    var cfg = CFG.star;
+    var haloDur = cfg.haloDuration || 600;
+
+    var parent = starEl.object3D.parent;
+    if (!parent) return;
+
+    var worldPos = new THREE.Vector3();
+    starEl.object3D.getWorldPosition(worldPos);
+    parent.worldToLocal(worldPos);
+
+    var haloGeo = new THREE.RingGeometry(0.01, 0.06, 32);
+    var haloMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(cfg.haloColor || "#ffffff"),
+      transparent: true, opacity: 0.9,
+      side: THREE.DoubleSide, depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    var haloMesh = new THREE.Mesh(haloGeo, haloMat);
+    haloMesh.renderOrder = 999;
+    haloMesh.position.copy(worldPos);
+
+    var cam = starEl.sceneEl.camera;
+    if (cam) {
+      var q = new THREE.Quaternion();
+      cam.getWorldQuaternion(q);
+      haloMesh.quaternion.copy(q);
+    }
+
+    parent.add(haloMesh);
+
+    var t0 = Date.now();
+    var maxScale = 8;
+    function animate() {
+      var t = Math.min((Date.now() - t0) / haloDur, 1);
+      var ease = 1 - Math.pow(1 - t, 3);
+      var s = 1 + ease * maxScale;
+      haloMesh.scale.set(s, s, 1);
+      haloMesh.material.opacity = 0.9 * (1 - ease);
+      if (t < 1) { requestAnimationFrame(animate); }
+      else { parent.remove(haloMesh); haloGeo.dispose(); haloMat.dispose(); }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  /* ── Sprite Burst Overlay ── */
+  function triggerBurst() {
+    var el = document.getElementById("sprite-burst-overlay");
+    if (el) {
+      el.classList.remove("active"); el.offsetWidth; el.classList.add("active");
+      setTimeout(function () { el.classList.remove("active"); el.style.opacity = "0"; el.style.visibility = "hidden"; }, 1700);
+    }
+  }
+
+  /* ── Error message helper ── */
+  function modelErrMsg(type, label) {
+    switch (type) {
+      case "timeout": return label + " load timed out";
+      case "not_found": return label + " URL returned 404";
+      case "forbidden": return label + " was blocked (403/CORS)";
+      case "server": return label + " server returned 5xx";
+      case "network_or_cors": return label + " request failed (network/CORS)";
+      case "invalid_url": return label + " URL is invalid";
+      default: return "Failed to load " + label;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════
+     Main Component: tap-ar-interaction
+     ═══════════════════════════════════════════════ */
+  AFRAME.registerComponent("tap-ar-interaction", {
+    init: function () {
+      console.log("🎮 Tap AR Interaction (3-Star) initializing...");
+      preAROverlay.bind(this.el);
+      UI.init();
+
+      var params = new URLSearchParams(window.location.search);
+      var config;
+      if (TEST.enabled) {
+        config = { realGlb: TEST.realGlb, fictionalGlb: TEST.fictionalGlb,
+                   interaction: "Tap", itemName: TEST.itemName, realName: TEST.realName };
+      } else {
+        config = {
+          realGlb: normalizeUrl(params.get("real_glb")),
+          fictionalGlb: normalizeUrl(params.get("fictional_glb")),
+          interaction: params.get("interaction") || "Tap",
+          itemName: params.get("item_name") || "Fictional Item",
+          realName: params.get("real_name") || "Real Item"
+        };
+      }
+
+      console.log("📦 Config:", {
+        real_glb: config.realGlb ? config.realGlb.substring(0, 60) + "..." : null,
+        fictional_glb: config.fictionalGlb ? config.fictionalGlb.substring(0, 60) + "..." : null,
+        interaction: config.interaction, item_name: config.itemName, real_name: config.realName
+      });
+
+      if (!config.realGlb) {
+        console.error("❌ Missing real_glb parameter");
+        UI.setStatus("Error: No model URL provided", "error");
+        return;
+      }
+
+      state.fictionalGlbUrl = config.fictionalGlb;
+      state.realGlbUrl = config.realGlb;
+      state.itemName = config.itemName;
+      state.realName = config.realName;
+
+      UI.setInteractionType(config.interaction);
+      UI.setStatus("Loading Real Item 3D...", "waiting");
+      this.loadRealModel(config.realGlb);
+
+      this.el.addEventListener("loaded", function () {
+        UI.show();
+        var vid = document.getElementById("star-fly-video");
+        if (vid) {
+          var p = vid.play();
+          if (p !== undefined) {
+            p.catch(function () {
+              var retry = function () {
+                vid.play().catch(function () {});
+                document.removeEventListener("touchstart", retry);
+                document.removeEventListener("click", retry);
+              };
+              document.addEventListener("touchstart", retry, { once: true });
+              document.addEventListener("click", retry, { once: true });
+            });
+          }
+        }
+      });
+    },
+
+    loadRealModel: function (modelUrl) {
+      var self = this;
+      var realEl = document.getElementById("realModel");
+      if (!realEl) { console.error("❌ #realModel not found"); return; }
+
+      loadModelEntity(realEl, modelUrl, {
+        label: "Real Item 3D",
+        retryStatusText: "Retrying Real Item 3D...",
+        onLoaded: function () {
+          console.log("✅ Real Item 3D loaded");
+          state.realModelLoaded = true;
+          var mesh = realEl.getObject3D("mesh");
+          if (mesh) fixMaterials(mesh);
+
+          if (state.fictionalGlbUrl && !state.starsCreated) {
+            self._cacheModelDimensions(realEl);
+            self.preloadFictionalItem();
+            self.spawnStarRound();
+            state.starsCreated = true;
+            state.realModel = realEl;
+            UI.setStatus("Tap the 3 stars! ✨", "waiting");
+          } else if (!state.fictionalGlbUrl) {
+            UI.setStatus("Real Item 3D loaded", "complete");
+          }
+          window.dispatchEvent(new CustomEvent("ei:realModel:ready", { detail: { modelId: "realModel" } }));
+          preAROverlay.enableStart();
+        },
+        onFinalError: function (err) {
+          console.error("❌ Failed to load Real Item 3D:", err);
+          UI.setStatus(modelErrMsg(err.errorType, "Real Item 3D"), "error");
+        }
+      });
+    },
+
+    _cacheModelDimensions: function (modelEl) {
+      var box = new THREE.Box3();
+      modelEl.object3D.traverse(function (node) {
+        if (node.isMesh && node.geometry) {
+          node.geometry.computeBoundingBox();
+          var bb = node.geometry.boundingBox.clone();
+          bb.applyMatrix4(node.matrixWorld);
+          box.union(bb);
+        }
+      });
+      var size = new THREE.Vector3(); box.getSize(size);
+      var maxDim = Math.max(size.x, size.y, size.z, 0.2);
+      var cfg = CFG.star;
+      var markRadius = THREE.MathUtils.clamp(maxDim * (cfg.sizeRatio || 0.11), cfg.minSize || 0.07, cfg.maxSize || 0.15);
+      state.modelMaxDim = maxDim;
+      state.flyRangeX = 1 * maxDim;
+      state.flyRangeY = 1 * maxDim;
+      state.flyRangeZ = 1 * maxDim;
+      state.baseHeight = 0.5 * maxDim;
+      state.starSize = 15 * markRadius;
+      console.log("📐 Model dimensions cached:", { maxDim: maxDim, starSize: state.starSize });
+    },
+
+    preloadFictionalItem: function () {
+      if (!state.fictionalGlbUrl || state.fictionalLoaded) return;
+      var holder = document.getElementById("model-holder");
+      if (!holder) return;
+
+      var el = document.createElement("a-entity");
+      el.setAttribute("id", "fictionalModel");
+      el.setAttribute("position", "0 0 0");
+      el.setAttribute("visible", "false");
+      el.setAttribute("shadow", "cast: true; receive: true");
+      holder.appendChild(el);
+
+      loadModelEntity(el, state.fictionalGlbUrl, {
+        label: "Fictional Item 3D",
+        onLoaded: function () {
+          var mesh = el.getObject3D("mesh");
+          if (mesh) { fixMaterials(mesh); el.setAttribute("visible", "false"); }
+          state.fictionalModel = el;
+          state.fictionalLoaded = true;
+          console.log("✅ Fictional Item preloaded (hidden)");
+        },
+        onFinalError: function (err) {
+          console.error("❌ Failed to load Fictional Item:", err);
+        }
+      });
+    },
+
+    /* ── Spawn a Round of Stars ── */
+    spawnStarRound: function () {
+      var self = this;
+      state.tappedCount = 0;
+      state.activeStars = [];
+      state.isTransitioning = false;
+      state.roundCount++;
+      updateStarCounter();
+
+      var holder = document.getElementById("model-holder");
+      if (!holder) return;
+
+      var stagger = (CFG.spawn && CFG.spawn.staggerDelay) || 300;
+
+      for (var i = 0; i < state.totalStars; i++) {
+        (function (idx) {
+          setTimeout(function () {
+            if (state.isTransitioning) return;
+            self._createStar(holder, idx);
+          }, idx * stagger);
+        })(i);
+      }
+      console.log("⭐ Round " + state.roundCount + ": Spawning " + state.totalStars + " stars");
+    },
+
+    /* ── Create One Flying Star ── */
+    _createStar: function (parentEl, index) {
+      var self = this;
+      var cfg = CFG.star;
+      var sz = state.starSize;
+
+      // Spread initial positions apart using angle offset
+      var angle = (index / state.totalStars) * Math.PI * 2 + Math.random() * 0.5;
+      var initPos = {
+        x: Math.cos(angle) * state.flyRangeX * 0.6,
+        y: state.baseHeight + Math.random() * state.flyRangeY,
+        z: Math.sin(angle) * state.flyRangeZ * 0.6
+      };
+
+      var plane = document.createElement("a-plane");
+      plane.classList.add("can-tap", "cantap");
+      plane.setAttribute("width", sz.toFixed(3));
+      plane.setAttribute("height", sz.toFixed(3));
+      plane.setAttribute("position", initPos.x.toFixed(3) + " " + initPos.y.toFixed(3) + " " + initPos.z.toFixed(3));
+      plane.setAttribute("material", "shader: flat; transparent: true; opacity: 0.001; side: double; depthWrite: false");
+      plane.setAttribute("billboard", "spinSpeed: 0");
+
+      // Pulse
+      plane.setAttribute("animation__pulse", {
+        property: "scale", dir: "alternate",
+        from: (cfg.pulseMin || 0.92) + " " + (cfg.pulseMin || 0.92) + " " + (cfg.pulseMin || 0.92),
+        to: (cfg.pulseScale || 1.35) + " " + (cfg.pulseScale || 1.35) + " " + (cfg.pulseScale || 1.35),
+        dur: (cfg.pulseDuration || 650) + index * 50, easing: "linear", loop: true
+      });
+
+      // Random fly (varied speed per star)
+      var speed = (cfg.flySpeed || 1600) + index * 200;
+      plane.setAttribute("random-fly",
+        "rangeX: " + state.flyRangeX.toFixed(3) + "; rangeY: " + state.flyRangeY.toFixed(3) +
+        "; rangeZ: " + state.flyRangeZ.toFixed(3) + "; baseHeight: " + state.baseHeight.toFixed(3) +
+        "; speed: " + speed
+      );
+
+      // Spawn scale-in animation
+      plane.setAttribute("animation__spawn", {
+        property: "scale", from: "0.01 0.01 0.01", to: "1 1 1",
+        dur: (CFG.spawn && CFG.spawn.duration) || 360, easing: "easeOutBack"
+      });
+
+      // Apply video texture
+      plane.addEventListener("loaded", function () {
+        var mesh = plane.getObject3D("mesh");
+        if (mesh) {
+          mesh.castShadow = false; mesh.frustumCulled = false;
+          var vid = document.getElementById("star-fly-video");
+          if (vid) {
+            var tex = new THREE.VideoTexture(vid);
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.format = THREE.RGBAFormat;
+            mesh.material = new THREE.MeshBasicMaterial({
+              map: tex, blending: THREE.AdditiveBlending,
+              transparent: true, depthWrite: false,
+              side: THREE.DoubleSide, toneMapped: false
+            });
+          }
+        }
+      }, { once: true });
+
+      var tapped = false;
+
+      // Tap handler
+      var handleTap = function () {
+        if (tapped || state.isTransitioning) return;
+        tapped = true;
+
+        state.tappedCount++;
+        updateStarCounter();
+        console.log("👆 Star " + (index + 1) + " tapped! (" + state.tappedCount + "/" + state.totalStars + ")");
+
+        plane.removeEventListener("click", handleTap);
+        plane.removeEventListener("pointerdown", handleTap);
+        plane.removeEventListener("touchstart", handleTouch);
+
+        // Stop movement
+        plane.removeAttribute("random-fly");
+        plane.removeAttribute("animation__fly");
+        plane.removeAttribute("animation__pulse");
+
+        // Haptic
+        if (navigator.vibrate) navigator.vibrate(60);
+
+        // Halo
+        createHaloEffect(plane);
+
+        // Fade out star
+        var fadeDur = cfg.fadeDuration || 800;
+        plane.setAttribute("animation__fadeout", {
+          property: "scale", to: "2.5 2.5 2.5", dur: fadeDur, easing: "easeOutQuad"
+        });
+
+        var mesh = plane.getObject3D("mesh");
+        if (mesh && mesh.material) {
+          var startOp = mesh.material.opacity || 1;
+          var t0 = Date.now();
+          (function fadeLoop() {
+            var t = Math.min((Date.now() - t0) / fadeDur, 1);
+            if (mesh.material) mesh.material.opacity = startOp * (1 - t);
+            if (t < 1) requestAnimationFrame(fadeLoop);
+          })();
+        }
+
+        // Remove star element after fade
+        setTimeout(function () {
+          try { plane.remove(); } catch (e) {}
+          var idx = state.activeStars.indexOf(plane);
+          if (idx !== -1) state.activeStars.splice(idx, 1);
+        }, fadeDur + 50);
+
+        // All stars tapped? → swap!
+        if (state.tappedCount >= state.totalStars) {
+          state.isTransitioning = true;
+          var swapDelay = (CFG.swap && CFG.swap.delay) || 500;
+          setTimeout(function () {
+            triggerBurst();
+            self.toggleModels();
+            // Spawn next round after brief pause
+            setTimeout(function () {
+              state.isTransitioning = false;
+              self.spawnStarRound();
+            }, 1200);
+          }, swapDelay);
+        }
+      };
+
+      var handleTouch = function (e) {
+        if (e.preventDefault) e.preventDefault();
+        handleTap();
+      };
+
+      plane.addEventListener("click", handleTap);
+      plane.addEventListener("pointerdown", handleTap);
+      plane.addEventListener("touchstart", handleTouch, { passive: false });
+
+      parentEl.appendChild(plane);
+      state.activeStars.push(plane);
+    },
+
+    /* ── Toggle Models ── */
+    toggleModels: function () {
+      var realEl = document.getElementById("realModel");
+      var fictEl = document.getElementById("fictionalModel");
+
+      if (state.showingFictional) {
+        console.log("🔄 → Real Item");
+        if (fictEl) fictEl.setAttribute("visible", "false");
+        if (realEl) realEl.setAttribute("visible", "true");
+        state.showingFictional = false;
+        UI.showItemName(state.realName || "Real Item");
+      } else {
+        console.log("🔄 → Fictional Item");
+        if (realEl) realEl.setAttribute("visible", "false");
+        if (fictEl) fictEl.setAttribute("visible", "true");
+        state.showingFictional = true;
+        state.fictionalRevealed = true;
+        UI.showItemName(state.itemName || "Fictional Item");
+      }
+
+      state.toggleCount++;
+      console.log("🔄 Toggle #" + state.toggleCount);
+
+      if (state.toggleCount >= 3) {
+        var backBtn = document.getElementById("back-to-main");
+        if (backBtn && !backBtn.classList.contains("visible")) {
+          backBtn.classList.add("visible");
+          console.log("🏠 Back button shown");
+        }
+      }
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    console.log("📱 DOM ready for 3-Star Tap AR");
+  });
+})();
