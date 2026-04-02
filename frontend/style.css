@@ -3917,13 +3917,23 @@ body {
    GPU Status Panel
    ========================================== */
 .gpu-panel {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: var(--radius-lg);
+    background: transparent;
+    border-radius: var(--radius-md);
     padding: 0;
-    margin: var(--spacing-lg) auto 0;
+    margin: var(--spacing-md) auto 0;
     max-width: 800px;
-    box-shadow: var(--shadow-md);
-    overflow: hidden;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 2 * var(--spacing-md));
+    z-index: 10;
+    opacity: 0.6;
+    transition: opacity 0.3s ease;
+}
+
+.gpu-panel:hover {
+    opacity: 1;
 }
 
 .gpu-panel-header {
@@ -3931,13 +3941,15 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: var(--spacing-sm) var(--spacing-md);
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-md);
     cursor: pointer;
     user-select: none;
     transition: background 0.2s ease;
 }
 
 .gpu-panel-header:hover {
-    background: rgba(0, 0, 0, 0.03);
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .gpu-panel-header-left {
@@ -3947,32 +3959,32 @@ body {
 }
 
 .gpu-panel-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 600;
-    color: #333;
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .gpu-status-summary {
-    font-size: 0.85rem;
-    padding: 4px 12px;
+    font-size: 0.8rem;
+    padding: 3px 10px;
     border-radius: 20px;
-    background: #e8f5e9;
-    color: #2e7d32;
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .gpu-status-summary.status-error {
-    background: #ffebee;
-    color: #c62828;
+    background: rgba(198, 40, 40, 0.3);
+    color: #ffcdd2;
 }
 
 .gpu-status-summary.status-busy {
-    background: #fff3e0;
-    color: #ef6c00;
+    background: rgba(239, 108, 0, 0.3);
+    color: #ffe0b2;
 }
 
 .gpu-toggle-icon {
     font-size: 0.75rem;
-    color: #999;
+    color: rgba(255, 255, 255, 0.7);
     transition: transform 0.3s ease;
 }
 
@@ -3985,7 +3997,10 @@ body {
     transition: max-height 0.4s ease, opacity 0.3s ease;
     max-height: 600px;
     opacity: 1;
-    padding: 0 var(--spacing-md) var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .gpu-panel.collapsed .gpu-panel-body {
@@ -4286,8 +4301,7 @@ body {
 /* Mobile responsive */
 @media (max-width: 600px) {
     .gpu-panel {
-        margin: var(--spacing-sm) var(--spacing-sm) 0;
-        padding: 0;
+        width: calc(100% - 2 * var(--spacing-sm));
     }
 
     .gpu-mode-options {

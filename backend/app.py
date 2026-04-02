@@ -237,7 +237,7 @@ def set_gpu_mode():
         r = req.post(
             f"{VASTAI_GPU_URL}/api/gpu/mode",
             json={"mode": mode},
-            headers={"X-API-Secret": GPU_API_SECRET},
+            headers={"X-GPU-API-Key": GPU_API_SECRET},
             timeout=10,
         )
         if r.status_code == 200:
@@ -373,7 +373,7 @@ def gpu_services_restart():
     try:
         r = requests.post(
             f"{VASTAI_GPU_URL}/api/gpu/restart",
-            headers={"X-API-Secret": GPU_API_SECRET},
+            headers={"X-GPU-API-Key": GPU_API_SECRET},
             timeout=30,
         )
         if r.status_code == 200:
@@ -1222,12 +1222,18 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
             log("3D_GEN", f"[PHOTO] Sending to GPU worker: {simplified_prompt}")
             update_job_status(photo_job_id, "processing", "Sending to GPU worker", 10)
 
+            def _photo_progress(step, progress):
+                # Remap GPU worker progress (0-100) to our range (10-90)
+                mapped = 10 + int(progress * 0.8)
+                update_job_status(photo_job_id, "processing", step, mapped)
+
             ok, err = run_remote_3d_pipeline(
                 job_id=photo_job_id,
                 image_path=str(photo_path),
                 prompt=simplified_prompt,
                 glb_output_path=str(real_3d_output),
                 cutout_output_path=str(photo_cutout_output) if photo_cutout_output else None,
+                progress_callback=_photo_progress,
             )
 
             if ok:
@@ -1256,12 +1262,17 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
             log("3D_GEN", f"[FICTIONAL] Sending to GPU worker: {simplified_prompt}")
             update_job_status(fictional_job_id, "processing", "Sending to GPU worker", 10)
 
+            def _fictional_progress(step, progress):
+                mapped = 10 + int(progress * 0.8)
+                update_job_status(fictional_job_id, "processing", step, mapped)
+
             ok, err = run_remote_3d_pipeline(
                 job_id=fictional_job_id,
                 image_path=str(fi_path),
                 prompt=simplified_prompt,
                 glb_output_path=str(fictional_3d_output),
                 cutout_output_path=str(fictional_cutout_output) if fictional_cutout_output else None,
+                progress_callback=_fictional_progress,
             )
 
             if ok:
@@ -1350,12 +1361,18 @@ def api_process():
 
     def _run():
         update_job_status(job_id, "processing", "Sending to GPU worker", 10)
+
+        def _progress(step, progress):
+            mapped = 10 + int(progress * 0.8)
+            update_job_status(job_id, "processing", step, mapped)
+
         ok, err = run_remote_3d_pipeline(
             job_id=job_id,
             image_path=str(image_path),
             prompt=simplified_prompt,
             glb_output_path=str(glb_output_path),
             cutout_output_path=str(cutout_output_path),
+            progress_callback=_progress,
         )
         if ok:
             update_job_status(job_id, "completed", "Complete", 100, files={"glb": str(glb_output_path)})

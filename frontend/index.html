@@ -137,74 +137,6 @@
             </button>
         </div>
 
-        <!-- GPU Status Panel (collapsible, hidden in test mode) -->
-        <div class="gpu-panel collapsed test-hidden">
-            <div class="gpu-panel-header" id="gpu-panel-toggle">
-                <div class="gpu-panel-header-left">
-                    <span class="gpu-panel-title">🖥️ GPU Status</span>
-                    <span id="gpu-status-summary" class="gpu-status-summary">Detecting...</span>
-                </div>
-                <span class="gpu-toggle-icon">▼</span>
-            </div>
-            <div class="gpu-panel-body">
-
-                <!-- Vast.ai Instance Control -->
-                <div class="gpu-instance-control">
-                    <div class="gpu-instance-header">
-                        <span class="gpu-instance-title">☁️ Vast.ai Instance</span>
-                        <span id="instance-status-badge" class="instance-status-badge status-unknown">Unknown</span>
-                    </div>
-                    <div class="gpu-instance-info" id="instance-info">
-                        <span id="instance-gpu-name">--</span>
-                        <span id="instance-cost">--</span>
-                    </div>
-                    <div class="gpu-instance-actions">
-                        <button id="btn-instance-start" class="btn-instance btn-instance-start" disabled>
-                            ▶ Start Instance
-                        </button>
-                        <button id="btn-instance-stop" class="btn-instance btn-instance-stop" disabled>
-                            ⏹ Stop Instance
-                        </button>
-                        <button id="btn-services-restart" class="btn-instance btn-services-restart" disabled>
-                            🔄 Restart SAM3/3D
-                        </button>
-                    </div>
-                    <div id="instance-error" class="instance-error hidden"></div>
-                </div>
-
-                <!-- SAM3/SAM3D Service Status -->
-                <div class="gpu-services-status">
-                    <div class="service-row">
-                        <span class="service-name">SAM3</span>
-                        <span id="sam3-status" class="service-status-dot status-unknown">●</span>
-                    </div>
-                    <div class="service-row">
-                        <span class="service-name">SAM3D</span>
-                        <span id="sam3d-status" class="service-status-dot status-unknown">●</span>
-                    </div>
-                </div>
-
-                <div class="gpu-mode-options">
-                    <label class="gpu-mode-option">
-                        <input type="radio" name="gpu-mode" id="gpu-mode-parallel" value="parallel" checked>
-                        <span class="gpu-mode-label">
-                            <span class="gpu-mode-name">⚡ Parallel</span>
-                            <span class="gpu-mode-desc">Multi-GPU acceleration</span>
-                        </span>
-                    </label>
-                    <label class="gpu-mode-option">
-                        <input type="radio" name="gpu-mode" id="gpu-mode-sequential" value="sequential">
-                        <span class="gpu-mode-label">
-                            <span class="gpu-mode-name">🔒 Sequential</span>
-                            <span class="gpu-mode-desc">One job at a time</span>
-                        </span>
-                    </label>
-                </div>
-                <div id="gpu-grid" class="gpu-grid">
-                    <!-- GPU cards will be populated by JavaScript -->
-                </div>
-            </div>
-        </div>
     </section>
 
     <!-- ========== Page 2: Story Background ========== -->
@@ -902,6 +834,65 @@
     </div>
 
     <!-- Ambient Sound Toggle (P2-2) — disabled -->
+
+    <!-- GPU Status Panel (collapsible, bottom of page) -->
+    <div class="gpu-panel collapsed test-hidden">
+        <div class="gpu-panel-header" id="gpu-panel-toggle">
+            <div class="gpu-panel-header-left">
+                <span class="gpu-panel-title">🖥️ GPU Status</span>
+                <span id="gpu-status-summary" class="gpu-status-summary">Detecting...</span>
+            </div>
+            <span class="gpu-toggle-icon">▼</span>
+        </div>
+        <div class="gpu-panel-body">
+            <div class="gpu-instance-control">
+                <div class="gpu-instance-header">
+                    <span class="gpu-instance-title">☁️ Vast.ai Instance</span>
+                    <span id="instance-status-badge" class="instance-status-badge status-unknown">Unknown</span>
+                </div>
+                <div class="gpu-instance-info" id="instance-info">
+                    <span id="instance-gpu-name">--</span>
+                    <span id="instance-cost">--</span>
+                </div>
+                <div class="gpu-instance-actions" style="display:none;">
+                    <button id="btn-instance-start" class="btn-instance btn-instance-start" disabled>▶ Start
+                        Instance</button>
+                    <button id="btn-instance-stop" class="btn-instance btn-instance-stop" disabled>⏹ Stop
+                        Instance</button>
+                    <button id="btn-services-restart" class="btn-instance btn-services-restart" disabled>🔄 Restart
+                        SAM3/3D</button>
+                </div>
+                <div id="instance-error" class="instance-error hidden"></div>
+            </div>
+            <div class="gpu-services-status">
+                <div class="service-row">
+                    <span class="service-name">SAM3</span>
+                    <span id="sam3-status" class="service-status-dot status-unknown">●</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-name">SAM3D</span>
+                    <span id="sam3d-status" class="service-status-dot status-unknown">●</span>
+                </div>
+            </div>
+            <div class="gpu-mode-options" style="display:none;">
+                <label class="gpu-mode-option">
+                    <input type="radio" name="gpu-mode" id="gpu-mode-parallel" value="parallel" checked>
+                    <span class="gpu-mode-label">
+                        <span class="gpu-mode-name">⚡ Parallel</span>
+                        <span class="gpu-mode-desc">Multi-GPU acceleration</span>
+                    </span>
+                </label>
+                <label class="gpu-mode-option">
+                    <input type="radio" name="gpu-mode" id="gpu-mode-sequential" value="sequential">
+                    <span class="gpu-mode-label">
+                        <span class="gpu-mode-name">🔒 Sequential</span>
+                        <span class="gpu-mode-desc">One job at a time</span>
+                    </span>
+                </label>
+            </div>
+            <div id="gpu-grid" class="gpu-grid"></div>
+        </div>
+    </div>
 
     <!-- ========== Load Scripts ========== -->
     <script src="config.js"></script>

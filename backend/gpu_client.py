@@ -16,7 +16,7 @@ from config import VASTAI_GPU_URL, GPU_API_SECRET, VASTAI_BEARER_TOKEN
 
 
 def _headers():
-    headers = {"X-API-Secret": GPU_API_SECRET}
+    headers = {"X-GPU-API-Key": GPU_API_SECRET}
     if VASTAI_BEARER_TOKEN:
         headers["Authorization"] = f"Bearer {VASTAI_BEARER_TOKEN}"
     return headers
@@ -25,9 +25,9 @@ def _headers():
 def gpu_worker_health() -> dict:
     """Check if the Vast.ai GPU worker is reachable and healthy."""
     try:
-        # Try the management portal endpoints first
+        # Try the GPU worker health endpoint first (no auth needed)
         health = {}
-        r = requests.get(f"{VASTAI_GPU_URL}/health", headers=_headers(), timeout=10)
+        r = requests.get(f"{VASTAI_GPU_URL}/api/gpu/health", timeout=10)
         if r.status_code == 200:
             health = r.json()
 
@@ -191,6 +191,7 @@ def run_remote_3d_pipeline(
     glb_output_path: str,
     cutout_output_path: str = None,
     timeout: int = 600,
+    progress_callback=None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Full workflow: submit job → poll until done → download GLB.
@@ -202,6 +203,7 @@ def run_remote_3d_pipeline(
         glb_output_path: Where to save the GLB
         cutout_output_path: Where to save the cutout PNG (optional)
         timeout: Max seconds to wait
+        progress_callback: Optional callable(step: str, progress: int) for live updates
 
     Returns:
         (success: bool, error_message: str or None)
@@ -221,7 +223,13 @@ def run_remote_3d_pipeline(
 
         log("GPU_CLIENT", f"[{job_id}] {state} - {step} ({progress}%)")
 
+        # Forward live progress to Hostinger job store
+        if progress_callback and state == "processing":
+            progress_callback(step, progress)
+
         if state == "completed":
+            if progress_callback:
+                progress_callback("Downloading model", 90)
             ok = download_3d_result(remote_id, glb_output_path)
             if cutout_output_path:
                 download_cutout(remote_id, cutout_output_path)
