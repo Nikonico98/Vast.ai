@@ -35,7 +35,7 @@ TEMPLATE_FILE = TEMPLATE_FOLDER / "prompt.md"
 # Vast.ai GPU Worker URL
 # ==========================================
 # This is the URL of your Vast.ai GPU worker (set via .env or ngrok domain)
-VASTAI_GPU_URL = os.getenv("VASTAI_GPU_URL", "http://93.91.156.86:47635")
+VASTAI_GPU_URL = os.getenv("VASTAI_GPU_URL", "http://213.181.122.2:50663")
 
 # Shared secret for authenticating requests between Hostinger and Vast.ai
 # Header name: X-GPU-API-Key

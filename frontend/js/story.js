@@ -1318,6 +1318,9 @@ class StoryController {
           this.events.length - 1,
         );
         this.showEventResult(eventData);
+
+        // Check if returning from AR interaction (enable continue button)
+        this.checkARCompletion();
       } else {
         // In progress - go to photo upload for next event
         this.navigateTo(PAGES.PHOTO_UPLOAD);
@@ -1621,11 +1624,16 @@ class StoryController {
       // Update progress
       this.updateOverallProgress(100);
 
-      // Play cinematic reveal transition, then show result
+      // Play cinematic reveal transition
       await this.playRevealTransition();
 
-      this.showEventResult(eventData);
+      // Save state as EVENT_RESULT so returning from AR restores correctly
+      this.currentPage = PAGES.EVENT_RESULT;
+      window.currentEventData = eventData;
       this.saveState();
+
+      // Jump directly to AR (skips event result page)
+      this.autoLaunchAR(eventData);
     } catch (error) {
       Logger.error("Recovery polling failed:", error);
       removeFromStorage("iw_processing_state");
@@ -2400,14 +2408,16 @@ class StoryController {
       // Update overall progress to 100%
       this.updateOverallProgress(100);
 
-      // Play cinematic reveal transition, then show result
+      // Play cinematic reveal transition
       await this.playRevealTransition();
 
-      // Show event result
-      this.showEventResult(eventData);
-
-      // Save state
+      // Save state as EVENT_RESULT so returning from AR restores correctly
+      this.currentPage = PAGES.EVENT_RESULT;
+      window.currentEventData = eventData;
       this.saveState();
+
+      // Jump directly to AR (skips event result page)
+      this.autoLaunchAR(eventData);
     } catch (error) {
       Logger.error("Photo processing failed:", error);
       // Clear processing state on error
@@ -3247,6 +3257,58 @@ class StoryController {
     };
     const pool = messages[world] || messages.Fantasy;
     return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  /**
+   * Auto-launch AR interaction after 3D models finish loading.
+   * Navigates directly to AR page (same tab) to avoid popup blockers.
+   * When user clicks "Back to Main Page" in AR, return_url brings them to event result.
+   * @param {object} eventData - The event data with model URLs
+   */
+  autoLaunchAR(eventData) {
+    if (!eventData) return;
+
+    const event = eventData.event || {};
+
+    const photoModelUrl = eventData.photoModelUrl;
+    const fictionalModelUrl = eventData.fictionalModelUrl;
+    if (!photoModelUrl || !fictionalModelUrl) return;
+
+    const interactionType =
+      event.ar_interaction_type ||
+      eventData.ar_interaction_type ||
+      event.arInteractionType ||
+      eventData.arInteractionType ||
+      "Tap";
+
+    const AR_URLS = { Tap: "/ar/tap/", Rotate: "/ar/rotate/", Track: "/ar/track/" };
+    const projectUrl = AR_URLS[interactionType] || AR_URLS.Tap;
+
+    const baseUrl = window.location.origin;
+    const fullPhotoUrl = photoModelUrl.startsWith("http") ? photoModelUrl : baseUrl + photoModelUrl;
+    const fullFictionalUrl = fictionalModelUrl.startsWith("http") ? fictionalModelUrl : baseUrl + fictionalModelUrl;
+
+    const itemName =
+      event.fictionalItemName ||
+      event.item_or_character ||
+      eventData.fictionalItemName ||
+      "Fictional Item";
+
+    // Return URL points to event result page
+    const returnUrl = baseUrl + window.location.pathname + "#page-event-result";
+
+    const params = new URLSearchParams({
+      real_glb: fullPhotoUrl,
+      fictional_glb: fullFictionalUrl,
+      interaction: interactionType,
+      item_name: itemName,
+      return_url: returnUrl,
+    });
+
+    Logger.log("Auto-launching AR interaction (same tab):", interactionType);
+
+    // Navigate current page to AR (avoids popup blocker, no page flash)
+    window.location.href = `${projectUrl}?${params.toString()}`;
   }
 
   playRevealTransition() {
