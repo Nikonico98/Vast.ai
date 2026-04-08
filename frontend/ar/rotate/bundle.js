@@ -1,1 +1,864 @@
-(()=>{"use strict";function t(e){return t="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t},t(e)}function e(e,n,o){return(n=function(e){var n=function(e){if("object"!=t(e)||!e)return e;var n=e[Symbol.toPrimitive];if(void 0!==n){var o=n.call(e,"string");if("object"!=t(o))return o;throw new TypeError("@@toPrimitive must return a primitive value.")}return String(e)}(e);return"symbol"==t(n)?n:n+""}(n))in e?Object.defineProperty(e,n,{value:o,enumerable:!0,configurable:!0,writable:!0}):e[n]=o,e}function n(t,e){var n=Object.keys(t);if(Object.getOwnPropertySymbols){var o=Object.getOwnPropertySymbols(t);e&&(o=o.filter(function(e){return Object.getOwnPropertyDescriptor(t,e).enumerable})),n.push.apply(n,o)}return n}function o(t){for(var o=1;o<arguments.length;o++){var i=null!=arguments[o]?arguments[o]:{};o%2?n(Object(i),!0).forEach(function(n){e(t,n,i[n])}):Object.getOwnPropertyDescriptors?Object.defineProperties(t,Object.getOwnPropertyDescriptors(i)):n(Object(i)).forEach(function(e){Object.defineProperty(t,e,Object.getOwnPropertyDescriptor(i,e))})}return t}console.log("✅ RotateItem AR Interaction loaded");var i={enabled:!1,realGlb:"#realModelAsset",fictionalGlb:"#fictionalModelAsset",itemName:"Test Fictional Item"},a=function(){var e={checkpoint:{minAngle:30,totalChecks:3,messages:["Keep Try","Try one more",null],resetDelay:300},ringColor:{base:"rgba(255, 255, 255, 0.3)",active:"rgba(208, 188, 255, 0.85)",reached:"rgba(126, 87, 194, 0.9)"},bounce:{initialHeight:.3,damping:.4,bounceDuration:350,bounceCount:3,squashStretch:[{squashY:.7,stretchY:1.25,squashXZ:1.2,stretchXZ:.85},{squashY:.8,stretchY:1.15,squashXZ:1.15,stretchXZ:.9},{squashY:.88,stretchY:1.08,squashXZ:1.08,stretchXZ:.95}]},animation:{transitionDuration:100,rotationDuration:200}},n=window.ROTATE_CONFIG;if(!n||"object"!==t(n))return e;for(var i={},a=0,r=Object.keys(e);a<r.length;a++){var s=r[a];e[s]&&"object"===t(e[s])&&!Array.isArray(e[s])&&n[s]&&"object"===t(n[s])&&!Array.isArray(n[s])?i[s]=o(o({},e[s]),n[s]):i[s]=s in n?n[s]:e[s]}return console.log("⚙️ ROTATE_CONFIG merged from ar-config.js",i),i}(),r={initialRotationY:null,currentRotationY:0,rotationProgress:0,hasStarted:!1,itemNameShown:!1,realModel:null,fictionalModel:null,positionHolder:null,realGlbUrl:null,fictionalGlbUrl:null,itemName:null,realName:null,currentCheck:0,handleNumber:0,currentCheckpointAngle:0,startCheckpointDistance:0,showingFictional:!1,checkpointLocked:!1,firstRevealDone:!1,isBouncing:!1,baseModelY:0,toggleCount:0};function s(t){return(t%360+360)%360}function l(t,e){var n=Math.abs(s(t)-s(e));return Math.min(n,360-n)}function c(){var t,e=a.checkpoint.minAngle,n=s(y.currentRotation),o=0;do{t=Math.round(360*Math.random()),o++}while(l(n,t)<e&&o<100);return r.currentCheckpointAngle=t,r.startCheckpointDistance=l(n,t),function(t){var e=document.getElementById("checkpoint-dot");if(e){e._fadeTimer&&(clearTimeout(e._fadeTimer),e._fadeTimer=null);var n=180-t+y.currentRotation;e.style.transform="rotate(".concat(n,"deg) translateY(-132px)"),e.classList.remove("fade-out"),e.classList.add("visible"),e._fadeTimer=setTimeout(function(){e.classList.add("fade-out"),e.classList.remove("visible")},1500)}}(t),console.log("🎯 Checkpoint target: ".concat(t,"° (distance: ").concat(Math.round(r.startCheckpointDistance),"° from ").concat(Math.round(n),"°)")),t}var d={isActive:!1,startX:0,startY:0,startModelX:0,startModelZ:0},u={elements:{},init:function(){this.elements={hint:document.getElementById("ar-hint"),interactionType:document.getElementById("interaction-type"),interactionHint:document.getElementById("interaction-hint"),status:document.getElementById("ar-status"),statusText:document.getElementById("status-text"),itemName:document.getElementById("item-name-display")},console.log("🎨 UI initialized")},show:function(){},setStatus:function(t){var e=arguments.length>1&&void 0!==arguments[1]?arguments[1]:"waiting";this.elements.status&&(this.elements.status.className="".concat(e),this.elements.status.classList.remove("ar-ui-hidden")),this.elements.statusText&&(this.elements.statusText.textContent=t)},showItemName:function(t){this.elements.itemName&&(this.elements.itemName.textContent="✨ ".concat(t),this.elements.itemName.classList.add("visible"))}};function m(t,e){if(t&&t.object3D){var n=t.object3D;n.traverse(function(t){t.isMesh&&t.material&&(Array.isArray(t.material)?t.material:[t.material]).forEach(function(n){n&&(n.transparent=!0,n.opacity=e,n.depthWrite=e>.95,n.depthTest=!0,t.renderOrder=Math.floor(100*e),n.needsUpdate=!0)})}),n.visible=!(e<=.01)}}function g(t,e){t&&t.setAttribute("visible",e)}function h(t){var e=t.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);return e?{r:+e[1],g:+e[2],b:+e[3],a:void 0!==e[4]?+e[4]:1}:{r:255,g:255,b:255,a:1}}function f(){if(r.showingFictional?(m(r.fictionalModel,0),g(r.fictionalModel,!1),m(r.realModel,1),g(r.realModel,!0),r.showingFictional=!1,u.showItemName(r.realName||"Real Item"),r.itemNameShown=!0,console.log("🔄 Switched to Real")):(m(r.realModel,0),g(r.realModel,!1),m(r.fictionalModel,1),g(r.fictionalModel,!0),r.showingFictional=!0,u.showItemName(r.itemName||"Fictional Item"),r.itemNameShown=!0,console.log("🔄 Switched to Fictional")),r.toggleCount++,console.log("🔄 Toggle #".concat(r.toggleCount)),r.toggleCount>=3){var t=document.getElementById("back-to-main");t&&!t.classList.contains("visible")&&(t.classList.add("visible"),console.log("🏠 Back button shown after",r.toggleCount,"toggles"))}}function v(t){var e=document.getElementById("handle-number");e&&(e.textContent=t,e.classList.remove("pop"),e.offsetWidth,e.classList.add("pop"),console.log("🔢 Handle number: ".concat(t)))}function b(){var t=document.getElementById("ring-track");t&&(t.style.borderColor=a.ringColor.base,t.style.boxShadow="none")}var y={isActive:!1,lastAngle:0,currentRotation:0};function p(t){if(!r.isBouncing){var e=document.getElementById("model-holder");if(e){var n=e.getAttribute("rotation")||{x:0,y:0,z:0};e.setAttribute("rotation",{x:n.x,y:t,z:n.z}),!r.hasStarted&&Math.abs(t)>1&&(r.hasStarted=!0,console.log("🔄 Rotation started")),r.currentRotationY=t,function(){if(!(r.checkpointLocked||r.isBouncing||r.startCheckpointDistance<=0)){var t=l(s(y.currentRotation),r.currentCheckpointAngle);!function(t){var e=document.getElementById("ring-track");if(e){var n,o,i,r,s,l,c,d,u,m=(n=a.ringColor.base,o=a.ringColor.active,i=t,r=h(n),s=h(o),l=Math.round(r.r+(s.r-r.r)*i),c=Math.round(r.g+(s.g-r.g)*i),d=Math.round(r.b+(s.b-r.b)*i),u=+(r.a+(s.a-r.a)*i).toFixed(3),"rgba(".concat(l,", ").concat(c,", ").concat(d,", ").concat(u,")"));if(e.style.borderColor=m,t>.3){var g=Math.round((t-.3)/.7*20);e.style.boxShadow="0 0 ".concat(g,"px rgba(208, 188, 255, ").concat((.6*t).toFixed(2),"), inset 0 0 ").concat(Math.round(.6*g),"px rgba(208, 188, 255, ").concat((.3*t).toFixed(2),")")}else e.style.boxShadow="none"}}(Math.max(0,Math.min(1,1-t/r.startCheckpointDistance))),t<=5&&function(){if(!r.checkpointLocked){r.checkpointLocked=!0;var t,e=r.currentCheck;console.log("🎯 Checkpoint ".concat(e+1,"/3 reached!")),(t=document.getElementById("sprite-burst-overlay"))&&(t.classList.remove("active"),t.offsetWidth,t.classList.add("active"),console.log("💫 Star Burst triggered!"),setTimeout(function(){t.classList.remove("active"),t.style.opacity="0",t.style.visibility="hidden"},1200));var n=a.checkpoint.messages[e];n&&function(t){if(t){var e=document.getElementById("checkpoint-message");e||((e=document.createElement("div")).id="checkpoint-message",document.body.appendChild(e)),e.textContent=t,e.classList.remove("show"),e.offsetWidth,e.classList.add("show"),setTimeout(function(){e.classList.remove("show")},2e3)}}(n),r.handleNumber=e+1,v(r.handleNumber);var o=2===e;!function(t,e){r.isBouncing=!0;var n=a.bounce,o=document.getElementById("model-holder");if(o){var i=o.getAttribute("position")||{x:0,y:0,z:0};r.baseModelY=i.y;var s=0;!function i(){if(s>=n.bounceCount)return o.setAttribute("scale","1 1 1"),void(e&&e());var a=n.initialHeight*Math.pow(n.damping,s),l=n.squashStretch[s]||n.squashStretch[n.squashStretch.length-1],c=n.bounceDuration,d=t&&s===n.bounceCount-1,u=performance.now();r._switchDone=!1,requestAnimationFrame(function t(e){var n,m,g,h,v=e-u,b=Math.min(1,v/c);if(b<.5){var y=b/.5,p=1-(1-y)*(1-y);n=r.baseModelY+a*p;var M=Math.sin(y*Math.PI);g=1+(l.stretchY-1)*M,h=m=1+(l.stretchXZ-1)*M}else{var A=(b-.5)/.5,E=A*A;if(n=r.baseModelY+a*(1-E),d&&A>.95&&!r._switchDone&&(r._switchDone=!0,f()),A>.85){var k=(A-.85)/.15;g=1+(l.squashY-1)*k,h=m=1+(l.squashXZ-1)*k}else g=1,m=1,h=1}var R=o.getAttribute("position");o.setAttribute("position",{x:R.x,y:n,z:R.z});var w=r.showingFictional?r.fictionalModel:r.realModel;w&&w.setAttribute("scale","".concat(.5*m," ").concat(.5*g," ").concat(.5*h)),b<1?requestAnimationFrame(t):(d&&!r._switchDone&&(r._switchDone=!0,f()),o.setAttribute("position",{x:R.x,y:r.baseModelY,z:R.z}),function(t,e,n){var o=performance.now(),i=.5;requestAnimationFrame(function a(r){var s=r-o,l=Math.min(1,s/150),c=1-(1-l)*(1-l),d=i*(e.squashY+(1-e.squashY)*c),u=i*(e.squashXZ+(1-e.squashXZ)*c);t&&t.setAttribute("scale","".concat(u," ").concat(d," ").concat(u)),l<1?requestAnimationFrame(a):(t&&t.setAttribute("scale","".concat(i," ").concat(i," ").concat(i)),n&&n())})}(w,l,function(){s++,i()}))})}()}else e&&e()}(o,function(){o?(r.currentCheck=0,r.handleNumber=0,v(0),r.firstRevealDone=!0):r.currentCheck++,setTimeout(function(){c(),r.checkpointLocked=!1,r.isBouncing=!1,b(),console.log("⏭️ Ready for checkpoint ".concat(r.currentCheck+1,"/3 (target: ").concat(r.currentCheckpointAngle,"°)"))},a.checkpoint.resetDelay)})}}()}}()}}}function M(t,e,n){var o=n.getBoundingClientRect(),i=o.left+o.width/2,a=o.top+o.width/2;return Math.atan2(e-a,t-i)*(180/Math.PI)}function A(t){var e=document.getElementById("ring-container"),n=document.getElementById("handle-number");if(e){e.style.transform="translate(-50%, -50%) rotate(".concat(-t,"deg)"),n&&(n.style.transform="rotate(".concat(t,"deg)"));var o=document.getElementById("checkpoint-dot");if(o){var i=180-r.currentCheckpointAngle+t;o.style.transform="rotate(".concat(i,"deg) translateY(-132px)")}}}AFRAME.registerComponent("rotation-monitor",{schema:{enabled:{type:"boolean",default:!0}},tick:function(){}});var E={_safetyTimer:null,setStatus:function(t){var e=document.getElementById("pre-ar-status");e&&(e.textContent=t)},enableStart:function(){var t=document.getElementById("enter-ar-button");t&&(t.textContent="Start AR",t.disabled=!1),this.setStatus("Model ready — tap to enter AR")},dismissOverlay:function(){if(!this._dismissed){this._dismissed=!0,this._safetyTimer&&(clearTimeout(this._safetyTimer),this._safetyTimer=null);var t=document.getElementById("pre-ar-overlay");t&&t.classList.add("is-hidden");var r2=document.getElementById("ring-container");r2&&r2.classList.remove("ar-ui-hidden");var h2=document.getElementById("ar-hint");h2&&h2.classList.remove("ar-ui-hidden");c()}},_showOverlay:function(){var t=document.getElementById("pre-ar-overlay");t&&t.classList.remove("is-hidden"),this._dismissed=!1},bind:function(t){var e=this;this._dismissed=!1;var n=document.getElementById("enter-ar-button");n&&(n.addEventListener("click",function(){n.disabled||(n.disabled=!0,n.textContent="Starting AR…",t.emit("runreality"),e._safetyTimer&&clearTimeout(e._safetyTimer),e._safetyTimer=setTimeout(function(){return e.dismissOverlay()},5e3))}),t.addEventListener("realityready",function(){e.dismissOverlay()}),t.addEventListener("realityerror",function(){e._safetyTimer&&(clearTimeout(e._safetyTimer),e._safetyTimer=null),e._showOverlay(),n.textContent="AR Failed — Retry",n.disabled=!1,e.setStatus("AR failed to start.\nPlease check camera permissions.")}))}};AFRAME.registerComponent("rotate-ar-interaction",{init:function(){var t=this;console.log("🎮 RotateItem AR Interaction initializing..."),E.bind(this.el),u.init(),u.setStatus("Loading models...","waiting");var e=function(){var t=new URLSearchParams(window.location.search);if(i.enabled)return console.log("🧪 TEST MODE: Using local assets"),{realGlb:i.realGlb,fictionalGlb:i.fictionalGlb,interaction:"Rotate",itemName:i.itemName,realName:i.realName||"Real Item"};var e=t.get("real_glb"),n=t.get("fictional_glb");return console.log("📦 URL Parameters:",{real_glb:e?"".concat(e.substring(0,60),"..."):null,fictional_glb:n?"".concat(n.substring(0,60),"..."):null,interaction:t.get("interaction"),item_name:t.get("item_name"),real_name:t.get("real_name")}),{realGlb:e,fictionalGlb:n,interaction:t.get("interaction")||"Rotate",itemName:t.get("item_name")||"Fictional Item",realName:t.get("real_name")||"Real Item"}}();if(!e.realGlb||!e.fictionalGlb)return console.error("❌ Missing model URL parameters"),void u.setStatus("Error: No model URLs provided","error");r.realGlbUrl=e.realGlb,r.fictionalGlbUrl=e.fictionalGlb,r.itemName=e.itemName,r.realName=e.realName,this.el.addEventListener("loaded",function(){console.log("📦 Scene loaded"),c(),r.currentCheck=0,r.handleNumber=0,r.showingFictional=!1,r.firstRevealDone=!1,t.loadModels(),function(){var t=document.getElementById("ring-container"),e=document.getElementById("ring-track"),n=document.getElementById("ring-handle");function o(e){if(!r.isBouncing){e.preventDefault(),e.stopPropagation();var n=e.touches[0];y.isActive=!0,y.lastAngle=M(n.clientX,n.clientY,t),y.currentRotation=r.currentRotationY,console.log("👆 Ring DRAG START")}}function i(e){r.isBouncing||(e.preventDefault(),y.isActive=!0,y.lastAngle=M(e.clientX,e.clientY,t),y.currentRotation=r.currentRotationY,t.style.cursor="grabbing")}t&&e?(A(0),e.addEventListener("touchstart",o,{passive:!1}),n&&n.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",function(e){if(y.isActive&&!r.isBouncing){e.preventDefault();var n=e.touches[0],o=M(n.clientX,n.clientY,t),i=o-y.lastAngle;i>180&&(i-=360),i<-180&&(i+=360),y.lastAngle=o,y.currentRotation-=i,A(y.currentRotation),p(y.currentRotation)}},{passive:!1}),document.addEventListener("touchend",function(){y.isActive&&(y.isActive=!1,console.log("👆 Ring DRAG END"))}),e.addEventListener("mousedown",i),n&&n.addEventListener("mousedown",i),document.addEventListener("mousemove",function(e){if(y.isActive&&!r.isBouncing){var n=M(e.clientX,e.clientY,t),o=n-y.lastAngle;o>180&&(o-=360),o<-180&&(o+=360),y.lastAngle=n,y.currentRotation-=o,A(y.currentRotation),p(y.currentRotation)}}),document.addEventListener("mouseup",function(){if(y.isActive){y.isActive=!1;var t=document.getElementById("ring-container");t&&(t.style.cursor="grab")}}),console.log("✅ Ring rotation control setup complete")):console.error("❌ Ring elements not found!")}(),function(){var t=document.querySelector("a-scene"),e=document.getElementById("position-holder");if(e){r.positionHolder=e;var n=document.getElementById("ring-container");t.addEventListener("touchstart",function(t){if(1===t.touches.length&&!function(t){if(!n)return!1;var e=n.getBoundingClientRect();return t.clientX>=e.left&&t.clientX<=e.right&&t.clientY>=e.top&&t.clientY<=e.bottom}(t.touches[0])&&!y.isActive){var o=t.touches[0],i=e.getAttribute("position");d.isActive=!0,d.startX=o.clientX,d.startY=o.clientY,d.startModelX=i.x,d.startModelZ=i.z,console.log("👆 Drag START - Position:",i.x.toFixed(2),i.z.toFixed(2))}}),t.addEventListener("touchmove",function(t){if(1===t.touches.length){if(d.isActive)if(y.isActive)d.isActive=!1;else{var n=t.touches[0],o=.005*(n.clientX-d.startX),i=.005*(n.clientY-d.startY),a=d.startModelX+o,r=d.startModelZ+i,s=e.getAttribute("position");e.setAttribute("position",{x:a,y:s.y,z:r})}}else d.isActive=!1}),t.addEventListener("touchend",function(){if(d.isActive){d.isActive=!1;var t=e.getAttribute("position");console.log("👆 Drag END - Position:",t.x.toFixed(2),t.z.toFixed(2))}}),console.log("✅ Single finger drag control setup complete")}else console.error("❌ Position holder not found!")}(),u.show(),b(),v(0),function(){for(var t=0;t<3;t++)setTimeout(function(){return R()},400*t);k.blinkInterval=setInterval(function(){R()},1500),console.log("✨ Floating star blinks started")}()})},loadModels:function(){r.realModel=document.getElementById("realModel"),r.fictionalModel=document.getElementById("fictionalModel"),r.realModel&&r.fictionalModel?(console.log("📦 Loading Real model from:","".concat(r.realGlbUrl.substring(0,60),"...")),console.log("📦 Loading Fictional model from:","".concat(r.fictionalGlbUrl.substring(0,60),"...")),r.realModel.setAttribute("gltf-model",r.realGlbUrl),r.fictionalModel.setAttribute("gltf-model",r.fictionalGlbUrl),r.realModel.addEventListener("model-loaded",function(){console.log("✅ Real model loaded"),m(r.realModel,1),g(r.realModel,!0),u.setStatus("Turn the ring to rotate ✨","waiting"),E.enableStart()}),r.fictionalModel.addEventListener("model-loaded",function(){console.log("✅ Fictional model loaded"),g(r.fictionalModel,!1),m(r.fictionalModel,0)}),r.realModel.addEventListener("model-error",function(t){console.error("❌ Real model load error:",t),u.setStatus("Error loading real model","error")}),r.fictionalModel.addEventListener("model-error",function(t){console.error("❌ Fictional model load error:",t),u.setStatus("Error loading fictional model","error")})):console.error("❌ Model entities not found!")}});var k={blinkStars:[],blinkInterval:null,maxStars:6};function R(){var t=document.getElementById("star-blink-container");if(t&&!(k.blinkStars.length>=k.maxStars)){var e=document.createElement("div");e.className="star-blink";var n,o,i=["star-sm","star-md","star-lg"];switch(e.classList.add(i[Math.floor(Math.random()*i.length)]),Math.floor(4*Math.random())){case 0:n=90*Math.random()+5,o=25*Math.random()+5;break;case 1:n=90*Math.random()+5,o=20*Math.random()+70;break;case 2:n=20*Math.random()+3,o=60*Math.random()+20;break;case 3:n=20*Math.random()+75,o=60*Math.random()+20}e.style.left="".concat(n,"%"),e.style.top="".concat(o,"%");var a=2+2*Math.random(),r=1*Math.random();e.style.setProperty("--star-duration","".concat(a,"s")),e.style.setProperty("--star-delay","".concat(r,"s")),t.appendChild(e),k.blinkStars.push(e),setTimeout(function(){e.parentNode&&e.parentNode.removeChild(e);var t=k.blinkStars.indexOf(e);-1!==t&&k.blinkStars.splice(t,1)},1e3*(a+r)+200)}}})();
+(function () {
+  "use strict";
+
+  console.log("✅ BlowItem AR Interaction loaded");
+
+  // ─── TEST MODE ───
+  var TEST_MODE = {
+    enabled: true,
+    realGlb: "assets/realmodel.glb",
+    fictionalGlb: "assets/fictionalmodel.glb",
+    itemName: "Test Fictional Item",
+    realName: "Test Real Item"
+  };
+
+  // ─── MERGE CONFIG ───
+  var cfg = (function () {
+    var defaults = {
+      blow: {
+        fftSize: 512,
+        lowFreqBins: 20,
+        threshold: 0.01,
+        smoothing: 0.7,
+        calibrationTime: 2000,
+        decayRate: 0.1
+      },
+      rolling: {
+        maxRotationSpeed: 540,
+        maxTranslateSpeed: 6.0,
+        friction: 0.92,
+        rollOutDistance: 3.0,
+        rollInStartZ: 3.0,
+        rollInDuration: 800
+      },
+      progress: {
+        target: 100,
+        blowMultiplier: 12.0,
+        decayRate: 0.02,
+        checkpoints: [33, 66, 100],
+        messages: ["Keep blowing!", "Almost there!", null]
+      },
+      bounce: {
+        initialHeight: 0.3,
+        damping: 0.4,
+        bounceDuration: 350,
+        bounceCount: 3,
+        squashStretch: [
+          { squashY: 0.7, stretchY: 1.25, squashXZ: 1.2, stretchXZ: 0.85 },
+          { squashY: 0.8, stretchY: 1.15, squashXZ: 1.15, stretchXZ: 0.9 },
+          { squashY: 0.88, stretchY: 1.08, squashXZ: 1.08, stretchXZ: 0.95 }
+        ]
+      },
+      animation: {
+        transitionDuration: 400,
+        swapPause: 300
+      },
+      particles: {
+        maxCount: 15,
+        spawnRate: 3,
+        minSize: 4,
+        maxSize: 12,
+        minSpeed: 2,
+        maxSpeed: 8
+      }
+    };
+    var ext = window.BLOW_CONFIG;
+    if (!ext || typeof ext !== "object") return defaults;
+    var merged = {};
+    Object.keys(defaults).forEach(function (k) {
+      if (defaults[k] && typeof defaults[k] === "object" && !Array.isArray(defaults[k]) &&
+          ext[k] && typeof ext[k] === "object" && !Array.isArray(ext[k])) {
+        merged[k] = Object.assign({}, defaults[k], ext[k]);
+      } else {
+        merged[k] = k in ext ? ext[k] : defaults[k];
+      }
+    });
+    console.log("⚙️ BLOW_CONFIG merged from ar-config.js", merged);
+    return merged;
+  })();
+
+  // ─── STATE ───
+  var state = {
+    realModel: null,
+    fictionalModel: null,
+    positionHolder: null,
+    modelHolder: null,
+    realGlbUrl: null,
+    fictionalGlbUrl: null,
+    itemName: null,
+    realName: null,
+    showingFictional: false,
+    toggleCount: 0,
+    progress: 0,
+    currentCheckpoint: 0,
+    isBouncing: false,
+    isSwapping: false,
+    baseModelY: 0,
+    // Blow detection
+    audioContext: null,
+    analyser: null,
+    micStream: null,
+    freqData: null,
+    blowIntensity: 0,
+    smoothedIntensity: 0,
+    noiseFloor: 0,
+    isCalibrating: false,
+    calibrationSamples: [],
+    micReady: false,
+    // Rolling
+    rollVelocity: 0,
+    totalRotationX: 0,
+    originZ: -2
+  };
+
+  // ─── BLOW DETECTION ───
+  var blowDetector = {
+    init: function (onReady) {
+      console.log("🎤 Initializing microphone...");
+      navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      })
+        .then(function (stream) {
+          state.micStream = stream;
+          state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          var source = state.audioContext.createMediaStreamSource(stream);
+          state.analyser = state.audioContext.createAnalyser();
+          state.analyser.fftSize = cfg.blow.fftSize;
+          state.analyser.smoothingTimeConstant = 0.2;
+          source.connect(state.analyser);
+          state.freqData = new Uint8Array(state.analyser.frequencyBinCount);
+          console.log("🎤 Microphone ready, starting calibration...");
+          blowDetector.calibrate(onReady);
+        })
+        .catch(function (err) {
+          console.error("❌ Microphone access denied:", err);
+          ui.setStatus("Microphone access denied. Please allow microphone.");
+        });
+    },
+
+    calibrate: function (onReady) {
+      state.isCalibrating = true;
+      state.calibrationSamples = [];
+      var startTime = performance.now();
+
+      function sample() {
+        if (performance.now() - startTime > cfg.blow.calibrationTime) {
+          // Compute average noise floor
+          if (state.calibrationSamples.length > 0) {
+            var sum = 0;
+            for (var i = 0; i < state.calibrationSamples.length; i++) sum += state.calibrationSamples[i];
+            state.noiseFloor = sum / state.calibrationSamples.length;
+            // Set threshold above noise floor
+            var dynamicThreshold = state.noiseFloor + 0.005;
+            if (dynamicThreshold > cfg.blow.threshold) {
+              cfg.blow.threshold = dynamicThreshold;
+            }
+          }
+          state.isCalibrating = false;
+          state.micReady = true;
+          console.log("🎤 Calibration done. Noise floor:", state.noiseFloor.toFixed(4),
+            "Threshold:", cfg.blow.threshold.toFixed(4));
+          if (onReady) onReady();
+          return;
+        }
+        state.analyser.getByteFrequencyData(state.freqData);
+        var raw = blowDetector.computeRawIntensity();
+        state.calibrationSamples.push(raw);
+        requestAnimationFrame(sample);
+      }
+      requestAnimationFrame(sample);
+    },
+
+    computeRawIntensity: function () {
+      var sum = 0;
+      var bins = Math.min(cfg.blow.lowFreqBins, state.freqData.length);
+      for (var i = 0; i < bins; i++) {
+        sum += state.freqData[i];
+      }
+      return sum / (bins * 255);
+    },
+
+    update: function () {
+      if (!state.micReady || !state.analyser) return 0;
+      state.analyser.getByteFrequencyData(state.freqData);
+      var raw = blowDetector.computeRawIntensity();
+
+      // Subtract noise floor
+      var adjusted = Math.max(0, raw - state.noiseFloor);
+      // Normalize to 0-1 range (amplify since we subtracted noise)
+      var normalized = Math.min(1, adjusted / (1 - state.noiseFloor + 0.001));
+
+      // Apply threshold
+      if (normalized < cfg.blow.threshold) normalized = 0;
+
+      // Exponential smoothing
+      state.smoothedIntensity = cfg.blow.smoothing * normalized +
+        (1 - cfg.blow.smoothing) * state.smoothedIntensity;
+
+      state.blowIntensity = state.smoothedIntensity;
+      return state.blowIntensity;
+    }
+  };
+
+  // ─── UI HELPERS ───
+  var ui = {
+    elements: {},
+
+    init: function () {
+      this.elements = {
+        hint: document.getElementById("ar-hint"),
+        progressContainer: document.getElementById("blow-progress-container"),
+        progressBar: document.getElementById("blow-progress-bar"),
+        blowMeter: document.getElementById("blow-meter"),
+        blowMeterFill: document.getElementById("blow-meter-fill"),
+        blowMeterIcon: document.getElementById("blow-meter-icon"),
+        blowPrompt: document.getElementById("blow-prompt"),
+        toggleCount: document.getElementById("toggle-count"),
+        itemName: document.getElementById("item-name-display"),
+        status: document.getElementById("ar-status"),
+        statusText: document.getElementById("status-text")
+      };
+      console.log("🎨 UI initialized");
+    },
+
+    setStatus: function (text) {
+      var el = document.getElementById("pre-ar-status");
+      if (el) el.textContent = text;
+    },
+
+    showUI: function () {
+      var els = ["hint", "progressContainer", "blowMeter", "blowPrompt", "toggleCount"];
+      for (var i = 0; i < els.length; i++) {
+        var el = this.elements[els[i]];
+        if (el) el.classList.remove("ar-ui-hidden");
+      }
+    },
+
+    updateBlowMeter: function (intensity) {
+      var fill = this.elements.blowMeterFill;
+      var icon = this.elements.blowMeterIcon;
+      if (fill) {
+        if (intensity > 0.01) {
+          fill.style.opacity = "1";
+          // Color intensity: white → cyan → bright cyan
+          var r = Math.round(255 - intensity * 178);
+          var g = Math.round(255 - intensity * 47);
+          var b = Math.round(255 - intensity * 30);
+          fill.style.borderColor = "rgba(" + r + "," + g + "," + b + ", " + (0.4 + intensity * 0.6) + ")";
+        } else {
+          fill.style.opacity = "0";
+        }
+      }
+      if (icon) {
+        if (intensity > 0.05) {
+          icon.classList.add("active");
+        } else {
+          icon.classList.remove("active");
+        }
+      }
+    },
+
+    updateProgress: function (progress) {
+      var bar = this.elements.progressBar;
+      if (bar) {
+        bar.style.width = Math.min(100, progress) + "%";
+      }
+    },
+
+    updateToggleCount: function (count) {
+      var el = this.elements.toggleCount;
+      if (el) {
+        el.textContent = count + " / 3";
+        el.classList.add("visible");
+        el.classList.remove("pop");
+        el.offsetWidth; // force reflow
+        el.classList.add("pop");
+      }
+    },
+
+    showItemName: function (name) {
+      var el = this.elements.itemName;
+      if (el) {
+        el.textContent = "✨ " + name;
+        el.classList.add("visible");
+      }
+    },
+
+    flashCheckpoint: function () {
+      var bar = this.elements.progressBar;
+      if (bar) {
+        bar.classList.add("checkpoint-flash");
+        setTimeout(function () {
+          bar.classList.remove("checkpoint-flash");
+        }, 600);
+      }
+    },
+
+    showCheckpointMessage: function (msg) {
+      if (!msg) return;
+      var el = document.getElementById("checkpoint-message");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "checkpoint-message";
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+      el.classList.remove("show");
+      el.offsetWidth;
+      el.classList.add("show");
+      setTimeout(function () { el.classList.remove("show"); }, 2000);
+    },
+
+
+  };
+
+  // ─── WIND PARTICLES ───
+  var windParticles = {
+    active: [],
+    container: null,
+
+    init: function () {
+      this.container = document.getElementById("wind-particle-container");
+    },
+
+    spawn: function (intensity) {
+      if (!this.container || this.active.length >= cfg.particles.maxCount) return;
+      var count = Math.ceil(intensity * cfg.particles.spawnRate);
+      for (var i = 0; i < count; i++) {
+        if (this.active.length >= cfg.particles.maxCount) break;
+        var p = document.createElement("div");
+        p.className = "wind-particle";
+        var size = cfg.particles.minSize + Math.random() * (cfg.particles.maxSize - cfg.particles.minSize);
+        var duration = 1 + (1 - intensity) * 1.5;
+        var delay = Math.random() * 0.3;
+        p.style.width = size + "px";
+        p.style.height = size + "px";
+        p.style.left = (10 + Math.random() * 80) + "%";
+        p.style.setProperty("--wind-duration", duration + "s");
+        p.style.setProperty("--wind-delay", delay + "s");
+        this.container.appendChild(p);
+        this.active.push(p);
+        var self = this;
+        (function (particle) {
+          setTimeout(function () {
+            if (particle.parentNode) particle.parentNode.removeChild(particle);
+            var idx = self.active.indexOf(particle);
+            if (idx !== -1) self.active.splice(idx, 1);
+          }, (duration + delay) * 1000 + 200);
+        })(p);
+      }
+    }
+  };
+
+
+
+  // ─── MODEL HELPERS ───
+  function setModelOpacity(entity, opacity) {
+    if (!entity || !entity.object3D) return;
+    entity.object3D.traverse(function (child) {
+      if (child.isMesh && child.material) {
+        var mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach(function (mat) {
+          if (mat) {
+            mat.transparent = true;
+            mat.opacity = opacity;
+            mat.depthWrite = opacity > 0.95;
+            mat.depthTest = true;
+            child.renderOrder = Math.floor(opacity * 100);
+            mat.needsUpdate = true;
+          }
+        });
+      }
+    });
+    entity.object3D.visible = opacity > 0.01;
+  }
+
+  function setModelVisible(entity, visible) {
+    if (entity) entity.setAttribute("visible", visible);
+  }
+
+  // ─── BOUNCE ANIMATION (from rotate) ───
+  function bounceModel(triggerSwap, onComplete) {
+    state.isBouncing = true;
+    var b = cfg.bounce;
+    var holder = document.getElementById("model-holder");
+    if (!holder) { if (onComplete) onComplete(); return; }
+    var pos = holder.getAttribute("position") || { x: 0, y: 0, z: 0 };
+    state.baseModelY = pos.y;
+    var bounceIdx = 0;
+
+    function doBounce() {
+      if (bounceIdx >= b.bounceCount) {
+        holder.setAttribute("scale", "1 1 1");
+        if (onComplete) onComplete();
+        return;
+      }
+      var height = b.initialHeight * Math.pow(b.damping, bounceIdx);
+      var ss = b.squashStretch[bounceIdx] || b.squashStretch[b.squashStretch.length - 1];
+      var dur = b.bounceDuration;
+      var isLastBounce = triggerSwap && bounceIdx === b.bounceCount - 1;
+      var startTime = performance.now();
+      var switchDone = false;
+
+      function animate(now) {
+        var elapsed = now - startTime;
+        var t = Math.min(1, elapsed / dur);
+        var y, sy, sxz;
+
+        if (t < 0.5) {
+          var up = t / 0.5;
+          var ease = 1 - (1 - up) * (1 - up);
+          y = state.baseModelY + height * ease;
+          var sinVal = Math.sin(up * Math.PI);
+          sy = 1 + (ss.stretchY - 1) * sinVal;
+          sxz = 1 + (ss.stretchXZ - 1) * sinVal;
+        } else {
+          var down = (t - 0.5) / 0.5;
+          var easeDown = down * down;
+          y = state.baseModelY + height * (1 - easeDown);
+          if (isLastBounce && down > 0.95 && !switchDone) {
+            switchDone = true;
+            doModelSwap();
+          }
+          if (down > 0.85) {
+            var k = (down - 0.85) / 0.15;
+            sy = 1 + (ss.squashY - 1) * k;
+            sxz = 1 + (ss.squashXZ - 1) * k;
+          } else {
+            sy = 1; sxz = 1;
+          }
+        }
+
+        var currentPos = holder.getAttribute("position");
+        holder.setAttribute("position", { x: currentPos.x, y: y, z: currentPos.z });
+        var activeModel = state.showingFictional ? state.fictionalModel : state.realModel;
+        if (activeModel) {
+          activeModel.setAttribute("scale", (0.5 * sxz) + " " + (0.5 * sy) + " " + (0.5 * sxz));
+        }
+
+        if (t < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          if (isLastBounce && !switchDone) {
+            switchDone = true;
+            doModelSwap();
+          }
+          holder.setAttribute("position", { x: currentPos.x, y: state.baseModelY, z: currentPos.z });
+          // Settle squash
+          settleSquash(activeModel, ss, function () {
+            bounceIdx++;
+            doBounce();
+          });
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+    doBounce();
+  }
+
+  function settleSquash(model, ss, onDone) {
+    var start = performance.now();
+    var scale = 0.5;
+    requestAnimationFrame(function frame(now) {
+      var t = Math.min(1, (now - start) / 150);
+      var ease = 1 - (1 - t) * (1 - t);
+      var sy = scale * (ss.squashY + (1 - ss.squashY) * ease);
+      var sxz = scale * (ss.squashXZ + (1 - ss.squashXZ) * ease);
+      if (model) model.setAttribute("scale", sxz + " " + sy + " " + sxz);
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        if (model) model.setAttribute("scale", scale + " " + scale + " " + scale);
+        if (onDone) onDone();
+      }
+    });
+  }
+
+  // ─── MODEL SWAP ───
+  function doModelSwap() {
+    if (state.showingFictional) {
+      setModelOpacity(state.fictionalModel, 0);
+      setModelVisible(state.fictionalModel, false);
+      setModelOpacity(state.realModel, 1);
+      setModelVisible(state.realModel, true);
+      state.showingFictional = false;
+      ui.showItemName(state.realName || "Real Item");
+      console.log("🔄 Switched to Real");
+    } else {
+      setModelOpacity(state.realModel, 0);
+      setModelVisible(state.realModel, false);
+      setModelOpacity(state.fictionalModel, 1);
+      setModelVisible(state.fictionalModel, true);
+      state.showingFictional = true;
+      ui.showItemName(state.itemName || "Fictional Item");
+      console.log("🔄 Switched to Fictional");
+    }
+    state.toggleCount++;
+    ui.updateToggleCount(state.toggleCount);
+    console.log("🔄 Toggle #" + state.toggleCount);
+
+    if (state.toggleCount >= 3) {
+      var btn = document.getElementById("back-to-main");
+      if (btn && !btn.classList.contains("visible")) {
+        btn.classList.add("visible");
+        console.log("🏠 Back button shown after", state.toggleCount, "toggles");
+      }
+    }
+  }
+
+  // ─── ROLL MODEL BACK TO ORIGIN ───
+  function rollModelBack(onComplete) {
+    var posHolder = document.getElementById("position-holder");
+    var modelHolder = document.getElementById("model-holder");
+    if (!posHolder) { if (onComplete) onComplete(); return; }
+
+    var pos = posHolder.getAttribute("position");
+    var startZ = pos.z;
+    var targetZ = state.originZ;
+    var startTime = performance.now();
+    var duration = cfg.rolling.rollInDuration;
+    var startRotation = state.totalRotationX;
+    var rollBackRotation = Math.abs(startZ - targetZ) / cfg.rolling.rollOutDistance * 360;
+
+    function animate(now) {
+      var t = Math.min(1, (now - startTime) / duration);
+      var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      var z = startZ + (targetZ - startZ) * ease;
+
+      state.totalRotationX = startRotation + rollBackRotation * ease;
+
+      var currentPos = posHolder.getAttribute("position");
+      posHolder.setAttribute("position", { x: currentPos.x, y: currentPos.y, z: z });
+
+      if (modelHolder) {
+        var rot = modelHolder.getAttribute("rotation") || { x: 0, y: 0, z: 0 };
+        modelHolder.setAttribute("rotation", { x: state.totalRotationX, y: rot.y, z: rot.z });
+      }
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        posHolder.setAttribute("position", { x: currentPos.x, y: currentPos.y, z: targetZ });
+        if (onComplete) onComplete();
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  // ─── CHECKPOINT HANDLER ───
+  function onCheckpoint(checkIdx) {
+    console.log("🎯 Checkpoint " + (checkIdx + 1) + "/3 reached!");
+
+    // Checkpoint message
+    var msg = cfg.progress.messages[checkIdx];
+    if (msg) ui.showCheckpointMessage(msg);
+
+    // Flash progress bar
+    ui.flashCheckpoint();
+
+    // Vibrate (Android)
+    if (navigator.vibrate) navigator.vibrate(50);
+
+    var isFullProgress = checkIdx === cfg.progress.checkpoints.length - 1;
+    var isFullProgress = checkIdx === cfg.progress.checkpoints.length - 1;
+
+    if At final      doMod: swap model in place, reset progress for next cycle
+    if (isFullProgress) {    // Roll model back to origin
+      rolMBack(stays in place, stop rolling
+      // Reset rotation so swapped model appears upright
+      state.totalRotationX = 0;
+      var holder = document.getElementById("model-holder");
+      if (holder) {
+        holder.setAttribute("rotation", { x: 0, y: 0, z: 0 });
+      }
+      // Reset progress and distance for next cycle
+      state.progress = 0;
+      state.totalDistance = 0;
+      state.currentCheckpoint = 0;
+      ui.updateProgress(0);
+    }
+    state.isSwapping = false;
+    // Stop all motion.log("⏭️ Checkpoint done. Toggle count:", state.toggleCount);
+
+    // If all checkpoints done, mark completed
+  // ─── MAIN GAME LOOP ───
+  function gameLoop() {
+    if (state.isBouncing || state.isSwapping) {
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+
+    var intensity = blowDetector.update();
+
+
+    ui.updateBlowMeter(intensity);
+
+    // Wind particles
+    if (intensity > 0.05) {
+      windParticles.spawn(intensity);
+    }
+
+    var maxRotPerFrame = cfg.rolling.maxRotationSpeed / 60;
+
+    // Rolling physics: accumulate velocity when blowing, friction when not
+    if (intensity > 0) {
+      // Accelerate
+      state.rollVelocity += intensity * maxRotPerFrame * 0.5;
+      if (state.rollVelocity > maxRotPerFrame) {
+        state.rollVelocity = maxRotPerFrame;
+      }
+    } else {
+      // Coast with friction
+      state.rollVelocity *= cfg.rolling.friction;
+      if (state.rollVelocity < 0.05) state.rollVelocity = 0;
+    }
+
+    // Apply rotation continuously (smooth animation)
+    if (state.rollVelocity > 0) {
+      state.totalRotationX -= state.rollVelocity;
+    }
+    var holder = document.getElementById("model-holder");
+    if (holder) {
+      holder.setAttribute("rotation", { x: state.totalRotationX, y: 0, z: 0 });
+    }
+
+    // Translate model away from camera (only forward, never backward)
+    var posHolder = document.getElementById("position-holder");
+    if (posHolder && state.rollVelocity > 0) {
+      var translateSpeed = (state.rollVelocity / maxRotPerFrame) * cfg.rolling.maxTranslateSpeed / 60;
+      var pos = posHolder.getAttribute("position");
+      posHolder.setAttribute("position", { x: pos.x, y: pos.y, z: pos.z - translateSpeed });
+    }
+
+    // Progress derived from distance (never decreases)
+    if (posHolder) {
+      var pos = posHolder.getAttribute("position");
+      var distance = Math.abs(pos.z - state.originZ);
+      var newProgress = Math.min(cfg.progress.target, (distance / cfg.rolling.rollOutDistance) * cfg.progress.target);
+      if (newProgress > state.progress) {
+        state.progress = newProgress;
+      }
+    }
+    ui.update within a cycleProgress(state.progress);
+
+    // Check checkpoints
+    if (state.currentCheckpoint < cfg.progress.checkpoints.length) {
+      var threshold = cfg.progress.checkpoints[state.currentCheckpoint];
+      if (state.progress >= threshold) {
+        state.isSwapping = true;
+        var cpIdx = state.currentCheckpoint;
+        state.currentCheckpoint++;
+        onCheckpoint(cpIdx);
+      }
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ─── PRE-AR OVERLAY ───
+  var overlay = {
+    _safetyTimer: null,
+    _dismissed: false,
+
+    setStatus: function (text) {
+      var el = document.getElementById("pre-ar-status");
+      if (el) el.textContent = text;
+    },
+
+    enableStart: function () {
+      var btn = document.getElementById("enter-ar-button");
+      if (btn) {
+        btn.textContent = "Start AR";
+        btn.disabled = false;
+      }
+      this.setStatus("Model ready — tap to enter AR");
+    },
+
+    dismissOverlay: function () {
+      if (this._dismissed) return;
+      this._dismissed = true;
+      if (this._safetyTimer) {
+        clearTimeout(this._safetyTimer);
+        this._safetyTimer = null;
+      }
+      var el = document.getElementById("pre-ar-overlay");
+      if (el) el.classList.add("is-hidden");
+
+      // Show UI
+      ui.showUI();
+
+      // Start microphone + game loop
+      blowDetector.init(function () {
+        console.log("🎮 Starting game loop");
+        requestAnimationFrame(gameLoop);
+      });
+    },
+
+    bind: function (sceneEl) {
+      var self = this;
+      var btn = document.getElementById("enter-ar-button");
+      if (btn) {
+        btn.addEventListener("click", function () {
+          if (btn.disabled) return;
+          btn.disabled = true;
+          btn.textContent = "Starting AR…";
+          sceneEl.emit("runreality");
+          self._safetyTimer = setTimeout(function () { self.dismissOverlay(); }, 5000);
+        });
+      }
+      sceneEl.addEventListener("realityready", function () {
+        self.dismissOverlay();
+      });
+      sceneEl.addEventListener("realityerror", function () {
+        if (self._safetyTimer) {
+          clearTimeout(self._safetyTimer);
+          self._safetyTimer = null;
+        }
+        self._dismissed = false;
+        var el = document.getElementById("pre-ar-overlay");
+        if (el) el.classList.remove("is-hidden");
+        if (btn) {
+          btn.textContent = "AR Failed — Retry";
+          btn.disabled = false;
+        }
+        self.setStatus("AR failed to start.\nPlease check camera permissions.");
+      });
+    }
+  };
+
+  // ─── SINGLE FINGER DRAG (move model position) ───
+  function setupDrag() {
+    var sceneEl = document.querySelector("a-scene");
+    var posHolder = document.getElementById("position-holder");
+    if (!sceneEl || !posHolder) return;
+    var drag = { isActive: false, startX: 0, startY: 0, startMX: 0, startMZ: 0 };
+
+    sceneEl.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 1 && !state.isBouncing) {
+        var t = e.touches[0];
+        var pos = posHolder.getAttribute("position");
+        drag.isActive = true;
+        drag.startX = t.clientX;
+        drag.startY = t.clientY;
+        drag.startMX = pos.x;
+        drag.startMZ = pos.z;
+      }
+    });
+
+    sceneEl.addEventListener("touchmove", function (e) {
+      if (drag.isActive && e.touches.length === 1 && !state.isBouncing) {
+        var t = e.touches[0];
+        var dx = 0.005 * (t.clientX - drag.startX);
+        var dz = 0.005 * (t.clientY - drag.startY);
+        var pos = posHolder.getAttribute("position");
+        posHolder.setAttribute("position", { x: drag.startMX + dx, y: pos.y, z: drag.startMZ + dz });
+      }
+    });
+
+    sceneEl.addEventListener("touchend", function () {
+      drag.isActive = false;
+    });
+  }
+
+  // ─── A-FRAME COMPONENT ───
+  AFRAME.registerComponent("blow-ar-interaction", {
+    init: function () {
+      var self = this;
+      console.log("🎮 BlowItem AR Interaction initializing...");
+
+      overlay.bind(this.el);
+      ui.init();
+      windParticles.init();
+      ui.setStatus("Loading models...");
+
+      // Parse parameters
+      var params = (function () {
+        if (TEST_MODE.enabled) {
+          console.log("🧪 TEST MODE: Using local assets");
+          return {
+            realGlb: TEST_MODE.realGlb,
+            fictionalGlb: TEST_MODE.fictionalGlb,
+            itemName: TEST_MODE.itemName,
+            realName: TEST_MODE.realName
+          };
+        }
+        var p = new URLSearchParams(window.location.search);
+        return {
+          realGlb: p.get("real_glb"),
+          fictionalGlb: p.get("fictional_glb"),
+          itemName: p.get("item_name") || "Fictional Item",
+          realName: p.get("real_name") || "Real Item"
+        };
+      })();
+
+      if (!params.realGlb || !params.fictionalGlb) {
+        console.error("❌ Missing model URL parameters");
+        ui.setStatus("Error: No model URLs provided");
+        return;
+      }
+
+      state.realGlbUrl = params.realGlb;
+      state.fictionalGlbUrl = params.fictionalGlb;
+      state.itemName = params.itemName;
+      state.realName = params.realName;
+
+      this.el.addEventListener("loaded", function () {
+        console.log("📦 Scene loaded");
+        state.progress = 0;
+        state.currentCheckpoint = 0;
+        state.showingFictional = false;
+        state.toggleCount = 0;
+        ui.updateToggleCount(0);
+        self.loadModels();
+        setupDrag();
+      });
+    },
+
+    loadModels: function () {
+      state.realModel = document.getElementById("realModel");
+      state.fictionalModel = document.getElementById("fictionalModel");
+      state.positionHolder = document.getElementById("position-holder");
+      state.modelHolder = document.getElementById("model-holder");
+
+      if (!state.realModel || !state.fictionalModel) {
+        console.error("❌ Model entities not found!");
+        return;
+      }
+
+      console.log("📦 Loading Real model:", state.realGlbUrl.substring(0, 60));
+      console.log("📦 Loading Fictional model:", state.fictionalGlbUrl.substring(0, 60));
+
+      state.realModel.setAttribute("gltf-model", state.realGlbUrl);
+      state.fictionalModel.setAttribute("gltf-model", state.fictionalGlbUrl);
+
+      state.realModel.addEventListener("model-loaded", function () {
+        console.log("✅ Real model loaded");
+        setModelOpacity(state.realModel, 1);
+        setModelVisible(state.realModel, true);
+        ui.setStatus("Blow on the mic to start! 🌬️");
+        overlay.enableStart();
+      });
+
+      state.fictionalModel.addEventListener("model-loaded", function () {
+        console.log("✅ Fictional model loaded");
+        setModelVisible(state.fictionalModel, false);
+        setModelOpacity(state.fictionalModel, 0);
+      });
+
+      state.realModel.addEventListener("model-error", function (e) {
+        console.error("❌ Real model load error:", e);
+        ui.setStatus("Error loading real model");
+      });
+
+      state.fictionalModel.addEventListener("model-error", function (e) {
+        console.error("❌ Fictional model load error:", e);
+        ui.setStatus("Error loading fictional model");
+      });
+    }
+  });
+
+})();

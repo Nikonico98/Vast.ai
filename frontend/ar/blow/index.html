@@ -1,0 +1,495 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>IW_BlowItem</title>
+    <meta itemprop="name" content="IW_BlowItem">
+    <meta name="twitter:title" content="IW_BlowItem">
+    <meta property="og:title" content="IW_BlowItem">
+    <meta property="og:site_name" content="IW_BlowItem">
+    <meta name="description" content="">
+    <meta itemprop="description" content="">
+    <meta property="og:description" content="">
+    <meta name="twitter:description" content="">
+    <script crossorigin="anonymous" src="./external/scripts/8frame-1.4.1.min.js"></script>
+    <script crossorigin="anonymous" src="./external/xrextras/xrextras.js"></script>
+    <script crossorigin="anonymous" src="./external/landing-page/landing-page.js"></script>
+    <script crossorigin="anonymous" src="./external/xr/xr.js" async="true" data-preload-chunks="face, slam"></script>
+    <meta name="8thwall:renderer" content="aframe:1.4.1" />
+    <meta name="8thwall:package" content="@8thwall.xrextras" />
+    <meta name="8thwall:package" content="@8thwall.landing-page" />
+    <style>
+        /* ===== HINT BAR ===== */
+        #ar-hint {
+            position: fixed;
+            top: env(safe-area-inset-top, 20px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, .7);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
+            opacity: 0;
+            animation: fadeIn .5s ease 1s forwards
+        }
+
+        #ar-hint .hint-icon {
+            font-size: 18px
+        }
+
+        #ar-hint .hint-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px
+        }
+
+        #ar-hint .hint-title {
+            font-weight: 600;
+            font-size: 15px
+        }
+
+        #ar-hint .hint-subtitle {
+            font-size: 12px;
+            opacity: .8
+        }
+
+
+        /* ===== BLOW METER (arc at bottom) ===== */
+        #blow-meter {
+            display: none !important
+        }
+
+        #blow-meter-arc {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 10px solid rgba(255, 255, 255, 0.15);
+            box-sizing: border-box;
+            position: relative;
+            background: transparent;
+            /* Mask to show only top half */
+            clip-path: inset(0 0 50% 0)
+        }
+
+        #blow-meter-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 10px solid #b39ddb;
+            box-sizing: border-box;
+            clip-path: inset(0 0 50% 0);
+            /* Rotate to show fill amount — controlled by JS */
+            transform: rotate(0deg);
+            transform-origin: center center;
+            transition: opacity 0.15s ease;
+            opacity: 0
+        }
+
+        #blow-meter-icon {
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 22px;
+            z-index: 2;
+            animation: micPulse 2s ease-in-out infinite
+        }
+
+        #blow-meter-icon.active {
+            animation: micPulseActive 0.4s ease-in-out infinite
+        }
+
+        @keyframes micPulse {
+
+            0%,
+            100% {
+                transform: translateX(-50%) scale(1);
+                opacity: 0.7
+            }
+
+            50% {
+                transform: translateX(-50%) scale(1.1);
+                opacity: 1
+            }
+        }
+
+        @keyframes micPulseActive {
+
+            0%,
+            100% {
+                transform: translateX(-50%) scale(1);
+            }
+
+            50% {
+                transform: translateX(-50%) scale(1.2);
+            }
+        }
+
+        /* ===== BLOW PROMPT ===== */
+        #blow-prompt {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            animation: fadeIn 0.5s ease 1.5s forwards;
+            text-align: center
+        }
+
+        /* ===== TOGGLE COUNT ===== */
+        #toggle-count {
+            display: none !important
+        }
+
+        #toggle-count.visible {
+            opacity: 1
+        }
+
+        #toggle-count.pop {
+            animation: numberPop .3s ease forwards
+        }
+
+        /* ===== BACK BUTTON ===== */
+        #back-to-main {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 50px);
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1100;
+            box-shadow: drop-shadow(0 0 6px #7E57C2) drop-shadow(0 0 14px rgba(126, 87, 194, .5));
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            pointer-events: none;
+            transition: transform .5s cubic-bezier(.34, 1.56, .64, 1), opacity .4s ease
+        }
+
+        #back-to-main.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto
+        }
+
+        #back-to-main:active {
+            transform: translateX(-50%) translateY(0) scale(.95)
+        }
+
+        /* ===== ITEM NAME ===== */
+        #item-name-display {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 20px) + 100px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, .4);
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+            transition: opacity .3s, transform .3s;
+            pointer-events: none
+        }
+
+        #item-name-display.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0)
+        }
+
+        /* ===== CHECKPOINT MESSAGE ===== */
+        #checkpoint-message {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 20px) + 155px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-8px);
+            background: rgba(0, 0, 0, .75);
+            color: #fff;
+            padding: 10px 22px;
+            border-radius: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 10001;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .3s ease, transform .3s ease;
+            text-align: center;
+            white-space: nowrap
+        }
+
+        #checkpoint-message.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0)
+        }
+
+        /* ===== WIND PARTICLES ===== */
+        #wind-particle-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 998;
+            overflow: hidden
+        }
+
+        .wind-particle {
+            position: absolute;
+            bottom: -10px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(126, 87, 194, 0.4) 60%, transparent 100%);
+            opacity: 0;
+            animation: windRise var(--wind-duration, 1.5s) ease-out var(--wind-delay, 0s) forwards
+        }
+
+        @keyframes windRise {
+            0% {
+                opacity: 0;
+                transform: translateY(0) scale(0.3)
+            }
+
+            15% {
+                opacity: 0.8
+            }
+
+            60% {
+                opacity: 0.5
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(calc(-100vh)) scale(0.1)
+            }
+        }
+
+        /* ===== PRE-AR OVERLAY ===== */
+        #pre-ar-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: linear-gradient(180deg, #1d1135 0, #4a2d7a 25%, #7e57c2 50%, #b39ddb 75%, #ede7f6 100%);
+            z-index: 1500;
+            transition: opacity .3s ease, visibility .3s ease
+        }
+
+        #pre-ar-overlay.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none
+        }
+
+        .pre-ar-panel {
+            width: min(100%, 320px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center
+        }
+
+        #pre-ar-title {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #fff
+        }
+
+        #pre-ar-status {
+            margin: 12px 0 0 0;
+            color: rgba(255, 255, 255, .85);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-line
+        }
+
+        #enter-ar-button {
+            width: 100%;
+            max-width: 320px;
+            margin-top: 22px;
+            padding: 14px 18px;
+            border: 0;
+            border-radius: 12px;
+            background: #fff;
+            color: #4a2d7a;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .2s ease, opacity .2s ease;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, .15)
+        }
+
+        #enter-ar-button:disabled {
+            opacity: .5;
+            cursor: not-allowed
+        }
+
+        #enter-ar-button:not(:disabled):active {
+            transform: translateY(1px)
+        }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-10px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0)
+            }
+        }
+
+        @keyframes numberPop {
+            0% {
+                transform: translateX(-50%) scale(1)
+            }
+
+            50% {
+                transform: translateX(-50%) scale(1.4);
+                color: #b39ddb
+            }
+
+            100% {
+                transform: translateX(-50%) scale(1);
+                color: #fff
+            }
+        }
+
+        .ar-ui-hidden {
+            display: none !important
+        }
+    </style>
+</head>
+
+<body>
+    <script src="ar-config.js"></script>
+    <script src="bundle.js"></script>
+
+    <!-- Pre-AR Overlay -->
+    <div id="pre-ar-overlay">
+        <div class="pre-ar-panel">
+            <h1 id="pre-ar-title">Preparing AR</h1>
+            <p id="pre-ar-status">Loading 3D model…</p>
+            <button id="enter-ar-button" type="button" disabled="disabled">Loading…</button>
+        </div>
+    </div>
+
+    <!-- Top Hint -->
+    <div id="ar-hint" class="ar-ui-hidden">
+        <span class="hint-icon">🌬️</span>
+        <div class="hint-text">
+            <span class="hint-title">AR Interaction: <span id="interaction-type">Blow</span></span>
+            <span class="hint-subtitle" id="interaction-hint">Blow on the mic to roll</span>
+        </div>
+    </div>
+
+    <!-- Progress Bar (removed) -->
+
+    <!-- Toggle Count -->
+    <div id="toggle-count" class="ar-ui-hidden">0 / 3</div>
+
+    <!-- Item Name Display -->
+    <div id="item-name-display"></div>
+
+    <!-- Checkpoint Message -->
+
+
+
+    <!-- Wind Particles -->
+    <div id="wind-particle-container"></div>
+
+    <!-- A-Frame Scene -->
+    <a-scene blow-ar-interaction xrextras-gesture-detector landing-page xrextras-runtime-error
+        renderer="colorManagement: true" xrweb="allowedDevices: any; delayRun: true">
+        <a-assets timeout="30000">
+        </a-assets>
+        <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap"
+            cursor="fuse: false; rayOrigin: mouse;"></a-camera>
+
+        <!-- Lighting (same as rotate) -->
+        <a-entity id="key-light"
+            light="type: directional; intensity: 1.2; color: #FFF5E6; castShadow: true; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraTop: 10; shadowRadius: 8"
+            position="5 8 5"></a-entity>
+        <a-entity id="fill-light" light="type: directional; intensity: 0.8; color: #E6F0FF; castShadow: false"
+            position="-5 5 3"></a-entity>
+        <a-entity id="back-light" light="type: directional; intensity: 0.6; color: #FFFFFF; castShadow: false"
+            position="0 5 -8"></a-entity>
+        <a-entity id="bottom-fill" light="type: directional; intensity: 0.3; color: #FFFFFF; castShadow: false"
+            position="0 -5 0"></a-entity>
+        <a-light type="ambient" intensity="0.5" color="#FFFFFF"></a-light>
+        <a-light type="hemisphere" intensity="0.4" color="#87CEEB" groundcolor="#8B7355"></a-light>
+
+        <!-- Model Holder -->
+        <a-entity id="position-holder" position="0 0 -2" xrextras-pinch-scale="min: 0.25; max: 3" scale="1 1 1">
+            <a-entity id="model-holder">
+                <a-entity id="realModel" scale="0.5 0.5 0.5" shadow="cast: true; receive: false"></a-entity>
+                <a-entity id="fictionalModel" scale="0.5 0.5 0.5" visible="false"
+                    shadow="cast: true; receive: false"></a-entity>
+            </a-entity>
+        </a-entity>
+        <a-plane id="ground" rotation="-90 0 0" width="1000" height="1000" material="shader: shadow" shadow></a-plane>
+    </a-scene>
+
+    <!-- Blow Meter -->
+    <div id="blow-meter" class="ar-ui-hidden">
+        <div id="blow-meter-arc">
+            <div id="blow-meter-fill"></div>
+        </div>
+        <div id="blow-meter-icon">🎤</div>
+    </div>
+
+    <!-- Blow Prompt -->
+    <div id="blow-prompt" class="ar-ui-hidden">Blow on the mic!</div>
+
+    <!-- Back Button -->
+    <button id="back-to-main">🏠 Back to Main Page</button>
+    <script>!function () { var t = document.getElementById("back-to-main"); t && t.addEventListener("click", function () { try { localStorage.setItem("iw_ar_completed", JSON.stringify({ timestamp: Date.now(), interaction: "Blow" })) } catch (t) { } var e = new URLSearchParams(window.location.search).get("return_url"); window.close(), setTimeout(function () { e && (window.location.href = e) }, 500) }) }()</script>
+</body>
+
+</html>
