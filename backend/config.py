@@ -51,6 +51,7 @@ VASTAI_API_KEY = os.getenv("VASTAI_API_KEY", "")
 VASTAI_INSTANCE_ID = os.getenv("VASTAI_INSTANCE_ID", "")
 
 # GPU service container port (the port your GPU worker listens on INSIDE the container)
+# On Vast.ai, Caddy 8080 conflicts with Jupyter. Use container port 1111 + socat → 5555.
 VASTAI_GPU_CONTAINER_PORT = int(os.getenv("VASTAI_GPU_CONTAINER_PORT", "1111"))
 
 # ==========================================
