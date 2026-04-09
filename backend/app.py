@@ -29,7 +29,7 @@ from config import (
     ALLOWED_EXTENSIONS, MAX_FILE_SIZE, SERVER_PORT, DEBUG_MODE, SECRET_KEY,
     VALID_IMAGINARY_WORLDS, WORLD_DISPLAY_NAMES, ACTION_TO_AR, AR_INTERACTIONS_FALLBACK,
     OPENAI_MODEL, VASTAI_GPU_URL, VASTAI_API_KEY, VASTAI_INSTANCE_ID,
-    GPU_API_SECRET,
+    GPU_API_SECRET, get_gpu_url,
 )
 
 from database import (
@@ -220,7 +220,7 @@ def gpu_status():
         "total_gpus": health.get("gpu_count", health.get("total_gpus", 0)),
         "available_gpus": health.get("available_gpus", 0),
         "gpus": health.get("gpus", health.get("gpu_info", [])),
-        "gpu_worker_url": VASTAI_GPU_URL,
+        "gpu_worker_url": get_gpu_url(),
         "gpu_worker_status": health,
         "sam3": health.get("sam3", {}),
         "sam3d": health.get("sam3d", {}),
@@ -235,7 +235,7 @@ def set_gpu_mode():
     mode = data.get("mode", "parallel")
     try:
         r = req.post(
-            f"{VASTAI_GPU_URL}/api/gpu/mode",
+            f"{get_gpu_url()}/api/gpu/mode",
             json={"mode": mode},
             headers={"X-GPU-API-Key": GPU_API_SECRET},
             timeout=10,
@@ -372,7 +372,7 @@ def gpu_services_restart():
     """Request SAM3/SAM3D service restart on the GPU worker."""
     try:
         r = requests.post(
-            f"{VASTAI_GPU_URL}/api/gpu/restart",
+            f"{get_gpu_url()}/api/gpu/restart",
             headers={"X-GPU-API-Key": GPU_API_SECRET},
             timeout=30,
         )
@@ -1446,7 +1446,7 @@ if __name__ == "__main__":
     print(f"  Frontend:     {FRONTEND_FOLDER}")
     print(f"  Data:         {DATA_FOLDER}")
     print(f"  AI Provider:  {'OpenAI ✅' if OPENAI_AVAILABLE else 'Not configured ❌'}")
-    print(f"  GPU Worker:   {VASTAI_GPU_URL}")
+    print(f"  GPU Worker:   {get_gpu_url() or '(will auto-discover)'}")
     print(f"  Database:     SQLite ✅")
     print(f"  Port:         {SERVER_PORT}")
     print("=" * 60)

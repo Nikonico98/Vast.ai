@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from job_manager import log
 
-from config import VASTAI_GPU_URL, GPU_API_SECRET, VASTAI_BEARER_TOKEN
+from config import get_gpu_url, GPU_API_SECRET, VASTAI_BEARER_TOKEN
 
 
 def _headers():
@@ -27,13 +27,16 @@ def gpu_worker_health() -> dict:
     try:
         # Try the GPU worker health endpoint first (no auth needed)
         health = {}
-        r = requests.get(f"{VASTAI_GPU_URL}/api/gpu/health", timeout=10)
+        gpu_url = get_gpu_url()
+        if not gpu_url:
+            return {"status": "unreachable", "error": "GPU URL not configured"}
+        r = requests.get(f"{gpu_url}/api/gpu/health", timeout=10)
         if r.status_code == 200:
             health = r.json()
 
         # Get detailed GPU metrics from system-metrics
         try:
-            r2 = requests.get(f"{VASTAI_GPU_URL}/system-metrics", headers=_headers(), timeout=10)
+            r2 = requests.get(f"{gpu_url}/system-metrics", headers=_headers(), timeout=10)
             if r2.status_code == 200:
                 metrics = r2.json()
                 gpu_info = metrics.get("gpu", {})
@@ -60,7 +63,7 @@ def gpu_worker_health() -> dict:
         # Fallback: try the old /api/gpu/health endpoint
         if not health.get("gpu_count"):
             try:
-                r3 = requests.get(f"{VASTAI_GPU_URL}/api/gpu/health", headers=_headers(), timeout=10)
+                r3 = requests.get(f"{gpu_url}/api/gpu/health", headers=_headers(), timeout=10)
                 if r3.status_code == 200:
                     health.update(r3.json())
             except Exception:
@@ -84,12 +87,13 @@ def submit_3d_job(image_path: str, prompt: str, job_id: str) -> Optional[str]:
         Remote job_id from GPU worker, or None on failure
     """
     try:
-        log("GPU_CLIENT", f"Submitting job {job_id} to {VASTAI_GPU_URL}")
+        gpu_url = get_gpu_url()
+        log("GPU_CLIENT", f"Submitting job {job_id} to {gpu_url}")
         with open(image_path, "rb") as f:
             files = {"image": (os.path.basename(image_path), f, "image/png")}
             data = {"prompt": prompt, "job_id": job_id}
             r = requests.post(
-                f"{VASTAI_GPU_URL}/api/gpu/process",
+                f"{gpu_url}/api/gpu/process",
                 files=files,
                 data=data,
                 headers=_headers(),
@@ -118,7 +122,7 @@ def poll_3d_status(remote_job_id: str) -> dict:
     """
     try:
         r = requests.get(
-            f"{VASTAI_GPU_URL}/api/gpu/status/{remote_job_id}",
+            f"{get_gpu_url()}/api/gpu/status/{remote_job_id}",
             headers=_headers(),
             timeout=15,
         )
@@ -142,7 +146,7 @@ def download_3d_result(remote_job_id: str, local_path: str) -> bool:
     """
     try:
         r = requests.get(
-            f"{VASTAI_GPU_URL}/api/gpu/download/{remote_job_id}",
+            f"{get_gpu_url()}/api/gpu/download/{remote_job_id}",
             headers=_headers(),
             timeout=120,
             stream=True,
@@ -167,7 +171,7 @@ def download_cutout(remote_job_id: str, local_path: str) -> bool:
     """Download the SAM3 cutout PNG from the GPU worker."""
     try:
         r = requests.get(
-            f"{VASTAI_GPU_URL}/api/gpu/download_cutout/{remote_job_id}",
+            f"{get_gpu_url()}/api/gpu/download_cutout/{remote_job_id}",
             headers=_headers(),
             timeout=60,
             stream=True,
