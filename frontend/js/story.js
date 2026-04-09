@@ -849,6 +849,12 @@ class StoryController {
   async handleNetworkRecovery() {
     if (!this.journeyId) return;
 
+    // Skip if currently transitioning (e.g. reveal animation playing)
+    if (this._isTransitioning) {
+      Logger.log("Network recovery: skipping, transition in progress");
+      return;
+    }
+
     // Only auto-recover on pages where network interruption causes a stuck state
     if (this.currentPage === PAGES.PROCESSING) {
       Logger.log(
@@ -1624,16 +1630,22 @@ class StoryController {
       // Update progress
       this.updateOverallProgress(100);
 
+      // Set transitioning flag to prevent handleNetworkRecovery interference
+      this._isTransitioning = true;
+
       // Play cinematic reveal transition
       await this.playRevealTransition();
 
-      // Save state as EVENT_RESULT so returning from AR restores correctly
+      // Save state and show event result page
       this.currentPage = PAGES.EVENT_RESULT;
       window.currentEventData = eventData;
       this.saveState();
 
-      // Jump directly to AR (skips event result page)
-      this.autoLaunchAR(eventData);
+      // Show event result page (user clicks AR Interaction button manually)
+      this.showEventResult(eventData);
+
+      // Clear transitioning flag
+      this._isTransitioning = false;
     } catch (error) {
       Logger.error("Recovery polling failed:", error);
       removeFromStorage("iw_processing_state");
@@ -2408,16 +2420,22 @@ class StoryController {
       // Update overall progress to 100%
       this.updateOverallProgress(100);
 
+      // Set transitioning flag to prevent handleNetworkRecovery interference
+      this._isTransitioning = true;
+
       // Play cinematic reveal transition
       await this.playRevealTransition();
 
-      // Save state as EVENT_RESULT so returning from AR restores correctly
+      // Save state and show event result page
       this.currentPage = PAGES.EVENT_RESULT;
       window.currentEventData = eventData;
       this.saveState();
 
-      // Jump directly to AR (skips event result page)
-      this.autoLaunchAR(eventData);
+      // Show event result page (user clicks AR Interaction button manually)
+      this.showEventResult(eventData);
+
+      // Clear transitioning flag
+      this._isTransitioning = false;
     } catch (error) {
       Logger.error("Photo processing failed:", error);
       // Clear processing state on error
@@ -3259,58 +3277,6 @@ class StoryController {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  /**
-   * Auto-launch AR interaction after 3D models finish loading.
-   * Navigates directly to AR page (same tab) to avoid popup blockers.
-   * When user clicks "Back to Main Page" in AR, return_url brings them to event result.
-   * @param {object} eventData - The event data with model URLs
-   */
-  autoLaunchAR(eventData) {
-    if (!eventData) return;
-
-    const event = eventData.event || {};
-
-    const photoModelUrl = eventData.photoModelUrl;
-    const fictionalModelUrl = eventData.fictionalModelUrl;
-    if (!photoModelUrl || !fictionalModelUrl) return;
-
-    const interactionType =
-      event.ar_interaction_type ||
-      eventData.ar_interaction_type ||
-      event.arInteractionType ||
-      eventData.arInteractionType ||
-      "Tap";
-
-    const AR_URLS = { Tap: "/ar/tap/", Rotate: "/ar/rotate/", Track: "/ar/track/" };
-    const projectUrl = AR_URLS[interactionType] || AR_URLS.Tap;
-
-    const baseUrl = window.location.origin;
-    const fullPhotoUrl = photoModelUrl.startsWith("http") ? photoModelUrl : baseUrl + photoModelUrl;
-    const fullFictionalUrl = fictionalModelUrl.startsWith("http") ? fictionalModelUrl : baseUrl + fictionalModelUrl;
-
-    const itemName =
-      event.fictionalItemName ||
-      event.item_or_character ||
-      eventData.fictionalItemName ||
-      "Fictional Item";
-
-    // Return URL points to event result page
-    const returnUrl = baseUrl + window.location.pathname + "#page-event-result";
-
-    const params = new URLSearchParams({
-      real_glb: fullPhotoUrl,
-      fictional_glb: fullFictionalUrl,
-      interaction: interactionType,
-      item_name: itemName,
-      return_url: returnUrl,
-    });
-
-    Logger.log("Auto-launching AR interaction (same tab):", interactionType);
-
-    // Navigate current page to AR (avoids popup blocker, no page flash)
-    window.location.href = `${projectUrl}?${params.toString()}`;
-  }
-
   playRevealTransition() {
     return new Promise((resolve) => {
       const overlay = $("reveal-overlay");
@@ -3360,6 +3326,9 @@ class StoryController {
 
     // 🔗 Store event data globally for AR launcher
     window.currentEventData = eventData;
+
+    // Navigate to event result page FIRST (before any DOM updates that might error)
+    this.navigateTo(PAGES.EVENT_RESULT);
 
     const event = eventData.event || {};
 
@@ -3477,11 +3446,19 @@ class StoryController {
       }`;
     }
 
-    // Initialize 3D viewers
-    this.initResultViewers(eventData);
+    // Initialize 3D viewers (wrapped in try-catch to prevent navigation failure)
+    try {
+      this.initResultViewers(eventData);
+    } catch (error) {
+      Logger.error("Failed to initialize 3D viewers:", error);
+    }
 
     // Setup download buttons
-    this.setupDownloadButtons(eventData);
+    try {
+      this.setupDownloadButtons(eventData);
+    } catch (error) {
+      Logger.error("Failed to setup download buttons:", error);
+    }
 
     // Update continue button (disabled until AR Interaction is clicked)
     const continueBtn = $("continue-adventure-btn");
@@ -3495,9 +3472,6 @@ class StoryController {
       // Disable button until user clicks AR Interaction
       continueBtn.disabled = true;
     }
-
-    // Navigate to event result page
-    this.navigateTo(PAGES.EVENT_RESULT);
   }
 
   initResultViewers(eventData) {
