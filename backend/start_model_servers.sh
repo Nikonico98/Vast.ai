@@ -29,7 +29,30 @@ mkdir -p "$LOG_DIR"
 
 # Load environment
 if [ -f "$SCRIPT_DIR/.env" ]; then
-    export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
+    while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+        line="${raw_line%%#*}"
+        if [[ ! "$line" =~ = ]]; then
+            continue
+        fi
+
+        key="${line%%=*}"
+        value="${line#*=}"
+
+        key="$(printf '%s' "$key" | xargs)"
+        value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+        if [ -z "$key" ]; then
+            continue
+        fi
+
+        if [[ "$value" =~ ^\".*\"$ ]]; then
+            value="${value:1:${#value}-2}"
+        elif [[ "$value" =~ ^\'.*\'$ ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+
+        export "$key=$value"
+    done < "$SCRIPT_DIR/.env"
 fi
 
 CONDA_BASE=$(conda info --base 2>/dev/null || echo "/opt/conda")

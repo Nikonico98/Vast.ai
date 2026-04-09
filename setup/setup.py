@@ -51,15 +51,36 @@ from pathlib import Path
 # Configuration 配置区
 # ============================================================
 
-# Hugging Face Token - 从 .env 读取或使用默认值
-HF_TOKEN = os.environ.get("HF_TOKEN", "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")
-
 # Working directories 工作目录
 WORKSPACE = "/workspace"
 SCRIPT_DIR = Path(__file__).parent.absolute()  # setup 文件夹
 IW_FOLDER = SCRIPT_DIR.parent  # IW 文件夹
 BACKEND_FOLDER = IW_FOLDER / "backend"
 FRONTEND_FOLDER = IW_FOLDER / "frontend"
+BACKEND_ENV_FILE = BACKEND_FOLDER / ".env"
+
+
+def _read_env_value(env_file: Path, key: str) -> str:
+    """Read a single value from a dotenv-style file without extra dependencies."""
+    if not env_file.exists():
+        return ""
+
+    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        current_key, value = line.split("=", 1)
+        if current_key.strip() != key:
+            continue
+
+        return value.strip().strip('"').strip("'")
+
+    return ""
+
+
+# Hugging Face Token - 优先读取进程环境变量，其次读取 backend/.env
+HF_TOKEN = os.environ.get("HF_TOKEN") or _read_env_value(BACKEND_ENV_FILE, "HF_TOKEN")
 
 # SAM3 Configuration SAM3 配置
 SAM3_ENV = "sam3"
@@ -232,17 +253,20 @@ def setup_environment():
         (IW_FOLDER / folder).mkdir(parents=True, exist_ok=True)
     
     # Set HF token 设置 HF token
-    os.environ["HF_TOKEN"] = HF_TOKEN
     os.environ["HF_HOME"] = HF_HOME
-    os.environ["HUGGINGFACE_HUB_TOKEN"] = HF_TOKEN
-    
-    # Write token to file 写入 token 文件
-    token_file = os.path.join(HF_HOME, "token")
-    with open(token_file, "w") as f:
-        f.write(HF_TOKEN)
-    os.chmod(token_file, 0o600)
-    
-    log("HF_TOKEN configured | HF_TOKEN 已配置", "success")
+    if HF_TOKEN:
+        os.environ["HF_TOKEN"] = HF_TOKEN
+        os.environ["HUGGINGFACE_HUB_TOKEN"] = HF_TOKEN
+
+        # Write token to file 写入 token 文件
+        token_file = os.path.join(HF_HOME, "token")
+        with open(token_file, "w") as f:
+            f.write(HF_TOKEN)
+        os.chmod(token_file, 0o600)
+
+        log("HF_TOKEN configured | HF_TOKEN 已配置", "success")
+    else:
+        log(f"HF_TOKEN not found in environment or {BACKEND_ENV_FILE}", "warning")
     
     # Check system 检查系统
     check_gpu()
@@ -629,6 +653,11 @@ def download_checkpoints():
     log("Downloading model checkpoints | 下载模型权重", "header")
     log("This may take 15-20 minutes depending on network speed...", "warning")
     log("这可能需要 15-20 分钟，取决于网络速度...", "warning")
+
+    if not HF_TOKEN:
+        raise RuntimeError(
+            f"HF_TOKEN is missing. Set it in the environment or in {BACKEND_ENV_FILE} before downloading checkpoints."
+        )
     
     conda_base = get_conda_base()
     
