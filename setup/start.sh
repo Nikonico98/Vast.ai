@@ -102,6 +102,19 @@ else
 fi
 
 # ==========================================
+# 配置 Caddy :8080 → GPU API 代理
+# ==========================================
+# Vast.ai 的 supervisor 会在每次 Caddy 重启时重新生成 Caddyfile，
+# 手动修改会丢失。caddy_gpu_proxy.sh 通过 hook caddy.sh 使修改持久化。
+CADDY_PROXY_SCRIPT="$SCRIPT_DIR/caddy_gpu_proxy.sh"
+if [ -f "$CADDY_PROXY_SCRIPT" ]; then
+    chmod +x "$CADDY_PROXY_SCRIPT"
+    GPU_SERVICE_PORT=$GPU_PORT bash "$CADDY_PROXY_SCRIPT"
+else
+    echo "   ⚠️ caddy_gpu_proxy.sh not found, Caddy proxy not configured"
+fi
+
+# ==========================================
 # 启动 SAM3/SAM3D 持久化模型服务器
 # ==========================================
 echo ""

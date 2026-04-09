@@ -151,69 +151,6 @@ wait_gpu1() {
     return $?
 }
 
-# ==========================================
-# Caddy reverse proxy for gpu_app
-# ==========================================
-# Vast.ai resets /etc/Caddyfile on every instance restart.
-# This function re-injects the :8080 → localhost:5555 proxy block
-# so Hostinger can reach gpu_app via the external mapped port.
-# ==========================================
-CADDY_GPU_BLOCK='
-# GPU API Service - gpu_app on port 5555
-# External: PUBLIC_IP:VAST_TCP_PORT_8080 -> internal :8080 -> localhost:5555
-:8080 {
-	encode zstd gzip
-
-	@cors_preflight method OPTIONS
-	handle @cors_preflight {
-		header Access-Control-Allow-Origin "*"
-		header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-		header Access-Control-Allow-Headers "Content-Type, X-GPU-API-Key, X-API-Secret, Authorization"
-		header Access-Control-Max-Age "86400"
-		respond 204
-	}
-
-	handle {
-		header Access-Control-Allow-Origin "*"
-		header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-		header Access-Control-Allow-Headers "Content-Type, X-GPU-API-Key, X-API-Secret, Authorization"
-
-		reverse_proxy localhost:5555 {
-			header_up X-Real-IP {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			flush_interval -1
-		}
-	}
-}
-'
-
-ensure_caddy_gpu_proxy() {
-    local caddyfile="/etc/Caddyfile"
-
-    if grep -q ":8080" "$caddyfile" 2>/dev/null; then
-        echo "  Caddy :8080 proxy already configured ✅"
-        return 0
-    fi
-
-    echo "  Caddy :8080 proxy missing — injecting..."
-
-    # Kill anything on 8080 (usually Jupyter)
-    fuser -k 8080/tcp 2>/dev/null || true
-    sleep 1
-
-    # Append the GPU API block
-    echo "$CADDY_GPU_BLOCK" >> "$caddyfile"
-
-    # Format and reload
-    caddy fmt --overwrite "$caddyfile" 2>/dev/null || true
-    if curl -s localhost:2019/load -X POST -H "Content-Type: text/caddyfile" --data-binary @"$caddyfile" | grep -q error; then
-        echo "  ⚠️ Caddy reload failed — check /etc/Caddyfile"
-        return 1
-    fi
-
-    echo "  Caddy :8080 → localhost:5555 proxy added and reloaded ✅"
-}
-
 case "${1:-all}" in
     stop)
         stop_servers
@@ -234,9 +171,6 @@ case "${1:-all}" in
         echo "  GPU 0: SAM3 (:$SAM3_PORT_GPU0) + SAM3D (:$SAM3D_PORT_GPU0)"
         echo "  GPU 1: SAM3 (:$SAM3_PORT_GPU1) + SAM3D (:$SAM3D_PORT_GPU1)"
         echo "=========================================="
-
-        # ---- Ensure Caddy :8080 proxy exists (survives instance restart) ----
-        ensure_caddy_gpu_proxy
 
         # Stop existing servers first
         stop_servers 2>/dev/null || true

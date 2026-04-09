@@ -434,7 +434,7 @@ def setup_sam3():
     install_script = f"""
 source {conda_base}/etc/profile.d/conda.sh
 conda activate {SAM3_ENV}
-pip install -U pip wheel setuptools
+pip install -U pip wheel 'setuptools<71'
 pip install torch==2.7.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 cd {SAM3_REPO}
 pip install -e .
@@ -630,9 +630,31 @@ def restore_from_frozen():
 
     if restored > 0:
         log(f"Restored {restored} environment(s)", "success")
+        # Fix pkg_resources: setuptools>=71 removed it, SAM3 needs it
+        # 修复 pkg_resources: setuptools>=71 移除了它，SAM3 需要它
+        _fix_sam3_setuptools(conda_base)
     else:
         log("No environments were restored. Run full setup instead.", "error")
         log("尝试使用 python setup.py (不加 --from-frozen) 进行完整安装", "error")
+
+
+def _fix_sam3_setuptools(conda_base):
+    """Ensure sam3 env has setuptools<71 so pkg_resources is available.
+    确保 sam3 环境的 setuptools<71，以便 pkg_resources 可用。
+
+    SAM3's model_builder.py imports pkg_resources which was removed in
+    setuptools>=71. Downgrade if needed.
+    SAM3 的 model_builder.py 导入 pkg_resources，该模块在 setuptools>=71 中被移除。
+    """
+    if not conda_env_exists(SAM3_ENV):
+        return
+    log(f"Checking setuptools version in {SAM3_ENV} (pkg_resources fix)...", "step")
+    run_cmd(
+        f"bash -c 'source {conda_base}/etc/profile.d/conda.sh && "
+        f"conda activate {SAM3_ENV} && pip install \"setuptools<71\"'",
+        check=False
+    )
+    log("setuptools pinned <71 for pkg_resources compatibility", "success")
 
 
 def _restore_from_pip_freeze(env_name, pip_path, conda_base):
