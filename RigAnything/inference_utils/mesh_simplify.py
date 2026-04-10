@@ -1,4 +1,5 @@
 import argparse
+import shutil
 
 import bpy
 import numpy as np
@@ -162,7 +163,7 @@ def mesh_simplify_glb(file_path, simplify=False, simplify_count=4096, output_pat
         )
     else:
         mesh_glb_path = output_path + "/" + file_path.split("/")[-1].replace(".glb", "_simplified.glb")
-        bpy.ops.wm.copy_file(filepath=file_path, target=mesh_glb_path)
+        shutil.copy2(file_path, mesh_glb_path)
     print("Mesh exported to", mesh_glb_path)
 
 

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Usage: ./inference.sh <mesh_path> <mesh_simplify (true/false)> <simplify_count>
 
@@ -22,6 +23,21 @@ DATA_NAME="${1##*/}"
 # Ensure we run from project root so relative imports work
 cd "$PROJECT_ROOT"
 
+# Helper: run a Python script via Blender so that bpy is available,
+# while also keeping access to venv site-packages.
+SITE_PACKAGES="$(python -c 'import site; print(site.getsitepackages()[0])')"
+run_with_bpy() {
+    blender --background --python-expr "
+import sys, os
+sys.path.insert(0, '/usr/lib/python3.12/lib-dynload')
+sys.path.append('$SITE_PACKAGES')
+sys.path.insert(0, '$PROJECT_ROOT')
+os.chdir('$PROJECT_ROOT')
+sys.argv = sys.argv[sys.argv.index('--')+1:]
+exec(open(sys.argv[0]).read())
+" -- "$@"
+}
+
 # Step 0: Create output directory (use absolute path)
 OUTPUT_DIR="$PROJECT_ROOT/outputs/${DATA_NAME%.glb}/"
 mkdir -p "$OUTPUT_DIR"
@@ -32,7 +48,7 @@ touch "$INFERENCE_LOG"
 echo "---------------------------Step 1: Mesh Simplification---------------------------"
 echo "Executing: python inference_utils/mesh_simplify.py --data_path $DATA_PATH --mesh_simplify $MESH_SIMPLIFY --simplify_count $MESH_SIMPLIFY_COUNT --output_path $OUTPUT_DIR   "
 echo " "
-python inference_utils/mesh_simplify.py \
+run_with_bpy inference_utils/mesh_simplify.py \
     --data_path "$DATA_PATH" \
     --mesh_simplify "$MESH_SIMPLIFY" \
     --simplify_count "$MESH_SIMPLIFY_COUNT" \
@@ -45,7 +61,7 @@ MESH_SIMPLIFIED_PATH="$OUTPUT_DIR/${DATA_NAME%.glb}_simplified.glb"
 echo "--------------------------Step 2: RigAnything Inference---------------------------"
 echo "Executing: python inference.py --config config.yaml --load ckpt/riganything_ckpt.pt -s inference true -s inference_out_dir outputs --mesh_path $MESH_SIMPLIFIED_PATH"
 echo " "
-python inference.py \
+run_with_bpy inference.py \
     --config "$PROJECT_ROOT/config.yaml" \
     --load "$PROJECT_ROOT/ckpt/riganything_ckpt.pt" \
     -s inference true \
@@ -61,7 +77,7 @@ echo "---------------------------Step 3: Visualization--------------------------
 echo "Executing: python inference_utils/vis_skel.py --data_path $INFERENCE_OUTPUT_NPZ_PATH --save_path $OUTPUT_DIR --mesh_path $MESH_SIMPLIFIED_PATH"
 echo "---------------------------------------------------------------------------------"
 echo " "
-python inference_utils/vis_skel.py \
+run_with_bpy inference_utils/vis_skel.py \
     --data_path "$INFERENCE_OUTPUT_NPZ_PATH" \
     --save_path "$OUTPUT_DIR" \
     --mesh_path "$MESH_SIMPLIFIED_PATH" >> "$INFERENCE_LOG" 2>&1

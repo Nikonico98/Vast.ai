@@ -29,6 +29,7 @@ SAM3_REPO = os.getenv("SAM3_REPO", os.path.join(WORKSPACE, "sam3"))
 SAM3D_ENV = os.getenv("SAM3D_ENV", "sam3d-objects")
 SAM3D_REPO = os.getenv("SAM3D_REPO", os.path.join(WORKSPACE, "sam-3d-objects"))
 SAM3D_CHECKPOINT = os.getenv("SAM3D_CHECKPOINT", "hf")
+RIGANYTHING_REPO = os.getenv("RIGANYTHING_REPO", os.path.join(WORKSPACE, "RigAnything"))
 
 # ==========================================
 # Hugging Face Token
