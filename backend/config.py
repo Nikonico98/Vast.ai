@@ -34,48 +34,73 @@ TEMPLATE_FOLDER = BACKEND_DIR / "templates"
 TEMPLATE_FILE = TEMPLATE_FOLDER / "prompt.md"
 
 # ==========================================
-# Vast.ai GPU Worker URL
+# RunPod GPU Worker URL
 # ==========================================
-# Manual override: if set, skip auto-discovery
+# RunPod provides a stable HTTPS proxy URL:
+#   https://{POD_ID}-{PORT}.proxy.runpod.net
+# Set this in .env — it never changes as long as the Pod exists.
+RUNPOD_GPU_URL = os.getenv("RUNPOD_GPU_URL", "")
+
+# Vast.ai GPU Worker URL (can run alongside RunPod)
 VASTAI_GPU_URL_OVERRIDE = os.getenv("VASTAI_GPU_URL", "")
 
-# Shared secret for authenticating requests between Hostinger and Vast.ai
+# Shared secret for authenticating requests between Hostinger and GPU worker
 # Header name: X-GPU-API-Key
 GPU_API_SECRET = os.getenv("GPU_API_SECRET", "niko2026IWSecretKey")
 
-# Caddy Bearer token (not used on current instance - direct connection)
-VASTAI_BEARER_TOKEN = os.getenv("VASTAI_BEARER_TOKEN", "")
+# RunPod API Key (for Pod management: start/stop/status)
+RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", "")
+RUNPOD_POD_ID = os.getenv("RUNPOD_POD_ID", "")
 
-# Vast.ai Instance Management API
+# Vast.ai keys
 VASTAI_API_KEY = os.getenv("VASTAI_API_KEY", "")
 VASTAI_INSTANCE_ID = os.getenv("VASTAI_INSTANCE_ID", "")
-
-# GPU service container port (the port your GPU worker listens on INSIDE the container)
-# On Vast.ai, Caddy 8080 conflicts with Jupyter. Use container port 1111 + socat → 5555.
+VASTAI_BEARER_TOKEN = os.getenv("VASTAI_BEARER_TOKEN", "")
 VASTAI_GPU_CONTAINER_PORT = int(os.getenv("VASTAI_GPU_CONTAINER_PORT", "1111"))
 
+# GPU backend preference: "runpod", "vastai", or "auto" (try RunPod first, fallback to Vast.ai)
+GPU_BACKEND = os.getenv("GPU_BACKEND", "auto")
+
 # ==========================================
-# Auto-discover GPU URL from Vast.ai API
+# GPU URL Resolution (Dual Backend: RunPod + Vast.ai)
 # ==========================================
-_gpu_url_cache = {"url": None, "timestamp": 0}
+
+_gpu_url_cache = {"runpod": None, "vastai": None, "ts_runpod": 0, "ts_vastai": 0}
 _GPU_URL_CACHE_TTL = 300  # 5 minutes
 
-def get_gpu_url() -> str:
-    """
-    Get the current GPU worker URL. Auto-discovers from Vast.ai API
-    using the instance ID and port mappings. Caches for 5 minutes.
-    Falls back to VASTAI_GPU_URL env var if auto-discovery fails.
-    """
-    # 1) Manual override always wins
+
+def _resolve_runpod_url() -> str:
+    """Resolve RunPod GPU URL (static or auto-discover)."""
+    if RUNPOD_GPU_URL:
+        return RUNPOD_GPU_URL.rstrip("/")
+    now = time.time()
+    if _gpu_url_cache["runpod"] and (now - _gpu_url_cache["ts_runpod"]) < _GPU_URL_CACHE_TTL:
+        return _gpu_url_cache["runpod"]
+    if RUNPOD_API_KEY and RUNPOD_POD_ID:
+        try:
+            r = _requests.post(
+                "https://api.runpod.io/graphql?api_key=" + RUNPOD_API_KEY,
+                json={"query": '{ pod(input: {podId: "' + RUNPOD_POD_ID + '"}) { id runtime { ports { ip isIpPublic privatePort publicPort type } } } }'},
+                timeout=15,
+            )
+            pod = r.json().get("data", {}).get("pod", {})
+            if pod and pod.get("runtime"):
+                url = f"https://{RUNPOD_POD_ID}-5555.proxy.runpod.net"
+                _gpu_url_cache["runpod"] = url
+                _gpu_url_cache["ts_runpod"] = now
+                return url
+        except Exception:
+            pass
+    return _gpu_url_cache.get("runpod", "") or ""
+
+
+def _resolve_vastai_url() -> str:
+    """Resolve Vast.ai GPU URL (static or auto-discover)."""
     if VASTAI_GPU_URL_OVERRIDE:
         return VASTAI_GPU_URL_OVERRIDE.rstrip("/")
-
-    # 2) Return cached value if fresh
     now = time.time()
-    if _gpu_url_cache["url"] and (now - _gpu_url_cache["timestamp"]) < _GPU_URL_CACHE_TTL:
-        return _gpu_url_cache["url"]
-
-    # 3) Auto-discover via Vast.ai API
+    if _gpu_url_cache["vastai"] and (now - _gpu_url_cache["ts_vastai"]) < _GPU_URL_CACHE_TTL:
+        return _gpu_url_cache["vastai"]
     if VASTAI_API_KEY and VASTAI_INSTANCE_ID:
         try:
             r = _requests.get(
@@ -87,38 +112,61 @@ def get_gpu_url() -> str:
             instance = data.get("instances", data)
             if isinstance(instance, list):
                 instance = instance[0] if instance else {}
-
             public_ip = instance.get("public_ipaddr", "")
             ports = instance.get("ports", {})
-
-            # Find the external port mapped to GPU_CONTAINER_PORT/tcp
             port_key = f"{VASTAI_GPU_CONTAINER_PORT}/tcp"
             if ports and port_key in ports:
                 port_info = ports[port_key]
-                # Vast.ai format: [{"HostIp": "0.0.0.0", "HostPort": "20700"}]
                 if isinstance(port_info, list) and port_info:
                     external_port = port_info[0].get("HostPort", "")
                 elif isinstance(port_info, dict):
                     external_port = port_info.get("HostPort", "")
                 else:
                     external_port = ""
-
                 if public_ip and external_port:
                     url = f"http://{public_ip}:{external_port}"
-                    _gpu_url_cache["url"] = url
-                    _gpu_url_cache["timestamp"] = now
+                    _gpu_url_cache["vastai"] = url
+                    _gpu_url_cache["ts_vastai"] = now
                     return url
         except Exception:
             pass
+    return _gpu_url_cache.get("vastai", "") or ""
 
-    # 4) Return stale cache if available
-    if _gpu_url_cache["url"]:
-        return _gpu_url_cache["url"]
 
-    return ""
+def get_gpu_url(backend: str = None) -> str:
+    """
+    Get GPU worker URL. Supports dual backends.
+
+    Args:
+        backend: Force a specific backend ("runpod" or "vastai").
+                 None uses GPU_BACKEND setting ("auto" tries RunPod first).
+
+    Returns:
+        GPU worker URL string, or "" if none available.
+    """
+    target = backend or GPU_BACKEND
+
+    if target == "runpod":
+        return _resolve_runpod_url()
+    elif target == "vastai":
+        return _resolve_vastai_url()
+    else:  # "auto" — try RunPod first, fallback to Vast.ai
+        url = _resolve_runpod_url()
+        if url:
+            return url
+        return _resolve_vastai_url()
+
+
+def get_all_gpu_urls() -> dict:
+    """Get URLs for all configured GPU backends."""
+    return {
+        "runpod": _resolve_runpod_url(),
+        "vastai": _resolve_vastai_url(),
+    }
+
 
 # Keep a static reference for backward compat (used in startup print)
-VASTAI_GPU_URL = VASTAI_GPU_URL_OVERRIDE or "(auto-discover)"
+VASTAI_GPU_URL = VASTAI_GPU_URL_OVERRIDE or RUNPOD_GPU_URL or "(auto-discover)"
 
 # ==========================================
 # AI API Configuration (OpenAI GPT-5.2)

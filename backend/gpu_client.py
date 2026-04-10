@@ -1,8 +1,8 @@
 """
 Imaginary World - GPU Client
 ==============================
-HTTP client for communicating with the Vast.ai GPU worker.
-Sends images + prompts to the GPU worker and retrieves results.
+HTTP client for communicating with GPU workers (RunPod + Vast.ai).
+Supports dual backends with automatic failover.
 """
 
 import os
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from job_manager import log
 
-from config import get_gpu_url, GPU_API_SECRET, VASTAI_BEARER_TOKEN
+from config import get_gpu_url, get_all_gpu_urls, GPU_API_SECRET, VASTAI_BEARER_TOKEN, GPU_BACKEND
 
 
 def _headers():
@@ -22,19 +22,34 @@ def _headers():
     return headers
 
 
-def gpu_worker_health() -> dict:
-    """Check if the Vast.ai GPU worker is reachable and healthy."""
+def _get_gpu_url_with_failover() -> Tuple[str, str]:
+    """
+    Get GPU URL with failover. Returns (url, backend_name).
+    In auto mode: tries primary, falls back to secondary.
+    """
+    urls = get_all_gpu_urls()
+    primary_url = get_gpu_url()  # respects GPU_BACKEND setting
+
+    if primary_url:
+        # Identify which backend the primary is
+        backend = "runpod" if primary_url == urls.get("runpod") else "vastai"
+        return primary_url, backend
+
+    # If primary failed, try the other one
+    for name, url in urls.items():
+        if url:
+            return url, name
+
+    return "", "none"
+
+
+def _check_single_worker(gpu_url: str) -> dict:
+    """Check health of a single GPU worker."""
     try:
-        # Try the GPU worker health endpoint first (no auth needed)
         health = {}
-        gpu_url = get_gpu_url()
-        if not gpu_url:
-            return {"status": "unreachable", "error": "GPU URL not configured"}
         r = requests.get(f"{gpu_url}/api/gpu/health", timeout=10)
         if r.status_code == 200:
             health = r.json()
-
-        # Get detailed GPU metrics from system-metrics
         try:
             r2 = requests.get(f"{gpu_url}/system-metrics", headers=_headers(), timeout=10)
             if r2.status_code == 200:
@@ -43,13 +58,10 @@ def gpu_worker_health() -> dict:
                 health["gpu_count"] = gpu_info.get("count", gpu_info.get("nvidia_count", 0))
                 health["available_gpus"] = health["gpu_count"]
                 health["gpu_metrics"] = gpu_info
-                # Build gpu list for frontend
                 gpus = []
                 for i in range(health["gpu_count"]):
                     gpus.append({
-                        "id": i,
-                        "name": f"GPU {i}",
-                        "status": "idle",
+                        "id": i, "name": f"GPU {i}", "status": "idle",
                         "total_memory_mb": gpu_info.get("memory_total", 0) / max(health["gpu_count"], 1),
                         "free_memory_mb": (gpu_info.get("memory_total", 0) - gpu_info.get("memory_used", 0)) / max(health["gpu_count"], 1),
                         "utilization": gpu_info.get("avg_load_percent", 0),
@@ -59,8 +71,6 @@ def gpu_worker_health() -> dict:
                     health["status"] = "healthy"
         except Exception:
             pass
-
-        # Fallback: try the old /api/gpu/health endpoint
         if not health.get("gpu_count"):
             try:
                 r3 = requests.get(f"{gpu_url}/api/gpu/health", headers=_headers(), timeout=10)
@@ -68,27 +78,48 @@ def gpu_worker_health() -> dict:
                     health.update(r3.json())
             except Exception:
                 pass
-
         return health if health else {"status": "unreachable", "error": "No valid response"}
     except Exception as e:
         return {"status": "unreachable", "error": str(e)}
 
 
+def gpu_worker_health() -> dict:
+    """Check GPU worker health. Uses primary backend (with failover info)."""
+    gpu_url, backend = _get_gpu_url_with_failover()
+    if not gpu_url:
+        return {"status": "unreachable", "error": "No GPU URL configured"}
+    health = _check_single_worker(gpu_url)
+    health["active_backend"] = backend
+    health["gpu_url"] = gpu_url
+    return health
+
+
+def gpu_all_workers_health() -> dict:
+    """Check health of ALL configured GPU backends."""
+    urls = get_all_gpu_urls()
+    result = {}
+    for name, url in urls.items():
+        if url:
+            h = _check_single_worker(url)
+            h["url"] = url
+            result[name] = h
+        else:
+            result[name] = {"status": "not_configured", "url": ""}
+    return result
+
+
 def submit_3d_job(image_path: str, prompt: str, job_id: str) -> Optional[str]:
     """
-    Submit an image + prompt to the Vast.ai GPU worker for 3D generation.
-
-    Args:
-        image_path: Local path to the image file
-        prompt: Simplified text prompt for SAM3 segmentation
-        job_id: Job ID for tracking
-
-    Returns:
-        Remote job_id from GPU worker, or None on failure
+    Submit an image + prompt to GPU worker for 3D generation.
+    Tries primary backend first, falls back to secondary.
     """
+    gpu_url, backend = _get_gpu_url_with_failover()
+    if not gpu_url:
+        log("GPU_CLIENT", "No GPU URL available")
+        return None
+
     try:
-        gpu_url = get_gpu_url()
-        log("GPU_CLIENT", f"Submitting job {job_id} to {gpu_url}")
+        log("GPU_CLIENT", f"Submitting job {job_id} to {backend}: {gpu_url}")
         with open(image_path, "rb") as f:
             files = {"image": (os.path.basename(image_path), f, "image/png")}
             data = {"prompt": prompt, "job_id": job_id}

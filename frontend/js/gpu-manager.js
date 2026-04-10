@@ -270,6 +270,7 @@ class GPUManager {
       const data = await response.json();
 
       this.instanceConfigured = data.configured || false;
+      this.instanceProvider = data.provider || "unknown";
 
       if (!data.configured) {
         this.instanceStatus = "not-configured";
@@ -347,10 +348,17 @@ class GPUManager {
 
     if (!badge) return;
 
+    // Update panel title with provider name
+    const titleEl = document.querySelector(".instance-section .instance-title, .instance-header .instance-title");
+    if (titleEl) {
+      const providerName = this.instanceProvider === "runpod" ? "RunPod" : this.instanceProvider === "vastai" ? "Vast.ai" : "GPU";
+      titleEl.textContent = `${providerName} Instance`;
+    }
+
     if (!this.instanceConfigured) {
       badge.textContent = "Not Configured";
       badge.className = "instance-status-badge status-unknown";
-      if (gpuName) gpuName.textContent = "Set VASTAI_API_KEY & VASTAI_INSTANCE_ID in .env";
+      if (gpuName) gpuName.textContent = "Set GPU credentials in .env (RunPod or Vast.ai)";
       if (cost) cost.textContent = "";
       if (btnStart) btnStart.disabled = true;
       if (btnStop) btnStop.disabled = true;

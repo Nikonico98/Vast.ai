@@ -29,7 +29,9 @@ from config import (
     ALLOWED_EXTENSIONS, MAX_FILE_SIZE, SERVER_PORT, DEBUG_MODE, SECRET_KEY,
     VALID_IMAGINARY_WORLDS, WORLD_DISPLAY_NAMES, ACTION_TO_AR, AR_INTERACTIONS_FALLBACK,
     OPENAI_MODEL, VASTAI_GPU_URL, VASTAI_API_KEY, VASTAI_INSTANCE_ID,
-    GPU_API_SECRET, get_gpu_url,
+    VASTAI_GPU_CONTAINER_PORT,
+    RUNPOD_API_KEY, RUNPOD_POD_ID, GPU_BACKEND,
+    GPU_API_SECRET, get_gpu_url, get_all_gpu_urls,
 )
 
 from database import (
@@ -46,7 +48,7 @@ from ai_service import (
     upload_image_to_cdn, generate_fictional_image
 )
 
-from gpu_client import gpu_worker_health, run_remote_3d_pipeline
+from gpu_client import gpu_worker_health, gpu_all_workers_health, run_remote_3d_pipeline
 
 from job_manager import (
     log, load_jobs, save_jobs, create_job, update_job_status, generate_job_id,
@@ -248,110 +250,239 @@ def set_gpu_mode():
 
 
 # ==========================================
+# RunPod GPU Pod Management  (replaces Vast.ai instance management)
+# ==========================================
+RUNPOD_API_URL = "https://api.runpod.io/graphql"
+
+
+def _runpod_query(query: str, variables: dict = None) -> dict:
+    """Execute a RunPod GraphQL query."""
+    payload = {"query": query}
+    if variables:
+        payload["variables"] = variables
+    r = requests.post(
+        f"{RUNPOD_API_URL}?api_key={RUNPOD_API_KEY}",
+        json=payload,
+        timeout=30,
+    )
+    return r.json()
+
+
+@app.route('/api/gpu/instance/status', methods=['GET'])
+def gpu_instance_status():
+    """Get GPU instance status. Auto-detects: RunPod first, then Vast.ai."""
+    # Try RunPod first
+    if RUNPOD_API_KEY and RUNPOD_POD_ID:
+        try:
+            result = _runpod_query(
+                '{ pod(input: {podId: "%s"}) { id name runtime { uptimeInSeconds gpus { id gpuUtilPercent memoryUtilPercent } ports { ip isIpPublic privatePort publicPort type } } machine { gpuDisplayName } gpuCount costPerHr desiredStatus } }' % RUNPOD_POD_ID
+            )
+            pod = result.get("data", {}).get("pod")
+            if pod:
+                status = pod.get("desiredStatus", "unknown")
+                gpu_name = pod.get("machine", {}).get("gpuDisplayName", "Unknown") if pod.get("machine") else "Unknown"
+                num_gpus = pod.get("gpuCount", 0)
+                cost_per_hr = pod.get("costPerHr", 0)
+                runtime = pod.get("runtime") or {}
+                uptime = runtime.get("uptimeInSeconds", 0)
+
+                return jsonify({
+                    "success": True,
+                    "configured": True,
+                    "status": "running" if runtime else status.lower(),
+                    "gpu_name": gpu_name,
+                    "num_gpus": num_gpus,
+                    "dph_total": round(cost_per_hr, 4),
+                    "uptime_seconds": uptime,
+                    "pod_id": RUNPOD_POD_ID,
+                    "provider": "runpod",
+                })
+        except Exception as e:
+            log("GPU_STATUS", f"RunPod query failed: {e}")
+
+    # Fallback to Vast.ai
+    if VASTAI_API_KEY and VASTAI_INSTANCE_ID:
+        try:
+            r = requests.get(
+                f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
+                headers=_vastai_headers(), timeout=15
+            )
+            data = r.json()
+            instance = data.get("instances", data)
+            if isinstance(instance, list):
+                instance = instance[0] if instance else {}
+            return jsonify({
+                "success": True, "configured": True, "provider": "vastai",
+                "status": instance.get("actual_status", instance.get("cur_state", "unknown")),
+                "gpu_name": instance.get("gpu_name", "Unknown"),
+                "num_gpus": instance.get("num_gpus", 0),
+                "dph_total": round(instance.get("dph_total", 0), 4),
+                "disk_space": round(instance.get("disk_space", 0), 1),
+                "disk_usage": round(instance.get("disk_usage", instance.get("disk_util", 0)), 1),
+                "instance_id": VASTAI_INSTANCE_ID,
+            })
+        except Exception as e:
+            return jsonify({"success": False, "configured": True, "error": str(e)})
+
+    return jsonify({
+        "success": False,
+        "configured": False,
+        "error": "No GPU backend configured. Set RUNPOD or VASTAI credentials in .env"
+    })
+
+
+@app.route('/api/gpu/instance/start', methods=['POST'])
+def gpu_instance_start():
+    """Start GPU instance. Tries RunPod first, then Vast.ai."""
+    if RUNPOD_API_KEY and RUNPOD_POD_ID:
+        try:
+            result = _runpod_query(
+                'mutation { podResume(input: {podId: "%s", gpuCount: 1}) { id desiredStatus } }' % RUNPOD_POD_ID
+            )
+            pod = result.get("data", {}).get("podResume")
+            if pod:
+                log("RUNPOD", f"Pod {RUNPOD_POD_ID} resume requested")
+                return jsonify({"success": True, "message": "RunPod resume requested", "provider": "runpod"})
+            errors = result.get("errors", [])
+            err_msg = errors[0].get("message", "Unknown error") if errors else "Unknown error"
+            return jsonify({"success": False, "error": err_msg}), 502
+        except Exception as e:
+            log("GPU_START", f"RunPod start failed: {e}")
+
+    if VASTAI_API_KEY and VASTAI_INSTANCE_ID:
+        try:
+            r = requests.put(
+                f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
+                json={"state": "running"}, headers=_vastai_headers(), timeout=30,
+            )
+            if r.status_code in (200, 202):
+                log("VASTAI", f"Instance {VASTAI_INSTANCE_ID} start requested")
+                return jsonify({"success": True, "message": "Vast.ai start requested", "provider": "vastai"})
+            return jsonify({"success": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}), 502
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    return jsonify({"success": False, "error": "No GPU backend configured"}), 400
+
+
+@app.route('/api/gpu/instance/stop', methods=['POST'])
+def gpu_instance_stop():
+    """Stop GPU instance. Tries RunPod first, then Vast.ai."""
+    if RUNPOD_API_KEY and RUNPOD_POD_ID:
+        try:
+            result = _runpod_query(
+                'mutation { podStop(input: {podId: "%s"}) { id desiredStatus } }' % RUNPOD_POD_ID
+            )
+            pod = result.get("data", {}).get("podStop")
+            if pod:
+                log("RUNPOD", f"Pod {RUNPOD_POD_ID} stop requested")
+                return jsonify({"success": True, "message": "RunPod stop requested", "provider": "runpod"})
+            errors = result.get("errors", [])
+            err_msg = errors[0].get("message", "Unknown error") if errors else "Unknown error"
+            return jsonify({"success": False, "error": err_msg}), 502
+        except Exception as e:
+            log("GPU_STOP", f"RunPod stop failed: {e}")
+
+    if VASTAI_API_KEY and VASTAI_INSTANCE_ID:
+        try:
+            r = requests.put(
+                f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
+                json={"state": "stopped"}, headers=_vastai_headers(), timeout=30,
+            )
+            if r.status_code in (200, 202):
+                log("VASTAI", f"Instance {VASTAI_INSTANCE_ID} stop requested")
+                return jsonify({"success": True, "message": "Vast.ai stop requested", "provider": "vastai"})
+            return jsonify({"success": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}), 502
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    return jsonify({"success": False, "error": "No GPU backend configured"}), 400
+
+
+# ==========================================
 # Vast.ai Instance Management
 # ==========================================
 VASTAI_API_BASE = "https://console.vast.ai/api/v0"
+
 
 def _vastai_headers():
     return {"Authorization": f"Bearer {VASTAI_API_KEY}"}
 
 
-@app.route('/api/gpu/instance/status', methods=['GET'])
-def gpu_instance_status():
+@app.route('/api/gpu/vastai/status', methods=['GET'])
+def gpu_vastai_status():
     """Get Vast.ai instance status."""
     if not VASTAI_API_KEY or not VASTAI_INSTANCE_ID:
-        return jsonify({
-            "success": False,
-            "configured": False,
-            "error": "VASTAI_API_KEY or VASTAI_INSTANCE_ID not set"
-        })
-
+        return jsonify({"success": False, "configured": False, "error": "Vast.ai not configured"})
     try:
         r = requests.get(
             f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
-            headers=_vastai_headers(),
-            timeout=15
+            headers=_vastai_headers(), timeout=15
         )
         data = r.json()
-
-        # Vast.ai wraps the instance data inside {"instances": {...}}
         instance = data.get("instances", data)
         if isinstance(instance, list):
             instance = instance[0] if instance else {}
-
-        status = instance.get("actual_status", instance.get("cur_state", "unknown"))
-        gpu_name = instance.get("gpu_name", "Unknown")
-        num_gpus = instance.get("num_gpus", 0)
-        dph_total = instance.get("dph_total", 0)
-        disk_space = instance.get("disk_space", 0)
-        disk_usage = instance.get("disk_usage", instance.get("disk_util", 0))
-
         return jsonify({
-            "success": True,
-            "configured": True,
-            "status": status,
-            "gpu_name": gpu_name,
-            "num_gpus": num_gpus,
-            "dph_total": round(dph_total, 4),
-            "disk_space": round(disk_space, 1),
-            "disk_usage": round(disk_usage, 1),
+            "success": True, "configured": True, "provider": "vastai",
+            "status": instance.get("actual_status", instance.get("cur_state", "unknown")),
+            "gpu_name": instance.get("gpu_name", "Unknown"),
+            "num_gpus": instance.get("num_gpus", 0),
+            "dph_total": round(instance.get("dph_total", 0), 4),
             "instance_id": VASTAI_INSTANCE_ID,
         })
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "configured": True,
-            "error": str(e)
-        })
+        return jsonify({"success": False, "configured": True, "error": str(e)})
 
-@app.route('/api/gpu/instance/start', methods=['POST'])
-def gpu_instance_start():
+
+@app.route('/api/gpu/vastai/start', methods=['POST'])
+def gpu_vastai_start():
     """Start the Vast.ai GPU instance."""
     if not VASTAI_API_KEY or not VASTAI_INSTANCE_ID:
         return jsonify({"success": False, "error": "Vast.ai not configured"}), 400
-
     try:
         r = requests.put(
             f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
-            json={"state": "running"},
-            headers=_vastai_headers(),
-            timeout=30,
+            json={"state": "running"}, headers=_vastai_headers(), timeout=30,
         )
         if r.status_code in (200, 202):
             log("VASTAI", f"Instance {VASTAI_INSTANCE_ID} start requested")
             return jsonify({"success": True, "message": "Instance start requested"})
-        else:
-            return jsonify({
-                "success": False,
-                "error": f"Vast.ai API returned {r.status_code}: {r.text[:200]}",
-            }), 502
+        return jsonify({"success": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}), 502
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/gpu/instance/stop', methods=['POST'])
-def gpu_instance_stop():
+@app.route('/api/gpu/vastai/stop', methods=['POST'])
+def gpu_vastai_stop():
     """Stop the Vast.ai GPU instance."""
     if not VASTAI_API_KEY or not VASTAI_INSTANCE_ID:
         return jsonify({"success": False, "error": "Vast.ai not configured"}), 400
-
     try:
         r = requests.put(
             f"{VASTAI_API_BASE}/instances/{VASTAI_INSTANCE_ID}/",
-            json={"state": "stopped"},
-            headers=_vastai_headers(),
-            timeout=30,
+            json={"state": "stopped"}, headers=_vastai_headers(), timeout=30,
         )
         if r.status_code in (200, 202):
             log("VASTAI", f"Instance {VASTAI_INSTANCE_ID} stop requested")
             return jsonify({"success": True, "message": "Instance stop requested"})
-        else:
-            return jsonify({
-                "success": False,
-                "error": f"Vast.ai API returned {r.status_code}: {r.text[:200]}",
-            }), 502
+        return jsonify({"success": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}), 502
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ==========================================
+# Combined GPU Status (both backends)
+# ==========================================
+@app.route('/api/gpu/all-status', methods=['GET'])
+def gpu_all_status():
+    """Get health/status of ALL configured GPU backends."""
+    workers = gpu_all_workers_health()
+    return jsonify({
+        "success": True,
+        "active_backend": GPU_BACKEND,
+        "backends": workers,
+    })
 
 
 @app.route('/api/gpu/services/status', methods=['GET'])
@@ -391,15 +522,16 @@ def gpu_services_restart():
 
 @app.route('/api/env-status')
 def env_status():
-    """Check environment status. SAM3/SAM3D runs on Vast.ai."""
+    """Check environment status. SAM3/SAM3D runs on GPU workers (RunPod/Vast.ai)."""
     gpu_health = gpu_worker_health()
     gpu_ready = gpu_health.get("status") in ("healthy", "ok")
     return jsonify({
         "timestamp": datetime.now().isoformat(),
         "deployment": "hostinger-split",
+        "active_gpu_backend": gpu_health.get("active_backend", GPU_BACKEND),
         "environments": {
-            "sam3": {"ready": gpu_ready, "message": "Runs on Vast.ai GPU worker"},
-            "sam3d": {"ready": gpu_ready, "message": "Runs on Vast.ai GPU worker"},
+            "sam3": {"ready": gpu_ready, "message": f"Runs on {gpu_health.get('active_backend', 'GPU')} worker"},
+            "sam3d": {"ready": gpu_ready, "message": f"Runs on {gpu_health.get('active_backend', 'GPU')} worker"},
         },
         "ai": {
             "provider": "OpenAI" if OPENAI_AVAILABLE else None,
