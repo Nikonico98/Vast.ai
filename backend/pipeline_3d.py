@@ -354,6 +354,111 @@ python "{sam3d_script_file}"
     return elapsed, result.returncode == 0
 
 
+def _run_riganything(job_id, glb_path, gpu_id):
+    """Run RigAnything skeleton rigging on a GLB model.
+
+    Calls scripts/inference.sh with simplify=0 (no mesh simplification).
+    The rigged GLB replaces the original file so downstream paths stay unchanged.
+
+    Since RigAnything needs ~8GB VRAM and the SAM3D server holds ~14GB idle,
+    we temporarily stop the SAM3D server on this GPU to free VRAM, then restart
+    it after rigging completes. The GPU pipeline lock guarantees no other job
+    is using SAM3D on this GPU during this window.
+
+    Returns (elapsed_seconds, success_bool).
+    """
+    start = time.time()
+    glb_path = str(glb_path)
+    glb_name = os.path.basename(glb_path)                       # e.g. job_id.glb
+    stem = glb_name.replace(".glb", "")                          # e.g. job_id
+    rig_output_dir = os.path.join(RIGANYTHING_REPO, "outputs", stem)
+    rig_glb = os.path.join(rig_output_dir, f"{stem}_simplified_rig.glb")
+
+    # SAM3D port for this GPU (to free VRAM)
+    sam3d_port = 5562 if gpu_id == 0 else 5572
+
+    def _stop_sam3d():
+        """Kill SAM3D server on this GPU to free ~14GB VRAM."""
+        try:
+            subprocess.run(
+                ["fuser", "-k", f"{sam3d_port}/tcp"],
+                capture_output=True, timeout=10
+            )
+            time.sleep(2)  # Wait for VRAM to be released
+            log(job_id, f"   🔻 SAM3D server on GPU {gpu_id} (port {sam3d_port}) stopped to free VRAM")
+        except Exception as e:
+            log(job_id, f"   ⚠️ Failed to stop SAM3D server: {e}")
+
+    def _restart_sam3d():
+        """Restart SAM3D server on this GPU."""
+        try:
+            script = os.path.join(os.path.dirname(__file__), "start_model_servers.sh")
+            subprocess.run(
+                ["bash", script, f"gpu{gpu_id}"],
+                capture_output=True, timeout=120
+            )
+            log(job_id, f"   🔼 SAM3D server on GPU {gpu_id} restarting...")
+        except Exception as e:
+            log(job_id, f"   ⚠️ Failed to restart SAM3D server: {e}")
+
+    cmd = f"""export CUDA_VISIBLE_DEVICES={gpu_id}
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PATH=/venv/main/bin:$PATH
+cd {RIGANYTHING_REPO}
+bash scripts/inference.sh "{glb_path}" 0 8192
+"""
+    log(job_id, f"   🦴 Running RigAnything (simplify=0, GPU {gpu_id})...")
+
+    # Free VRAM by stopping SAM3D server
+    _stop_sam3d()
+
+    try:
+        result = subprocess.run(
+            ["bash", "-c", cmd],
+            cwd=str(RIGANYTHING_REPO), capture_output=True, text=True, timeout=300
+        )
+        elapsed = time.time() - start
+        _log_subprocess_result(job_id, "RigAnything", result, stdout_lines=10, stderr_lines=5)
+
+        if result.returncode == 0 and os.path.exists(rig_glb) and os.path.getsize(rig_glb) > 1000:
+            # Replace original GLB with rigged version
+            shutil.copy2(rig_glb, glb_path)
+            log(job_id, f"   ✅ RigAnything completed in {elapsed:.1f}s, rigged GLB: {os.path.getsize(glb_path):,} bytes")
+            # Cleanup on success
+            if os.path.isdir(rig_output_dir):
+                try:
+                    shutil.rmtree(rig_output_dir)
+                except Exception:
+                    pass
+            return elapsed, True
+        else:
+            if os.path.isdir(rig_output_dir):
+                contents = os.listdir(rig_output_dir)
+                log(job_id, f"   📂 RigAnything output dir contents: {contents}")
+                # Dump inference.log for debugging
+                inf_log = os.path.join(rig_output_dir, "inference.log")
+                if os.path.exists(inf_log):
+                    try:
+                        with open(inf_log) as f:
+                            log_tail = f.read()[-2000:]
+                        log(job_id, f"   📋 inference.log tail:\n{log_tail}")
+                    except Exception:
+                        pass
+            log(job_id, f"   ⚠️ RigAnything failed (rc={result.returncode}), keeping original GLB")
+            return elapsed, False
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - start
+        log(job_id, f"   ⚠️ RigAnything timed out after {elapsed:.1f}s, keeping original GLB")
+        return elapsed, False
+    except Exception as e:
+        elapsed = time.time() - start
+        log(job_id, f"   ⚠️ RigAnything error: {e}, keeping original GLB")
+        return elapsed, False
+    finally:
+        # Always restart SAM3D server (even if rigging failed)
+        _restart_sam3d()
+
+
 def run_3d_pipeline(job_id: str, image_path: str, prompt: str,
                     points: List = None, boxes: List = None,
                     output_path: str = None, temp_folder = None,
@@ -505,7 +610,7 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
         # ========================================
         # Step 1: Prepare Image
         # ========================================
-        log(job_id, "📁 Step 1/3: Preparing image...")
+        log(job_id, "📁 Step 1/5: Preparing image...")
         update_job_status(job_id, "processing", "Preparing image", 10)
 
         log(job_id, f"📋 Input validation:")
@@ -547,7 +652,7 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
         # ========================================
         # Step 2: SAM3 Segmentation
         # ========================================
-        log(job_id, "🔍 Step 2/3: SAM3 Segmentation...")
+        log(job_id, "🔍 Step 2/5: SAM3 Segmentation...")
         update_job_status(job_id, "processing", "SAM3 Segmentation", 30)
 
         sam3_start = time.time()
@@ -600,13 +705,13 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
             except Exception as e:
                 log(job_id, f"   ⚠️ Failed to copy cutout to user folder: {e}")
 
-        update_job_status(job_id, "processing", "SAM3 Complete", 50)
+        update_job_status(job_id, "processing", "SAM3 Complete", 45)
 
         # ========================================
         # Step 3: SAM3D 3D Reconstruction
         # ========================================
-        log(job_id, "🎨 Step 3/3: SAM3D 3D Reconstruction...")
-        update_job_status(job_id, "processing", "SAM3D Reconstruction", 60)
+        log(job_id, "🎨 Step 3/5: SAM3D 3D Reconstruction...")
+        update_job_status(job_id, "processing", "SAM3D Reconstruction", 48)
 
         sam3d_total_time = 0.0
         sam3d_success = False
@@ -676,14 +781,34 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
 
         log(job_id, "   ✅ SAM3D reconstruction complete")
 
+        update_job_status(job_id, "processing", "SAM3D Complete", 70)
+
         # ========================================
-        # Step 4: Adjust Model Origin for AR
+        # Step 4: RigAnything Skeleton Rigging
+        # ========================================
+        rig_time = 0.0
+        rig_success = False
+        if glb_out.exists() and os.path.getsize(glb_out) > 5000:
+            log(job_id, "🦴 Step 4/5: RigAnything Skeleton Rigging...")
+            update_job_status(job_id, "processing", "RigAnything Rigging", 72)
+            rig_time, rig_success = _run_riganything(job_id, str(glb_out), gpu_id)
+            if rig_success:
+                log(job_id, "   ✅ Rigging complete")
+            else:
+                log(job_id, "   ⚠️ Rigging failed, continuing with original GLB")
+        else:
+            log(job_id, "   ⚠️ Skipping rigging for placeholder/small model")
+
+        update_job_status(job_id, "processing", "Rigging Complete", 88)
+
+        # ========================================
+        # Step 5: Adjust Model Origin for AR
         # ========================================
         if glb_out.exists():
             glb_size = os.path.getsize(glb_out)
             if glb_size > 5000:  # Only process real models
-                log(job_id, "🔧 Step 4: Adjusting model origin for AR...")
-                update_job_status(job_id, "processing", "Adjusting Origin", 93)
+                log(job_id, "🔧 Step 5/5: Adjusting model origin for AR...")
+                update_job_status(job_id, "processing", "Adjusting Origin", 90)
 
                 success = recenter_glb_origin_to_bottom(str(glb_out), job_id)
                 if success:

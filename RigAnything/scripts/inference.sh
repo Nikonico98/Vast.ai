@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Usage: ./inference.sh <mesh_path> <mesh_simplify (true/false)> <simplify_count>
 
@@ -25,6 +26,21 @@ DATA_NAME="${1##*/}"
 
 # Ensure we run from project root so relative imports work
 cd "$PROJECT_ROOT"
+
+# Helper: run a Python script via Blender so that bpy is available,
+# while also keeping access to venv site-packages.
+SITE_PACKAGES="$(python -c 'import site; print(site.getsitepackages()[0])')"
+run_with_bpy() {
+    blender --background --python-expr "
+import sys, os
+sys.path.insert(0, '/usr/lib/python3.12/lib-dynload')
+sys.path.append('$SITE_PACKAGES')
+sys.path.insert(0, '$PROJECT_ROOT')
+os.chdir('$PROJECT_ROOT')
+sys.argv = sys.argv[sys.argv.index('--')+1:]
+exec(open(sys.argv[0]).read())
+" -- "$@"
+}
 
 # Step 0: Create output directory (use absolute path)
 OUTPUT_DIR="$PROJECT_ROOT/outputs/${DATA_NAME%.glb}/"

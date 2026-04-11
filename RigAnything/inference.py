@@ -207,6 +207,8 @@ print(job_overview)
 module, class_name = config.model.class_name.rsplit(".", 1)
 Gaussians2Rig = importlib.import_module(module).__dict__[class_name]
 model = Gaussians2Rig(config, device=device).to(device)
+if config.inference:
+    model = model.half()  # Use fp16 for inference to reduce VRAM
 model_overview = model.get_overview()
 
 ##############################################################################################################

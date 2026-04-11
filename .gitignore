@@ -2,27 +2,52 @@
 .env
 *.env
 
+# Large model checkpoints
+RigAnything/ckpt/
+sam-3d-objects/checkpoints/
+sam3/checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# Ngrok binary
+ngrok
+
+# External repos (cloned separately)
+IW/
+sam-3d-objects/
+sam3/
+
 # Logs
 logs/
 *.log
 
-# Data files (generated at runtime)
+# Data files
 backend/data/
 data/
+gpu_data/
+outputs/
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+.eggs/
+
+# Virtual environments
+.venv*/
+.hf_home/
+backend/env
 
 # Jupyter
 .ipynb_checkpoints/
 
-# OS
+# System
 .DS_Store
 Thumbs.db
-
-# Temp/data
+*.swp
+*.swo
 *.bak
-backend/env
