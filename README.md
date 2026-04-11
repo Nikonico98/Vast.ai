@@ -26,9 +26,9 @@ User's Phone Browser / 用户手机浏览器
                │  (only for 3D generation / 只在生成 3D 时调用)
                ▼
 ┌─────────────────────────────┐
-│  Vast.ai (GPU Worker)       │  ← On-demand, shut down after use / 按需开关
-│  - Photo → 3D model         │     Converts photos to 3D models
-│  - Requires GPU              │     需要 GPU，所以独立出来
+│  Vast.ai (GPU Worker)       │  ← Auto-discovered by label / 按 label 自动发现
+│  - Photo → 3D model         │     Connects via public IP + port (no manual URL)
+│  - Requires GPU              │     需要 GPU，按 label 自动查找 IP 和端口
 └─────────────────────────────┘
                +
 ┌─────────────────────────────┐
@@ -161,8 +161,12 @@ OPENAI_MODEL=gpt-5.2
 # Luma AI (fictional image generation / 虚构图片生成)
 LUMA_API_KEY=luma-xxxxxxxxxxxxxxxxxxxx
 
-# Vast.ai GPU worker URL / GPU 工作站地址
-VASTAI_GPU_URL=https://xxxx.ngrok.app
+# Vast.ai GPU (auto-discovers URL & instance by label / 根据 label 自动发现 URL 和实例)
+VASTAI_API_KEY=xxxxxxxxxxxxxxxxxxxx
+VASTAI_INSTANCE_LABEL=Eric,Niko
+# Leave both empty for full auto-discovery / 留空即全自动发现:
+VASTAI_GPU_URL=
+VASTAI_INSTANCE_ID=
 
 # Shared secret between servers / 两台服务器之间的通信密钥
 GPU_API_SECRET=my-super-secret-key-123
@@ -225,8 +229,8 @@ A: Check `LUMA_API_KEY`. If Luma fails, the system now generates a placeholder i
 检查 `LUMA_API_KEY`。如果 Luma 失败，系统现在会自动生成占位图（查看 journey.json 中的 `fictional_image_source` 字段）。
 
 **Q: 3D model stuck loading? / 3D 模型一直加载？**
-A: Vast.ai GPU may be off, or `VASTAI_GPU_URL` expired (ngrok changes URL each restart).
-Vast.ai GPU 可能没开，或 `VASTAI_GPU_URL` 过期了（ngrok 每次重启换地址）。
+A: Vast.ai GPU may be off. The system auto-discovers GPU instances by label — make sure your Vast.ai instance label matches `VASTAI_INSTANCE_LABEL` in `.env` (default: `Eric,Niko`). Check `/api/gpu/status` to verify connectivity.
+Vast.ai GPU 可能没开。系统会根据 label 自动发现 GPU 实例——确保 Vast.ai 实例的 label 与 `.env` 中的 `VASTAI_INSTANCE_LABEL` 一致（默认：`Eric,Niko`）。检查 `/api/gpu/status` 验证连接。
 
 **Q: Want to change AI personality? / 想改 AI 风格？**
 A: Edit `backend/templates/prompt.md` — no server restart needed.
@@ -238,4 +242,4 @@ A: Visit `/test` or add `?test=1` — all data goes to `data_test/` instead.
 
 ---
 
-_Last updated / 最后更新: 2026-04-01_
+_Last updated / 最后更新: 2026-04-11_

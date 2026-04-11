@@ -3327,6 +3327,9 @@ class StoryController {
     // 🔗 Store event data globally for AR launcher
     window.currentEventData = eventData;
 
+    // Fire-and-forget: restart GPU services for next round (no await needed)
+    fetch('/api/gpu/services/restart', { method: 'POST' }).catch(() => {});
+
     // Navigate to event result page FIRST (before any DOM updates that might error)
     this.navigateTo(PAGES.EVENT_RESULT);
 

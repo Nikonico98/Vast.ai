@@ -37,7 +37,7 @@
 | File / 文件 | When to use / 什么时候用 | Description / 说明 |
 |:------------|:------------------------|:-------------------|
 | `app.py` | 🏪 **Main entry point** / 主入口 | The "reception desk" — all 42 API routes live here. Handles auth, story flow, photo events, 3D job creation, file serving, AR routing, and test mode. / 「前台接待」——所有 42 个 API 路由都在这里。处理认证、故事流程、照片事件、3D 任务创建、文件服务、AR 路由和测试模式。 |
-| `config.py` | ⚙️ **Settings** / 配置 | All configuration in one place — API keys, model names, directory paths, temperature, fallback values. Reads from `.env` file. / 所有配置集中管理——API 密钥、模型名称、目录路径、温度、兜底值。从 `.env` 文件读取。 |
+| `config.py` | ⚙️ **Settings** / 配置 | All configuration in one place — API keys, model names, directory paths, temperature, fallback values. Reads from `.env` file. Includes **Vast.ai auto-discovery**: automatically finds running GPU instances by label and resolves their public IP + port via Vast.ai API (with health-check validation and 5-minute cache). / 所有配置集中管理——API 密钥、模型名称、目录路径、温度、兜底值。从 `.env` 文件读取。包含 **Vast.ai 自动发现**：根据 label 自动查找运行中的 GPU 实例，通过 Vast.ai API 解析公网 IP + 端口（带健康检查验证和 5 分钟缓存）。 |
 | `ai_service.py` | 🤖 **AI integration** / AI 集成 | Communicates with OpenAI (chat, vision, story, event generation) and Luma AI (fictional image generation). Includes **retry with backoff** (3 attempts, 3s/6s delays) and **placeholder image fallback** using Pillow. Tracks image source as `"luma"` or `"placeholder"`. / 与 OpenAI（聊天、视觉、故事、事件生成）和 Luma AI（虚构图片生成）通信。包含**带退避的重试**（3 次尝试，3s/6s 延迟）和 Pillow **占位图兜底**。追踪图片来源为 `"luma"` 或 `"placeholder"`。 |
 | `gpu_client.py` | 📡 **GPU worker client** / GPU 客户端 | HTTP client for Vast.ai GPU worker — submits images for 3D generation, polls status, downloads .glb results. Full pipeline: submit → poll → download. / Vast.ai GPU 工作站的 HTTP 客户端——提交图片生成 3D、轮询状态、下载 .glb 结果。完整流水线：提交 → 轮询 → 下载。 |
 | `database.py` | 🗄️ **Database** / 数据库 | SQLite user accounts (`users` table) and story records (`stories` table). Handles registration, login verification, story CRUD. / SQLite 用户账号（`users` 表）和故事记录（`stories` 表）。处理注册、登录验证、故事增删改查。 |
@@ -135,12 +135,14 @@ OPENAI_TEMPERATURE=0.5
 LUMA_API_KEY=luma-xxxxxxxxxxxxxxxxxxxx
 LUMA_MODEL=photon-1
 
-# Vast.ai GPU worker / GPU 工作站
-VASTAI_GPU_URL=https://xxxx.ngrok.app
+# Vast.ai GPU (auto-discovery) / GPU 工作站（自动发现）
+VASTAI_API_KEY=xxxxxxxxxxxxxxxxxxxx
+VASTAI_INSTANCE_LABEL=Eric,Niko          # Match running instances by label / 根据 label 匹配运行中的实例
+VASTAI_GPU_CONTAINER_PORT=1111            # Container port: socat → GPU service / 容器端口：socat → GPU 服务
+# Leave empty for auto-discovery, or set manually to override / 留空自动发现，或手动设置覆盖:
+VASTAI_GPU_URL=
+VASTAI_INSTANCE_ID=
 GPU_API_SECRET=my-super-secret-key-123
-VASTAI_BEARER_TOKEN=xxxxxxxxxx
-VASTAI_API_KEY=xxxxxxxxxx
-VASTAI_INSTANCE_ID=xxxxxxxxxx
 
 # Flask session secret / Flask 会话密钥
 SECRET_KEY=another-random-secret
@@ -244,8 +246,12 @@ A: Check `LUMA_API_KEY` and Luma AI account quota. Check server logs for `[LUMA]
 检查 `LUMA_API_KEY` 和 Luma AI 账户配额。查看服务器日志中的 `[LUMA]` 条目了解发生了什么错误。journey.json 中的 `fictional_image_source` 字段会显示 `"placeholder"`。
 
 **Q: 3D model stuck loading? / 3D 模型一直加载？**
-A: Vast.ai GPU may be off, or `VASTAI_GPU_URL` expired (ngrok changes URL each restart). Check `/api/gpu/status` endpoint.
-Vast.ai GPU 可能没开，或 `VASTAI_GPU_URL` 过期了。检查 `/api/gpu/status` 接口。
+A: Vast.ai GPU may be off. The system auto-discovers GPU instances by label — make sure your Vast.ai instance label matches `VASTAI_INSTANCE_LABEL` in `.env` (default: `Eric,Niko`). If multiple instances share the same label, the system verifies each with a health check and picks the first healthy one. Check `/api/gpu/status` to verify connectivity.
+Vast.ai GPU 可能没开。系统会根据 label 自动发现 GPU 实例——确保 Vast.ai 实例的 label 与 `.env` 中的 `VASTAI_INSTANCE_LABEL` 一致（默认：`Eric,Niko`）。如果多个实例使用相同 label，系统会逐个进行健康检查，选出第一个健康的。检查 `/api/gpu/status` 验证连接。
+
+**Q: Switched to a new GPU instance? / 换了新的 GPU 实例？**
+A: No config changes needed! As long as the new instance's label in Vast.ai matches `VASTAI_INSTANCE_LABEL`, the system auto-discovers the new IP and port within 5 minutes (cache TTL). To force immediate refresh, restart the backend.
+不需要改任何配置！只要新实例在 Vast.ai 上的 label 与 `VASTAI_INSTANCE_LABEL` 一致，系统会在 5 分钟内（缓存 TTL）自动发现新的 IP 和端口。要立即刷新，重启后端即可。
 
 **Q: Want to change AI personality? / 想改 AI 风格？**
 A: Edit `templates/prompt.md` — no server restart needed. The backend auto-reloads on each API call.
@@ -257,4 +263,4 @@ A: Visit `/test` or add `?test=1` — all data goes to `data_test/` instead of `
 
 ---
 
-_Last updated / 最后更新: 2026-04-01_
+_Last updated / 最后更新: 2026-04-11_

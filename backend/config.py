@@ -55,6 +55,8 @@ RUNPOD_POD_ID = os.getenv("RUNPOD_POD_ID", "")
 # Vast.ai keys
 VASTAI_API_KEY = os.getenv("VASTAI_API_KEY", "")
 VASTAI_INSTANCE_ID = os.getenv("VASTAI_INSTANCE_ID", "")
+VASTAI_INSTANCE_LABEL = os.getenv("VASTAI_INSTANCE_LABEL", "Eric,Niko")
+_VASTAI_LABELS = [l.strip() for l in VASTAI_INSTANCE_LABEL.split(",") if l.strip()]
 VASTAI_BEARER_TOKEN = os.getenv("VASTAI_BEARER_TOKEN", "")
 VASTAI_GPU_CONTAINER_PORT = int(os.getenv("VASTAI_GPU_CONTAINER_PORT", "1111"))
 
@@ -94,6 +96,89 @@ def _resolve_runpod_url() -> str:
     return _gpu_url_cache.get("runpod", "") or ""
 
 
+def _extract_vastai_url(instance: dict) -> str:
+    """Extract GPU URL from a Vast.ai instance dict."""
+    public_ip = instance.get("public_ipaddr", "")
+    ports = instance.get("ports") or {}
+    port_key = f"{VASTAI_GPU_CONTAINER_PORT}/tcp"
+    if not (public_ip and port_key in ports):
+        return ""
+    port_info = ports[port_key]
+    if isinstance(port_info, list) and port_info:
+        external_port = port_info[0].get("HostPort", "")
+    elif isinstance(port_info, dict):
+        external_port = port_info.get("HostPort", "")
+    else:
+        return ""
+    return f"http://{public_ip}:{external_port}" if external_port else ""
+
+
+def _resolve_vastai_instance_id() -> str:
+    """Auto-discover Vast.ai instance ID by label if not set.
+    When multiple candidates exist, verifies GPU health to pick the right one."""
+    global VASTAI_INSTANCE_ID
+    if VASTAI_INSTANCE_ID:
+        return VASTAI_INSTANCE_ID
+    # Check cache
+    cached = _gpu_url_cache.get("vastai_instance_id")
+    if cached and (time.time() - _gpu_url_cache.get("ts_vastai_id", 0)) < _GPU_URL_CACHE_TTL:
+        return cached
+    if not VASTAI_API_KEY:
+        return ""
+    try:
+        r = _requests.get(
+            "https://console.vast.ai/api/v0/instances/",
+            headers={"Authorization": f"Bearer {VASTAI_API_KEY}"},
+            timeout=15,
+        )
+        data = r.json()
+        instances = data.get("instances", data) if isinstance(data, dict) else data
+        if not isinstance(instances, list):
+            instances = [instances] if instances else []
+        # Filter: running instances matching the label with the expected port
+        candidates = [
+            i for i in instances
+            if i.get("actual_status") == "running"
+            and (not _VASTAI_LABELS or i.get("label") in _VASTAI_LABELS)
+            and f"{VASTAI_GPU_CONTAINER_PORT}/tcp" in (i.get("ports") or {})
+        ]
+        if not candidates:
+            return ""
+        if len(candidates) == 1:
+            instance_id = str(candidates[0]["id"])
+        else:
+            # Multiple candidates — verify GPU health to pick the right one
+            instance_id = ""
+            candidates.sort(key=lambda i: i.get("start_date", 0), reverse=True)
+            for c in candidates:
+                url = _extract_vastai_url(c)
+                if not url:
+                    continue
+                try:
+                    hr = _requests.get(
+                        f"{url}/api/gpu/health",
+                        headers={"X-GPU-API-Key": GPU_API_SECRET},
+                        timeout=8,
+                    )
+                    if hr.status_code == 200 and hr.json().get("status") in ("ok", "healthy"):
+                        instance_id = str(c["id"])
+                        # Cache the verified URL too
+                        _gpu_url_cache["vastai"] = url
+                        _gpu_url_cache["ts_vastai"] = time.time()
+                        break
+                except Exception:
+                    continue
+            if not instance_id:
+                # Fallback: pick newest if none passed health check
+                instance_id = str(candidates[0]["id"])
+        _gpu_url_cache["vastai_instance_id"] = instance_id
+        _gpu_url_cache["ts_vastai_id"] = time.time()
+        return instance_id
+    except Exception:
+        pass
+    return _gpu_url_cache.get("vastai_instance_id", "") or ""
+
+
 def _resolve_vastai_url() -> str:
     """Resolve Vast.ai GPU URL (static or auto-discover)."""
     if VASTAI_GPU_URL_OVERRIDE:
@@ -101,10 +186,14 @@ def _resolve_vastai_url() -> str:
     now = time.time()
     if _gpu_url_cache["vastai"] and (now - _gpu_url_cache["ts_vastai"]) < _GPU_URL_CACHE_TTL:
         return _gpu_url_cache["vastai"]
-    if VASTAI_API_KEY and VASTAI_INSTANCE_ID:
+    instance_id = _resolve_vastai_instance_id()
+    # If instance discovery already cached the URL, return it
+    if _gpu_url_cache["vastai"] and (time.time() - _gpu_url_cache["ts_vastai"]) < _GPU_URL_CACHE_TTL:
+        return _gpu_url_cache["vastai"]
+    if VASTAI_API_KEY and instance_id:
         try:
             r = _requests.get(
-                f"https://console.vast.ai/api/v0/instances/{VASTAI_INSTANCE_ID}/",
+                f"https://console.vast.ai/api/v0/instances/{instance_id}/",
                 headers={"Authorization": f"Bearer {VASTAI_API_KEY}"},
                 timeout=15,
             )
@@ -112,22 +201,11 @@ def _resolve_vastai_url() -> str:
             instance = data.get("instances", data)
             if isinstance(instance, list):
                 instance = instance[0] if instance else {}
-            public_ip = instance.get("public_ipaddr", "")
-            ports = instance.get("ports", {})
-            port_key = f"{VASTAI_GPU_CONTAINER_PORT}/tcp"
-            if ports and port_key in ports:
-                port_info = ports[port_key]
-                if isinstance(port_info, list) and port_info:
-                    external_port = port_info[0].get("HostPort", "")
-                elif isinstance(port_info, dict):
-                    external_port = port_info.get("HostPort", "")
-                else:
-                    external_port = ""
-                if public_ip and external_port:
-                    url = f"http://{public_ip}:{external_port}"
-                    _gpu_url_cache["vastai"] = url
-                    _gpu_url_cache["ts_vastai"] = now
-                    return url
+            url = _extract_vastai_url(instance)
+            if url:
+                _gpu_url_cache["vastai"] = url
+                _gpu_url_cache["ts_vastai"] = now
+                return url
         except Exception:
             pass
     return _gpu_url_cache.get("vastai", "") or ""
