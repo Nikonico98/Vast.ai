@@ -5,6 +5,10 @@
 # Resolve the project root (parent of scripts/)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BLENDER_RUN="$SCRIPT_DIR/blender_run.py"
+
+# Python command: use blender for bpy support (must run outside venv)
+PYCMD="env -u VIRTUAL_ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin blender --background --python $BLENDER_RUN --"
 
 # Check if an argument is provided
 if [ $# -lt 3 ]; then
@@ -30,9 +34,9 @@ touch "$INFERENCE_LOG"
 
 # Step 1: Run mesh simplification if specified
 echo "---------------------------Step 1: Mesh Simplification---------------------------"
-echo "Executing: python inference_utils/mesh_simplify.py --data_path $DATA_PATH --mesh_simplify $MESH_SIMPLIFY --simplify_count $MESH_SIMPLIFY_COUNT --output_path $OUTPUT_DIR   "
+echo "Executing: mesh_simplify.py --data_path $DATA_PATH --mesh_simplify $MESH_SIMPLIFY --simplify_count $MESH_SIMPLIFY_COUNT --output_path $OUTPUT_DIR"
 echo " "
-python inference_utils/mesh_simplify.py \
+$PYCMD "$PROJECT_ROOT/inference_utils/mesh_simplify.py" \
     --data_path "$DATA_PATH" \
     --mesh_simplify "$MESH_SIMPLIFY" \
     --simplify_count "$MESH_SIMPLIFY_COUNT" \
@@ -43,9 +47,9 @@ MESH_SIMPLIFIED_PATH="$OUTPUT_DIR/${DATA_NAME%.glb}_simplified.glb"
 
 # Step 2: Run RigAnything inference
 echo "--------------------------Step 2: RigAnything Inference---------------------------"
-echo "Executing: python inference.py --config config.yaml --load ckpt/riganything_ckpt.pt -s inference true -s inference_out_dir outputs --mesh_path $MESH_SIMPLIFIED_PATH"
+echo "Executing: inference.py --config config.yaml --load ckpt/riganything_ckpt.pt --mesh_path $MESH_SIMPLIFIED_PATH"
 echo " "
-python inference.py \
+$PYCMD "$PROJECT_ROOT/inference.py" \
     --config "$PROJECT_ROOT/config.yaml" \
     --load "$PROJECT_ROOT/ckpt/riganything_ckpt.pt" \
     -s inference true \
@@ -56,12 +60,12 @@ python inference.py \
 
 INFERENCE_OUTPUT_NPZ_PATH="$OUTPUT_DIR/${DATA_NAME%.glb}_simplified.npz"
 
-# # Step 3: Run visualization
+# Step 3: Run visualization
 echo "---------------------------Step 3: Visualization----------------------------------"
-echo "Executing: python inference_utils/vis_skel.py --data_path $INFERENCE_OUTPUT_NPZ_PATH --save_path $OUTPUT_DIR --mesh_path $MESH_SIMPLIFIED_PATH"
+echo "Executing: vis_skel.py --data_path $INFERENCE_OUTPUT_NPZ_PATH --save_path $OUTPUT_DIR --mesh_path $MESH_SIMPLIFIED_PATH"
 echo "---------------------------------------------------------------------------------"
 echo " "
-python inference_utils/vis_skel.py \
+$PYCMD "$PROJECT_ROOT/inference_utils/vis_skel.py" \
     --data_path "$INFERENCE_OUTPUT_NPZ_PATH" \
     --save_path "$OUTPUT_DIR" \
     --mesh_path "$MESH_SIMPLIFIED_PATH" >> "$INFERENCE_LOG" 2>&1

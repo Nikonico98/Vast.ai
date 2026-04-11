@@ -514,7 +514,7 @@ def gpu_download(job_id):
     @flask_after_this_request
     def _cleanup_glb(response):
         if response.status_code == 200:
-            _delete_file_safe(glb_path, "GLB", job_id)
+            _schedule_delete(glb_path, "GLB", job_id)
         return response
 
     return send_file(
@@ -534,6 +534,21 @@ def _delete_file_safe(path: str, label: str, job_id: str):
             log("GPU_API", f"[{job_id}] Auto-deleted {label}: {path}")
     except Exception as e:
         log("GPU_API", f"[{job_id}] Failed to delete {label}: {e}")
+
+
+# Delay (seconds) before auto-deleting files after download.
+AUTO_DELETE_DELAY = int(os.getenv("AUTO_DELETE_DELAY", 3600))  # default 1 hour
+
+
+def _schedule_delete(path: str, label: str, job_id: str):
+    """Schedule a file for deletion after AUTO_DELETE_DELAY seconds."""
+    if AUTO_DELETE_DELAY <= 0:
+        _delete_file_safe(path, label, job_id)
+        return
+    log("GPU_API", f"[{job_id}] Scheduled {label} deletion in {AUTO_DELETE_DELAY}s: {path}")
+    t = threading.Timer(AUTO_DELETE_DELAY, _delete_file_safe, args=(path, label, job_id))
+    t.daemon = True
+    t.start()
 
 
 @app.route("/api/gpu/download_cutout/<job_id>", methods=["GET"])
@@ -558,7 +573,7 @@ def gpu_download_cutout(job_id):
     @flask_after_this_request
     def _cleanup_cutout(response):
         if response.status_code == 200:
-            _delete_file_safe(cutout_path, "cutout", job_id)
+            _schedule_delete(cutout_path, "cutout", job_id)
         return response
 
     return send_file(

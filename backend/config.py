@@ -31,6 +31,11 @@ SAM3D_REPO = os.getenv("SAM3D_REPO", os.path.join(WORKSPACE, "sam-3d-objects"))
 SAM3D_CHECKPOINT = os.getenv("SAM3D_CHECKPOINT", "hf")
 
 # ==========================================
+# RigAnything Configuration
+# ==========================================
+RIGANYTHING_DIR = Path(os.getenv("RIGANYTHING_DIR", os.path.join(WORKSPACE, "IW", "RigAnything")))
+
+# ==========================================
 # Hugging Face Token
 # ==========================================
 HF_TOKEN = os.getenv("HF_TOKEN", "")

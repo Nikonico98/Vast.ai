@@ -30,7 +30,7 @@ from typing import List
 
 from config import (
     WORKSPACE, SAM3_ENV, SAM3_REPO, SAM3D_ENV, SAM3D_REPO, SAM3D_CHECKPOINT,
-    HF_TOKEN, TEMP_FOLDER, RESULT_FOLDER
+    HF_TOKEN, TEMP_FOLDER, RESULT_FOLDER, RIGANYTHING_DIR
 )
 from job_manager import (
     log, load_jobs, save_jobs, update_job_status,
@@ -64,6 +64,15 @@ def _get_gpu_pipeline_lock(gpu_id: int) -> threading.Lock:
             _GPU_PIPELINE_LOCKS[gpu_id] = threading.Lock()
         return _GPU_PIPELINE_LOCKS[gpu_id]
 
+_GPU_SAM3D_LOCKS = {}
+
+def _get_sam3d_gpu_lock(gpu_id: int) -> threading.Lock:
+    """Get or create a per-GPU SAM3D subprocess lock."""
+    with _GPU_LOCKS_INIT:
+        if gpu_id not in _GPU_SAM3D_LOCKS:
+            _GPU_SAM3D_LOCKS[gpu_id] = threading.Lock()
+        return _GPU_SAM3D_LOCKS[gpu_id]
+
 # ==========================================
 # Model Server Configuration (Dual-GPU)
 # ==========================================
@@ -87,6 +96,128 @@ def _get_sam3d_server_url(gpu_id):
     if gpu_id == 1:
         return SAM3D_SERVER_URL_GPU1
     return SAM3D_SERVER_URL_GPU0
+
+
+# ==========================================
+# Model Server Port Mapping
+# ==========================================
+_SERVER_PORTS = {
+    0: {"sam3": 5561, "sam3d": 5562},
+    1: {"sam3": 5571, "sam3d": 5572},
+}
+
+
+def _stop_model_servers(gpu_id, job_id=None):
+    """Kill SAM3 + SAM3D server processes on a given GPU to free VRAM.
+
+    Uses ``fuser -k`` to terminate processes listening on the known ports.
+    After killing, sleeps briefly to allow VRAM to be released.
+    """
+    ports = _SERVER_PORTS.get(gpu_id, _SERVER_PORTS[0])
+    if job_id:
+        log(job_id, f"   🛑 Stopping SAM3+SAM3D servers on GPU {gpu_id} (ports {ports['sam3']}, {ports['sam3d']})...")
+
+    for name, port in ports.items():
+        try:
+            subprocess.run(
+                ["fuser", "-k", f"{port}/tcp"],
+                capture_output=True, timeout=10,
+            )
+        except Exception as exc:
+            if job_id:
+                log(job_id, f"   ⚠️ Failed to stop {name} on port {port}: {exc}")
+
+    # Give VRAM a moment to be released by the OS / driver
+    time.sleep(3)
+    if job_id:
+        log(job_id, f"   ✅ SAM3+SAM3D servers stopped, VRAM freed on GPU {gpu_id}")
+
+
+def _run_riganything(job_id, glb_path, gpu_id):
+    """Run the 3-step RigAnything pipeline on a GLB file.
+
+    1. Stop SAM3 + SAM3D servers on this GPU (free VRAM).
+    2. mesh simplification  →  RigAnything inference  →  vis_skel export.
+    3. Copy the rigged GLB back over the original path.
+
+    Servers are **not** restarted here; the Hostinger Event-Result page
+    will call ``POST /api/gpu/restart`` asynchronously.
+
+    Returns True on success, False on failure.
+    """
+    rig_start = time.time()
+    glb_path = Path(glb_path)
+
+    # --- 1. Stop model servers to free VRAM ---
+    _stop_model_servers(gpu_id, job_id)
+
+    # --- 2. Prepare RigAnything working directory ---
+    stem = glb_path.stem                               # e.g. "job_20260411_154530_xyz789"
+    output_dir = RIGANYTHING_DIR / "outputs" / stem
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Backup original GLB so we can restore on failure
+    backup_path = glb_path.with_suffix(".glb.bak")
+    shutil.copy2(str(glb_path), str(backup_path))
+
+    try:
+        # --- 3. Run inference.sh (3-step pipeline) ---
+        #   Args: <glb_path> <simplify: 0|1> <max_faces>
+        #   simplify=1 with max_faces=80000 caps mesh to 80K faces (~8GB VRAM peak)
+        inference_sh = RIGANYTHING_DIR / "scripts" / "inference.sh"
+        cmd = (
+            f'export CUDA_VISIBLE_DEVICES={gpu_id}; '
+            f'bash "{inference_sh}" "{glb_path}" 1 80000'
+        )
+
+        log(job_id, f"   🦴 Running RigAnything inference (GPU {gpu_id})...")
+        result = subprocess.run(
+            ["bash", "-c", cmd],
+            cwd=str(RIGANYTHING_DIR),
+            capture_output=True, text=True,
+            timeout=600,
+        )
+
+        # Log output summary
+        if result.stdout:
+            for line in result.stdout.strip().split('\n')[-5:]:
+                log(job_id, f"      {line}")
+        if result.returncode != 0:
+            log(job_id, f"   ❌ RigAnything failed (exit {result.returncode})")
+            if result.stderr:
+                for line in result.stderr.strip().split('\n')[-5:]:
+                    log(job_id, f"      {line}")
+            raise RuntimeError(f"inference.sh exited with {result.returncode}")
+
+        # --- 4. Locate the rigged GLB and copy back ---
+        rigged_glb = output_dir / f"{stem}_simplified_rig.glb"
+        if not rigged_glb.exists() or os.path.getsize(rigged_glb) < 1000:
+            raise FileNotFoundError(f"Rigged GLB not found or too small: {rigged_glb}")
+
+        shutil.copy2(str(rigged_glb), str(glb_path))
+        rig_time = time.time() - rig_start
+        log(job_id, f"   ✅ RigAnything complete ({rig_time:.1f}s) — rigged GLB copied to {glb_path.name}")
+
+        # Remove backup
+        backup_path.unlink(missing_ok=True)
+        return True
+
+    except Exception as exc:
+        rig_time = time.time() - rig_start
+        log(job_id, f"   ⚠️ RigAnything failed after {rig_time:.1f}s: {exc}")
+        log(job_id, f"   ↩️ Restoring original (unrigged) GLB")
+        # Restore backup
+        if backup_path.exists():
+            shutil.copy2(str(backup_path), str(glb_path))
+            backup_path.unlink(missing_ok=True)
+        return False
+
+    finally:
+        # --- 5. Clean up RigAnything working directory ---
+        try:
+            shutil.rmtree(str(output_dir), ignore_errors=True)
+        except Exception:
+            pass
 
 
 def _is_server_available(base_url, timeout=2):
@@ -570,7 +701,26 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
             else:
                 log(job_id, "   ⚠️ Skipping origin adjustment for placeholder model")
 
-        update_job_status(job_id, "processing", "SAM3D Complete", 95)
+        update_job_status(job_id, "processing", "SAM3D Complete", 90)
+
+        # ========================================
+        # Step 5: RigAnything Skeleton Rigging
+        # ========================================
+        rig_time = 0.0
+        if glb_out.exists() and os.path.getsize(glb_out) > 5000:
+            log(job_id, "🦴 Step 5: RigAnything skeleton rigging...")
+            update_job_status(job_id, "processing", "RigAnything Rigging", 92)
+
+            rig_ok = _run_riganything(job_id, glb_out, gpu_id)
+            if rig_ok:
+                rig_time = time.time() - start_time - sam3_time - sam3d_total_time
+                log(job_id, f"   📊 Rigging added {os.path.getsize(glb_out):,} bytes rigged GLB")
+            else:
+                log(job_id, "   ⚠️ Rigging failed, continuing with unrigged model")
+        else:
+            log(job_id, "   ⚠️ Skipping rigging for placeholder model")
+
+        update_job_status(job_id, "processing", "Finalizing", 97)
 
         # ========================================
         # Finalize
@@ -586,6 +736,7 @@ def _run_3d_pipeline_internal(job_id: str, image_path: str, prompt: str,
         log(job_id, f"   - Total time: {total_time:.1f}s ({total_time/60:.1f}min)")
         log(job_id, f"   - SAM3: {sam3_time:.1f}s")
         log(job_id, f"   - SAM3D: {sam3d_total_time:.1f}s")
+        log(job_id, f"   - RigAnything: {rig_time:.1f}s")
         log(job_id, f"   📁 Final Results:")
         log(job_id, f"   - GLB file: {glb_out}")
         log(job_id, f"   - GLB exists: {'✅' if final_glb_exists else '❌'}")

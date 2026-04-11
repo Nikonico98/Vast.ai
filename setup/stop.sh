@@ -36,6 +36,13 @@ pkill -9 -f "python.*gpu_app.py" 2>/dev/null && echo "   ✅ GPU Service stopped
 # 释放 GPU Service 端口
 fuser -k 5555/tcp 2>/dev/null || true
 
+# ==========================================
+# 停止 Socat 端口转发
+# ==========================================
+echo ""
+echo "🚪 Stopping socat port forwarding..."
+pkill -f "socat TCP-LISTEN:1111" 2>/dev/null && echo "   ✅ Socat (1111→5555) stopped" || echo "   ⚪ Socat was not running"
+
 echo ""
 echo "🎉 All services stopped"
 echo ""

@@ -115,6 +115,19 @@ else
 fi
 
 # ==========================================
+# 启动 Socat 端口转发 (1111 → 5555)
+# ==========================================
+echo ""
+echo "🚪 Starting socat port forwarding (1111 → $GPU_PORT)..."
+SOCAT_SCRIPT="$SCRIPT_DIR/socat_port_forward.sh"
+if [ -f "$SOCAT_SCRIPT" ]; then
+    chmod +x "$SOCAT_SCRIPT"
+    SOCAT_TARGET_PORT=$GPU_PORT bash "$SOCAT_SCRIPT" start
+else
+    echo "   ⚠️ socat_port_forward.sh not found, skipping"
+fi
+
+# ==========================================
 # 启动 SAM3/SAM3D 持久化模型服务器
 # ==========================================
 echo ""
