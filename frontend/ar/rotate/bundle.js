@@ -1,1 +1,1037 @@
-(()=>{"use strict";function t(e){return t="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t},t(e)}function e(e,n,o){return(n=function(e){var n=function(e){if("object"!=t(e)||!e)return e;var n=e[Symbol.toPrimitive];if(void 0!==n){var o=n.call(e,"string");if("object"!=t(o))return o;throw new TypeError("@@toPrimitive must return a primitive value.")}return String(e)}(e);return"symbol"==t(n)?n:n+""}(n))in e?Object.defineProperty(e,n,{value:o,enumerable:!0,configurable:!0,writable:!0}):e[n]=o,e}function n(t,e){var n=Object.keys(t);if(Object.getOwnPropertySymbols){var o=Object.getOwnPropertySymbols(t);e&&(o=o.filter(function(e){return Object.getOwnPropertyDescriptor(t,e).enumerable})),n.push.apply(n,o)}return n}function o(t){for(var o=1;o<arguments.length;o++){var i=null!=arguments[o]?arguments[o]:{};o%2?n(Object(i),!0).forEach(function(n){e(t,n,i[n])}):Object.getOwnPropertyDescriptors?Object.defineProperties(t,Object.getOwnPropertyDescriptors(i)):n(Object(i)).forEach(function(e){Object.defineProperty(t,e,Object.getOwnPropertyDescriptor(i,e))})}return t}console.log("✅ RotateItem AR Interaction loaded");var i={enabled:!1,realGlb:"#realModelAsset",fictionalGlb:"#fictionalModelAsset",itemName:"Test Fictional Item"},a=function(){var e={checkpoint:{minAngle:30,totalChecks:3,messages:["Keep Try","Try one more",null],resetDelay:300},ringColor:{base:"rgba(255, 255, 255, 0.3)",active:"rgba(208, 188, 255, 0.85)",reached:"rgba(126, 87, 194, 0.9)"},bounce:{initialHeight:.3,damping:.4,bounceDuration:350,bounceCount:3,squashStretch:[{squashY:.7,stretchY:1.25,squashXZ:1.2,stretchXZ:.85},{squashY:.8,stretchY:1.15,squashXZ:1.15,stretchXZ:.9},{squashY:.88,stretchY:1.08,squashXZ:1.08,stretchXZ:.95}]},animation:{transitionDuration:100,rotationDuration:200}},n=window.ROTATE_CONFIG;if(!n||"object"!==t(n))return e;for(var i={},a=0,r=Object.keys(e);a<r.length;a++){var s=r[a];e[s]&&"object"===t(e[s])&&!Array.isArray(e[s])&&n[s]&&"object"===t(n[s])&&!Array.isArray(n[s])?i[s]=o(o({},e[s]),n[s]):i[s]=s in n?n[s]:e[s]}return console.log("⚙️ ROTATE_CONFIG merged from ar-config.js",i),i}(),r={initialRotationY:null,currentRotationY:0,rotationProgress:0,hasStarted:!1,itemNameShown:!1,realModel:null,fictionalModel:null,positionHolder:null,realGlbUrl:null,fictionalGlbUrl:null,itemName:null,realName:null,currentCheck:0,handleNumber:0,currentCheckpointAngle:0,startCheckpointDistance:0,showingFictional:!1,checkpointLocked:!1,firstRevealDone:!1,isBouncing:!1,baseModelY:0,toggleCount:0};function s(t){return(t%360+360)%360}function l(t,e){var n=Math.abs(s(t)-s(e));return Math.min(n,360-n)}function c(){var t,e=a.checkpoint.minAngle,n=s(y.currentRotation),o=0;do{t=Math.round(360*Math.random()),o++}while(l(n,t)<e&&o<100);return r.currentCheckpointAngle=t,r.startCheckpointDistance=l(n,t),function(t){var e=document.getElementById("checkpoint-dot");if(e){e._fadeTimer&&(clearTimeout(e._fadeTimer),e._fadeTimer=null);var n=180-t+y.currentRotation;e.style.transform="rotate(".concat(n,"deg) translateY(-132px)"),e.classList.remove("fade-out"),e.classList.add("visible"),e._fadeTimer=setTimeout(function(){e.classList.add("fade-out"),e.classList.remove("visible")},1500)}}(t),console.log("🎯 Checkpoint target: ".concat(t,"° (distance: ").concat(Math.round(r.startCheckpointDistance),"° from ").concat(Math.round(n),"°)")),t}var d={isActive:!1,startX:0,startY:0,startModelX:0,startModelZ:0},u={elements:{},init:function(){this.elements={hint:document.getElementById("ar-hint"),interactionType:document.getElementById("interaction-type"),interactionHint:document.getElementById("interaction-hint"),status:document.getElementById("ar-status"),statusText:document.getElementById("status-text"),itemName:document.getElementById("item-name-display")},console.log("🎨 UI initialized")},show:function(){},setStatus:function(t){var e=arguments.length>1&&void 0!==arguments[1]?arguments[1]:"waiting";this.elements.status&&(this.elements.status.className="".concat(e),this.elements.status.classList.remove("ar-ui-hidden")),this.elements.statusText&&(this.elements.statusText.textContent=t)},showItemName:function(t){this.elements.itemName&&(this.elements.itemName.textContent="✨ ".concat(t),this.elements.itemName.classList.add("visible"))}};function m(t,e){if(t&&t.object3D){var n=t.object3D;n.traverse(function(t){t.isMesh&&t.material&&(Array.isArray(t.material)?t.material:[t.material]).forEach(function(n){n&&(n.transparent=!0,n.opacity=e,n.depthWrite=e>.95,n.depthTest=!0,t.renderOrder=Math.floor(100*e),n.needsUpdate=!0)})}),n.visible=!(e<=.01)}}function g(t,e){t&&t.setAttribute("visible",e)}function h(t){var e=t.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);return e?{r:+e[1],g:+e[2],b:+e[3],a:void 0!==e[4]?+e[4]:1}:{r:255,g:255,b:255,a:1}}function f(){if(r.showingFictional?(m(r.fictionalModel,0),g(r.fictionalModel,!1),m(r.realModel,1),g(r.realModel,!0),r.showingFictional=!1,u.showItemName(r.realName||"Real Item"),r.itemNameShown=!0,console.log("🔄 Switched to Real")):(m(r.realModel,0),g(r.realModel,!1),m(r.fictionalModel,1),g(r.fictionalModel,!0),r.showingFictional=!0,u.showItemName(r.itemName||"Fictional Item"),r.itemNameShown=!0,console.log("🔄 Switched to Fictional")),r.toggleCount++,console.log("🔄 Toggle #".concat(r.toggleCount)),r.toggleCount>=3){var t=document.getElementById("back-to-main");t&&!t.classList.contains("visible")&&(t.classList.add("visible"),console.log("🏠 Back button shown after",r.toggleCount,"toggles"))}}function v(t){var e=document.getElementById("handle-number");e&&(e.textContent=t,e.classList.remove("pop"),e.offsetWidth,e.classList.add("pop"),console.log("🔢 Handle number: ".concat(t)))}function b(){var t=document.getElementById("ring-track");t&&(t.style.borderColor=a.ringColor.base,t.style.boxShadow="none")}var y={isActive:!1,lastAngle:0,currentRotation:0};function p(t){if(!r.isBouncing){var e=document.getElementById("model-holder");if(e){var n=e.getAttribute("rotation")||{x:0,y:0,z:0};e.setAttribute("rotation",{x:n.x,y:t,z:n.z}),!r.hasStarted&&Math.abs(t)>1&&(r.hasStarted=!0,console.log("🔄 Rotation started")),r.currentRotationY=t,function(){if(!(r.checkpointLocked||r.isBouncing||r.startCheckpointDistance<=0)){var t=l(s(y.currentRotation),r.currentCheckpointAngle);!function(t){var e=document.getElementById("ring-track");if(e){var n,o,i,r,s,l,c,d,u,m=(n=a.ringColor.base,o=a.ringColor.active,i=t,r=h(n),s=h(o),l=Math.round(r.r+(s.r-r.r)*i),c=Math.round(r.g+(s.g-r.g)*i),d=Math.round(r.b+(s.b-r.b)*i),u=+(r.a+(s.a-r.a)*i).toFixed(3),"rgba(".concat(l,", ").concat(c,", ").concat(d,", ").concat(u,")"));if(e.style.borderColor=m,t>.3){var g=Math.round((t-.3)/.7*20);e.style.boxShadow="0 0 ".concat(g,"px rgba(208, 188, 255, ").concat((.6*t).toFixed(2),"), inset 0 0 ").concat(Math.round(.6*g),"px rgba(208, 188, 255, ").concat((.3*t).toFixed(2),")")}else e.style.boxShadow="none"}}(Math.max(0,Math.min(1,1-t/r.startCheckpointDistance))),t<=5&&function(){if(!r.checkpointLocked){r.checkpointLocked=!0;var t,e=r.currentCheck;console.log("🎯 Checkpoint ".concat(e+1,"/3 reached!")),(t=document.getElementById("sprite-burst-overlay"))&&(t.classList.remove("active"),t.offsetWidth,t.classList.add("active"),console.log("💫 Star Burst triggered!"),setTimeout(function(){t.classList.remove("active"),t.style.opacity="0",t.style.visibility="hidden"},1200));var n=a.checkpoint.messages[e];n&&function(t){if(t){var e=document.getElementById("checkpoint-message");e||((e=document.createElement("div")).id="checkpoint-message",document.body.appendChild(e)),e.textContent=t,e.classList.remove("show"),e.offsetWidth,e.classList.add("show"),setTimeout(function(){e.classList.remove("show")},2e3)}}(n),r.handleNumber=e+1,v(r.handleNumber);var o=2===e;!function(t,e){r.isBouncing=!0;var n=a.bounce,o=document.getElementById("model-holder");if(o){var i=o.getAttribute("position")||{x:0,y:0,z:0};r.baseModelY=i.y;var s=0;!function i(){if(s>=n.bounceCount)return o.setAttribute("scale","1 1 1"),void(e&&e());var a=n.initialHeight*Math.pow(n.damping,s),l=n.squashStretch[s]||n.squashStretch[n.squashStretch.length-1],c=n.bounceDuration,d=t&&s===n.bounceCount-1,u=performance.now();r._switchDone=!1,requestAnimationFrame(function t(e){var n,m,g,h,v=e-u,b=Math.min(1,v/c);if(b<.5){var y=b/.5,p=1-(1-y)*(1-y);n=r.baseModelY+a*p;var M=Math.sin(y*Math.PI);g=1+(l.stretchY-1)*M,h=m=1+(l.stretchXZ-1)*M}else{var A=(b-.5)/.5,E=A*A;if(n=r.baseModelY+a*(1-E),d&&A>.95&&!r._switchDone&&(r._switchDone=!0,f()),A>.85){var k=(A-.85)/.15;g=1+(l.squashY-1)*k,h=m=1+(l.squashXZ-1)*k}else g=1,m=1,h=1}var R=o.getAttribute("position");o.setAttribute("position",{x:R.x,y:n,z:R.z});var w=r.showingFictional?r.fictionalModel:r.realModel;w&&w.setAttribute("scale","".concat(.5*m," ").concat(.5*g," ").concat(.5*h)),b<1?requestAnimationFrame(t):(d&&!r._switchDone&&(r._switchDone=!0,f()),o.setAttribute("position",{x:R.x,y:r.baseModelY,z:R.z}),function(t,e,n){var o=performance.now(),i=.5;requestAnimationFrame(function a(r){var s=r-o,l=Math.min(1,s/150),c=1-(1-l)*(1-l),d=i*(e.squashY+(1-e.squashY)*c),u=i*(e.squashXZ+(1-e.squashXZ)*c);t&&t.setAttribute("scale","".concat(u," ").concat(d," ").concat(u)),l<1?requestAnimationFrame(a):(t&&t.setAttribute("scale","".concat(i," ").concat(i," ").concat(i)),n&&n())})}(w,l,function(){s++,i()}))})}()}else e&&e()}(o,function(){o?(r.currentCheck=0,r.handleNumber=0,v(0),r.firstRevealDone=!0):r.currentCheck++,setTimeout(function(){c(),r.checkpointLocked=!1,r.isBouncing=!1,b(),console.log("⏭️ Ready for checkpoint ".concat(r.currentCheck+1,"/3 (target: ").concat(r.currentCheckpointAngle,"°)"))},a.checkpoint.resetDelay)})}}()}}()}}}function M(t,e,n){var o=n.getBoundingClientRect(),i=o.left+o.width/2,a=o.top+o.width/2;return Math.atan2(e-a,t-i)*(180/Math.PI)}function A(t){var e=document.getElementById("ring-container"),n=document.getElementById("handle-number");if(e){e.style.transform="translate(-50%, -50%) rotate(".concat(-t,"deg)"),n&&(n.style.transform="rotate(".concat(t,"deg)"));var o=document.getElementById("checkpoint-dot");if(o){var i=180-r.currentCheckpointAngle+t;o.style.transform="rotate(".concat(i,"deg) translateY(-132px)")}}}AFRAME.registerComponent("rotation-monitor",{schema:{enabled:{type:"boolean",default:!0}},tick:function(){}});var E={_safetyTimer:null,setStatus:function(t){var e=document.getElementById("pre-ar-status");e&&(e.textContent=t)},enableStart:function(){var t=document.getElementById("enter-ar-button");t&&(t.textContent="Start AR",t.disabled=!1),this.setStatus("Model ready — tap to enter AR")},dismissOverlay:function(){if(!this._dismissed){this._dismissed=!0,this._safetyTimer&&(clearTimeout(this._safetyTimer),this._safetyTimer=null);var t=document.getElementById("pre-ar-overlay");t&&t.classList.add("is-hidden");var r2=document.getElementById("ring-container");r2&&r2.classList.remove("ar-ui-hidden");var h2=document.getElementById("ar-hint");h2&&h2.classList.remove("ar-ui-hidden");c()}},_showOverlay:function(){var t=document.getElementById("pre-ar-overlay");t&&t.classList.remove("is-hidden"),this._dismissed=!1},bind:function(t){var e=this;this._dismissed=!1;var n=document.getElementById("enter-ar-button");n&&(n.addEventListener("click",function(){n.disabled||(n.disabled=!0,n.textContent="Starting AR…",t.emit("runreality"),e._safetyTimer&&clearTimeout(e._safetyTimer),e._safetyTimer=setTimeout(function(){return e.dismissOverlay()},5e3))}),t.addEventListener("realityready",function(){e.dismissOverlay()}),t.addEventListener("realityerror",function(){e._safetyTimer&&(clearTimeout(e._safetyTimer),e._safetyTimer=null),e._showOverlay(),n.textContent="AR Failed — Retry",n.disabled=!1,e.setStatus("AR failed to start.\nPlease check camera permissions.")}))}};AFRAME.registerComponent("rotate-ar-interaction",{init:function(){var t=this;console.log("🎮 RotateItem AR Interaction initializing..."),E.bind(this.el),u.init(),u.setStatus("Loading models...","waiting");var e=function(){var t=new URLSearchParams(window.location.search);if(i.enabled)return console.log("🧪 TEST MODE: Using local assets"),{realGlb:i.realGlb,fictionalGlb:i.fictionalGlb,interaction:"Rotate",itemName:i.itemName,realName:i.realName||"Real Item"};var e=t.get("real_glb"),n=t.get("fictional_glb");return console.log("📦 URL Parameters:",{real_glb:e?"".concat(e.substring(0,60),"..."):null,fictional_glb:n?"".concat(n.substring(0,60),"..."):null,interaction:t.get("interaction"),item_name:t.get("item_name"),real_name:t.get("real_name")}),{realGlb:e,fictionalGlb:n,interaction:t.get("interaction")||"Rotate",itemName:t.get("item_name")||"Fictional Item",realName:t.get("real_name")||"Real Item"}}();if(!e.realGlb||!e.fictionalGlb)return console.error("❌ Missing model URL parameters"),void u.setStatus("Error: No model URLs provided","error");r.realGlbUrl=e.realGlb,r.fictionalGlbUrl=e.fictionalGlb,r.itemName=e.itemName,r.realName=e.realName,this.el.addEventListener("loaded",function(){console.log("📦 Scene loaded"),c(),r.currentCheck=0,r.handleNumber=0,r.showingFictional=!1,r.firstRevealDone=!1,t.loadModels(),function(){var t=document.getElementById("ring-container"),e=document.getElementById("ring-track"),n=document.getElementById("ring-handle");function o(e){if(!r.isBouncing){e.preventDefault(),e.stopPropagation();var n=e.touches[0];y.isActive=!0,y.lastAngle=M(n.clientX,n.clientY,t),y.currentRotation=r.currentRotationY,console.log("👆 Ring DRAG START")}}function i(e){r.isBouncing||(e.preventDefault(),y.isActive=!0,y.lastAngle=M(e.clientX,e.clientY,t),y.currentRotation=r.currentRotationY,t.style.cursor="grabbing")}t&&e?(A(0),e.addEventListener("touchstart",o,{passive:!1}),n&&n.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",function(e){if(y.isActive&&!r.isBouncing){e.preventDefault();var n=e.touches[0],o=M(n.clientX,n.clientY,t),i=o-y.lastAngle;i>180&&(i-=360),i<-180&&(i+=360),y.lastAngle=o,y.currentRotation-=i,A(y.currentRotation),p(y.currentRotation)}},{passive:!1}),document.addEventListener("touchend",function(){y.isActive&&(y.isActive=!1,console.log("👆 Ring DRAG END"))}),e.addEventListener("mousedown",i),n&&n.addEventListener("mousedown",i),document.addEventListener("mousemove",function(e){if(y.isActive&&!r.isBouncing){var n=M(e.clientX,e.clientY,t),o=n-y.lastAngle;o>180&&(o-=360),o<-180&&(o+=360),y.lastAngle=n,y.currentRotation-=o,A(y.currentRotation),p(y.currentRotation)}}),document.addEventListener("mouseup",function(){if(y.isActive){y.isActive=!1;var t=document.getElementById("ring-container");t&&(t.style.cursor="grab")}}),console.log("✅ Ring rotation control setup complete")):console.error("❌ Ring elements not found!")}(),function(){var t=document.querySelector("a-scene"),e=document.getElementById("position-holder");if(e){r.positionHolder=e;var n=document.getElementById("ring-container");t.addEventListener("touchstart",function(t){if(1===t.touches.length&&!function(t){if(!n)return!1;var e=n.getBoundingClientRect();return t.clientX>=e.left&&t.clientX<=e.right&&t.clientY>=e.top&&t.clientY<=e.bottom}(t.touches[0])&&!y.isActive){var o=t.touches[0],i=e.getAttribute("position");d.isActive=!0,d.startX=o.clientX,d.startY=o.clientY,d.startModelX=i.x,d.startModelZ=i.z,console.log("👆 Drag START - Position:",i.x.toFixed(2),i.z.toFixed(2))}}),t.addEventListener("touchmove",function(t){if(1===t.touches.length){if(d.isActive)if(y.isActive)d.isActive=!1;else{var n=t.touches[0],o=.005*(n.clientX-d.startX),i=.005*(n.clientY-d.startY),a=d.startModelX+o,r=d.startModelZ+i,s=e.getAttribute("position");e.setAttribute("position",{x:a,y:s.y,z:r})}}else d.isActive=!1}),t.addEventListener("touchend",function(){if(d.isActive){d.isActive=!1;var t=e.getAttribute("position");console.log("👆 Drag END - Position:",t.x.toFixed(2),t.z.toFixed(2))}}),console.log("✅ Single finger drag control setup complete")}else console.error("❌ Position holder not found!")}(),u.show(),b(),v(0),function(){for(var t=0;t<3;t++)setTimeout(function(){return R()},400*t);k.blinkInterval=setInterval(function(){R()},1500),console.log("✨ Floating star blinks started")}()})},loadModels:function(){r.realModel=document.getElementById("realModel"),r.fictionalModel=document.getElementById("fictionalModel"),r.realModel&&r.fictionalModel?(console.log("📦 Loading Real model from:","".concat(r.realGlbUrl.substring(0,60),"...")),console.log("📦 Loading Fictional model from:","".concat(r.fictionalGlbUrl.substring(0,60),"...")),r.realModel.setAttribute("gltf-model",r.realGlbUrl),r.fictionalModel.setAttribute("gltf-model",r.fictionalGlbUrl),r.realModel.addEventListener("model-loaded",function(){console.log("✅ Real model loaded"),m(r.realModel,1),g(r.realModel,!0),u.setStatus("Turn the ring to rotate ✨","waiting"),E.enableStart()}),r.fictionalModel.addEventListener("model-loaded",function(){console.log("✅ Fictional model loaded"),g(r.fictionalModel,!1),m(r.fictionalModel,0)}),r.realModel.addEventListener("model-error",function(t){console.error("❌ Real model load error:",t),u.setStatus("Error loading real model","error")}),r.fictionalModel.addEventListener("model-error",function(t){console.error("❌ Fictional model load error:",t),u.setStatus("Error loading fictional model","error")})):console.error("❌ Model entities not found!")}});var k={blinkStars:[],blinkInterval:null,maxStars:6};function R(){var t=document.getElementById("star-blink-container");if(t&&!(k.blinkStars.length>=k.maxStars)){var e=document.createElement("div");e.className="star-blink";var n,o,i=["star-sm","star-md","star-lg"];switch(e.classList.add(i[Math.floor(Math.random()*i.length)]),Math.floor(4*Math.random())){case 0:n=90*Math.random()+5,o=25*Math.random()+5;break;case 1:n=90*Math.random()+5,o=20*Math.random()+70;break;case 2:n=20*Math.random()+3,o=60*Math.random()+20;break;case 3:n=20*Math.random()+75,o=60*Math.random()+20}e.style.left="".concat(n,"%"),e.style.top="".concat(o,"%");var a=2+2*Math.random(),r=1*Math.random();e.style.setProperty("--star-duration","".concat(a,"s")),e.style.setProperty("--star-delay","".concat(r,"s")),t.appendChild(e),k.blinkStars.push(e),setTimeout(function(){e.parentNode&&e.parentNode.removeChild(e);var t=k.blinkStars.indexOf(e);-1!==t&&k.blinkStars.splice(t,1)},1e3*(a+r)+200)}}})();
+(()=>{"use strict";
+
+/* ============================================================
+   SafeCrackAudio — Web Audio API synthesized tick engine
+   ============================================================ */
+const SafeCrackAudio = (function() {
+  let ctx = null;
+  let initialized = false;
+
+  function ensureCtx() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return ctx;
+  }
+
+  function init() {
+    ensureCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    initialized = true;
+    console.log('🔊 SafeCrackAudio initialized');
+  }
+
+  /* Short metallic tick — square wave with fast decay */
+  function playTick(freq) {
+    if (!initialized || !ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.04);
+  }
+
+  /* Checkpoint unlock chord — 3 frequencies simultaneous */
+  function playUnlockChord() {
+    if (!initialized || !ctx) return;
+    const now = ctx.currentTime;
+    const freqs = [523.25, 659.25, 783.99]; // C5, E5, G5
+    freqs.forEach(function(f) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.55);
+    });
+  }
+
+  /* Final unlock — ascending arpeggio */
+  function playFinalUnlock() {
+    if (!initialized || !ctx) return;
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+    notes.forEach(function(f, i) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now + i * 0.12);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.15, now + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.65);
+    });
+  }
+
+  return { init: init, playTick: playTick, playUnlockChord: playUnlockChord, playFinalUnlock: playFinalUnlock };
+})();
+
+/* ============================================================
+   Flash overlay helper
+   ============================================================ */
+function triggerFlash(gold, duration) {
+  const el = document.getElementById('flash-overlay');
+  if (!el) return;
+  el.classList.remove('active', 'gold');
+  void el.offsetWidth;
+  if (gold) el.classList.add('gold');
+  el.classList.add('active');
+  setTimeout(function() {
+    el.classList.remove('active', 'gold');
+  }, duration || 150);
+}
+
+/* ============================================================
+   Vibration helper (Android only, feature-detect)
+   ============================================================ */
+function triggerVibration(pattern) {
+  if (navigator.vibrate) {
+    try { navigator.vibrate(pattern); } catch(e) {}
+  }
+}
+
+/* ============================================================
+   Safecrack hint system
+   ============================================================ */
+const HintSystem = (function() {
+  let inactivityTimer = null;
+  let hintEl = null;
+
+  function getEl() {
+    if (!hintEl) hintEl = document.getElementById('safecrack-hint');
+    return hintEl;
+  }
+
+  function show(text, duration) {
+    const el = getEl();
+    if (!el) return;
+    el.textContent = text;
+    el.classList.add('visible');
+    if (duration) {
+      setTimeout(function() { el.classList.remove('visible'); }, duration);
+    }
+  }
+
+  function hide() {
+    const el = getEl();
+    if (el) el.classList.remove('visible');
+  }
+
+  function resetInactivity(cfg) {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(function() {
+      show(cfg.hints.inactivity, 3000);
+    }, cfg.hints.inactivityTimeout);
+  }
+
+  function stopInactivity() {
+    clearTimeout(inactivityTimer);
+  }
+
+  return { show: show, hide: hide, resetInactivity: resetInactivity, stopInactivity: stopInactivity };
+})();
+
+/* ============================================================
+   Tick scheduler — controls tick rate based on proximity
+   ============================================================ */
+const TickScheduler = (function() {
+  let timer = null;
+  let active = false;
+
+  function start(distance, feedbackRange, cfg) {
+    if (!active) return;
+    clearTimeout(timer);
+    const t = Math.max(0, Math.min(1, distance / feedbackRange));
+    // t = 1 (far) → tickRate = 800ms, t = 0 (close) → tickRate = 80ms
+    const tickRate = cfg.feedback.tickRateRange[1] +
+      (cfg.feedback.tickRateRange[0] - cfg.feedback.tickRateRange[1]) * t;
+    // pitch: t=1 (far) → 800Hz, t=0 (close) → 2400Hz
+    const pitch = cfg.feedback.pitchRange[0] +
+      (cfg.feedback.pitchRange[1] - cfg.feedback.pitchRange[0]) * (1 - t);
+
+    SafeCrackAudio.playTick(pitch);
+
+    timer = setTimeout(function() {
+      start(distance, feedbackRange, cfg);
+    }, tickRate);
+  }
+
+  function activate() { active = true; }
+  function deactivate() { active = false; clearTimeout(timer); }
+  function update(distance, feedbackRange, cfg) {
+    if (!active) return;
+    clearTimeout(timer);
+    start(distance, feedbackRange, cfg);
+  }
+
+  return { activate: activate, deactivate: deactivate, update: update };
+})();
+
+/* ============================================================
+   Glow controller — ring border & box-shadow
+   ============================================================ */
+function updateRingGlow(distance, feedbackRange, cfg) {
+  const el = document.getElementById('ring-track');
+  if (!el) return;
+  if (distance > feedbackRange) {
+    // Outside feedback range — dim
+    el.style.borderColor = cfg.ringColor.base;
+    el.style.boxShadow = 'none';
+    return;
+  }
+  // t: 1 = at target, 0 = at edge of feedbackRange
+  const t = Math.max(0, Math.min(1, 1 - distance / feedbackRange));
+  // Interpolate border color
+  const base = parseRGBA(cfg.ringColor.base);
+  const bright = parseRGBA(cfg.ringColor.active);
+  const r = Math.round(base.r + (bright.r - base.r) * t);
+  const g = Math.round(base.g + (bright.g - base.g) * t);
+  const b = Math.round(base.b + (bright.b - base.b) * t);
+  const a = +(base.a + (bright.a - base.a) * t).toFixed(3);
+  el.style.borderColor = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
+
+  if (t > 0.3) {
+    const glowSize = Math.round((t - 0.3) / 0.7 * 25);
+    const glowAlpha = (0.7 * t).toFixed(2);
+    el.style.boxShadow = '0 0 ' + glowSize + 'px rgba(208, 188, 255, ' + glowAlpha + '), inset 0 0 ' + Math.round(glowSize * 0.6) + 'px rgba(208, 188, 255, ' + (0.3 * t).toFixed(2) + ')';
+  } else {
+    el.style.boxShadow = 'none';
+  }
+}
+
+/* ============================================================
+   Utility functions (preserved from original)
+   ============================================================ */
+function parseRGBA(str) {
+  const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] !== undefined ? +m[4] : 1 } : { r: 255, g: 255, b: 255, a: 1 };
+}
+
+function normalizeAngle(a) { return ((a % 360) + 360) % 360; }
+function angleDist(a, b) {
+  const d = Math.abs(normalizeAngle(a) - normalizeAngle(b));
+  return Math.min(d, 360 - d);
+}
+
+console.log("✅ RotateItem AR Interaction loaded (Safecracking mode)");
+
+/* ============================================================
+   Test mode config
+   ============================================================ */
+var testConfig = {
+  enabled: false,
+  realGlb: '#realModelAsset',
+  fictionalGlb: '#fictionalModelAsset',
+  itemName: 'Test Fictional Item'
+};
+
+/* ============================================================
+   Merge ROTATE_CONFIG from ar-config.js
+   ============================================================ */
+var CONFIG = (function() {
+  var defaults = {
+    checkpoint: { minAngle: 30, totalChecks: 3, messages: [null, null, null], resetDelay: 300, tolerances: [15, 10, 5] },
+    ringColor: { base: 'rgba(255, 255, 255, 0.15)', active: 'rgba(208, 188, 255, 0.9)', reached: 'rgba(126, 87, 194, 1.0)' },
+    bounce: {
+      initialHeight: 0.3, damping: 0.4, bounceDuration: 350, bounceCount: 3,
+      squashStretch: [
+        { squashY: 0.7, stretchY: 1.25, squashXZ: 1.2, stretchXZ: 0.85 },
+        { squashY: 0.8, stretchY: 1.15, squashXZ: 1.15, stretchXZ: 0.9 },
+        { squashY: 0.88, stretchY: 1.08, squashXZ: 1.08, stretchXZ: 0.95 }
+      ]
+    },
+    animation: { transitionDuration: 100, rotationDuration: 200 },
+    feedback: {
+      feedbackRange: 60,
+      tickRateRange: [800, 80],
+      pitchRange: [800, 2400],
+      tickDuration: 30,
+      glowColors: { dim: 'rgba(255,255,255,0.15)', bright: 'rgba(208,188,255,0.9)', peak: 'rgba(126,87,194,1.0)' },
+      flash: { duration: 150, finalDuration: 300 },
+      vibration: { checkpoint: [200, 100, 200], final: [200, 100, 200, 100, 400] },
+      hints: { initial: 'Slowly rotate to find the sweet spot', inactivity: 'Try rotating slowly...', initialDuration: 3000, inactivityTimeout: 15000 }
+    }
+  };
+  var ext = window.ROTATE_CONFIG;
+  if (!ext || typeof ext !== 'object') return defaults;
+  var merged = {};
+  Object.keys(defaults).forEach(function(k) {
+    if (defaults[k] && typeof defaults[k] === 'object' && !Array.isArray(defaults[k]) && ext[k] && typeof ext[k] === 'object' && !Array.isArray(ext[k])) {
+      merged[k] = Object.assign({}, defaults[k], ext[k]);
+    } else {
+      merged[k] = k in ext ? ext[k] : defaults[k];
+    }
+  });
+  // Deep merge feedback sub-objects
+  if (ext.feedback && defaults.feedback) {
+    Object.keys(defaults.feedback).forEach(function(fk) {
+      if (defaults.feedback[fk] && typeof defaults.feedback[fk] === 'object' && !Array.isArray(defaults.feedback[fk]) && ext.feedback[fk]) {
+        merged.feedback[fk] = Object.assign({}, defaults.feedback[fk], ext.feedback[fk]);
+      }
+    });
+  }
+  console.log('⚙️ ROTATE_CONFIG merged (safecracking)', merged);
+  return merged;
+})();
+
+/* ============================================================
+   Game state
+   ============================================================ */
+var state = {
+  initialRotationY: null,
+  currentRotationY: 0,
+  rotationProgress: 0,
+  hasStarted: false,
+  itemNameShown: false,
+  realModel: null,
+  fictionalModel: null,
+  positionHolder: null,
+  realGlbUrl: null,
+  fictionalGlbUrl: null,
+  itemName: null,
+  realName: null,
+  currentCheck: 0,
+  handleNumber: 0,
+  currentCheckpointAngle: 0,
+  startCheckpointDistance: 0,
+  showingFictional: false,
+  checkpointLocked: false,
+  firstRevealDone: false,
+  isBouncing: false,
+  baseModelY: 0,
+  toggleCount: 0,
+  lastFeedbackActive: false  // track if we were in feedback range
+};
+
+/* ============================================================
+   Checkpoint generation (no triangle, no visual marker)
+   ============================================================ */
+function generateCheckpoint() {
+  var minAngle = CONFIG.checkpoint.minAngle;
+  var currentAngle = normalizeAngle(ringDrag.currentRotation);
+  var angle = 0, tries = 0;
+  do {
+    angle = Math.round(Math.random() * 360);
+    tries++;
+  } while (angleDist(currentAngle, angle) < minAngle && tries < 100);
+
+  state.currentCheckpointAngle = angle;
+  state.startCheckpointDistance = angleDist(currentAngle, angle);
+  console.log('🎯 Checkpoint target: ' + angle + '° (distance: ' + Math.round(state.startCheckpointDistance) + '° from ' + Math.round(currentAngle) + '°)');
+  return angle;
+}
+
+/* ============================================================
+   Drag state for model position
+   ============================================================ */
+var dragState = { isActive: false, startX: 0, startY: 0, startModelX: 0, startModelZ: 0 };
+
+/* ============================================================
+   UI module
+   ============================================================ */
+var ui = {
+  elements: {},
+  init: function() {
+    this.elements = {
+      hint: document.getElementById('ar-hint'),
+      interactionType: document.getElementById('interaction-type'),
+      interactionHint: document.getElementById('interaction-hint'),
+      status: document.getElementById('ar-status'),
+      statusText: document.getElementById('status-text'),
+      itemName: document.getElementById('item-name-display')
+    };
+    console.log('🎨 UI initialized');
+  },
+  show: function() {},
+  setStatus: function(text, cls) {
+    cls = cls || 'waiting';
+    if (this.elements.status) {
+      this.elements.status.className = cls;
+      this.elements.status.classList.remove('ar-ui-hidden');
+    }
+    if (this.elements.statusText) this.elements.statusText.textContent = text;
+  },
+  showItemName: function(name) {
+    if (this.elements.itemName) {
+      this.elements.itemName.textContent = '✨ ' + name;
+      this.elements.itemName.classList.add('visible');
+    }
+  }
+};
+
+/* ============================================================
+   Model visibility helpers
+   ============================================================ */
+function setModelOpacity(el, opacity) {
+  if (!el || !el.object3D) return;
+  el.object3D.traverse(function(obj) {
+    if (obj.isMesh && obj.material) {
+      (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(function(mat) {
+        if (mat) {
+          mat.transparent = true;
+          mat.opacity = opacity;
+          mat.depthWrite = opacity > 0.95;
+          mat.depthTest = true;
+          obj.renderOrder = Math.floor(100 * opacity);
+          mat.needsUpdate = true;
+        }
+      });
+    }
+  });
+  el.object3D.visible = !(opacity <= 0.01);
+}
+
+function setModelVisible(el, vis) {
+  if (el) el.setAttribute('visible', vis);
+}
+
+/* ============================================================
+   Toggle real/fictional model
+   ============================================================ */
+function toggleModel() {
+  if (state.showingFictional) {
+    setModelOpacity(state.fictionalModel, 0);
+    setModelVisible(state.fictionalModel, false);
+    setModelOpacity(state.realModel, 1);
+    setModelVisible(state.realModel, true);
+    state.showingFictional = false;
+    ui.showItemName(state.realName || 'Real Item');
+    state.itemNameShown = true;
+  } else {
+    setModelOpacity(state.realModel, 0);
+    setModelVisible(state.realModel, false);
+    setModelOpacity(state.fictionalModel, 1);
+    setModelVisible(state.fictionalModel, true);
+    state.showingFictional = true;
+    ui.showItemName(state.itemName || 'Fictional Item');
+    state.itemNameShown = true;
+  }
+  state.toggleCount++;
+  console.log('🔄 Toggle #' + state.toggleCount);
+  if (state.toggleCount >= 3) {
+    var btn = document.getElementById('back-to-main');
+    if (btn && !btn.classList.contains('visible')) {
+      btn.classList.add('visible');
+      console.log('🏠 Back button shown after ' + state.toggleCount + ' toggles');
+    }
+  }
+}
+
+/* ============================================================
+   Handle number display
+   ============================================================ */
+function updateHandleNumber(num) {
+  var el = document.getElementById('handle-number');
+  if (el) {
+    el.textContent = num;
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+  }
+}
+
+/* ============================================================
+   Reset ring to dim
+   ============================================================ */
+function resetRingGlow() {
+  var el = document.getElementById('ring-track');
+  if (el) {
+    el.style.borderColor = CONFIG.ringColor.base;
+    el.style.boxShadow = 'none';
+  }
+}
+
+/* ============================================================
+   Ring drag state
+   ============================================================ */
+var ringDrag = { isActive: false, lastAngle: 0, currentRotation: 0 };
+
+/* ============================================================
+   Process rotation — core safecracking logic
+   ============================================================ */
+function processRotation(angle) {
+  if (state.isBouncing) return;
+  var holder = document.getElementById('model-holder');
+  if (!holder) return;
+
+  var rot = holder.getAttribute('rotation') || { x: 0, y: 0, z: 0 };
+  holder.setAttribute('rotation', { x: rot.x, y: angle, z: rot.z });
+
+  if (!state.hasStarted && Math.abs(angle) > 1) {
+    state.hasStarted = true;
+    console.log('🔄 Rotation started');
+    HintSystem.hide();
+  }
+
+  state.currentRotationY = angle;
+
+  // Safecracking feedback
+  if (state.checkpointLocked || state.isBouncing) return;
+  if (state.startCheckpointDistance <= 0) return;
+
+  var dist = angleDist(normalizeAngle(ringDrag.currentRotation), state.currentCheckpointAngle);
+  var feedbackRange = CONFIG.feedback.feedbackRange;
+  var tolerance = CONFIG.checkpoint.tolerances[state.currentCheck] || 5;
+
+  // Update ring glow
+  updateRingGlow(dist, feedbackRange, CONFIG);
+
+  // Tick scheduling
+  if (dist <= feedbackRange) {
+    if (!state.lastFeedbackActive) {
+      state.lastFeedbackActive = true;
+      TickScheduler.activate();
+    }
+    TickScheduler.update(dist, feedbackRange, CONFIG);
+    HintSystem.resetInactivity(CONFIG.feedback);
+  } else {
+    if (state.lastFeedbackActive) {
+      state.lastFeedbackActive = false;
+      TickScheduler.deactivate();
+    }
+  }
+
+  // Checkpoint reached?
+  if (dist <= tolerance) {
+    reachCheckpoint();
+  }
+}
+
+/* ============================================================
+   Checkpoint reached — trigger feedback + bounce
+   ============================================================ */
+function reachCheckpoint() {
+  if (state.checkpointLocked) return;
+  state.checkpointLocked = true;
+
+  TickScheduler.deactivate();
+  state.lastFeedbackActive = false;
+
+  var idx = state.currentCheck;
+  var isFinal = (idx === 2);
+  console.log('🎯 Checkpoint ' + (idx + 1) + '/3 reached!');
+
+  // Audio feedback
+  if (isFinal) {
+    SafeCrackAudio.playFinalUnlock();
+  } else {
+    SafeCrackAudio.playUnlockChord();
+  }
+
+  // Flash
+  if (isFinal) {
+    triggerFlash(true, CONFIG.feedback.flash.finalDuration || 300);
+  } else {
+    triggerFlash(false, CONFIG.feedback.flash.duration || 150);
+  }
+
+  // Vibration
+  if (isFinal) {
+    triggerVibration(CONFIG.feedback.vibration.final);
+  } else {
+    triggerVibration(CONFIG.feedback.vibration.checkpoint);
+  }
+
+  // Ring reached color
+  var ringEl = document.getElementById('ring-track');
+  if (ringEl) {
+    ringEl.style.borderColor = CONFIG.ringColor.reached;
+    ringEl.style.boxShadow = '0 0 30px rgba(126, 87, 194, 0.8), inset 0 0 15px rgba(126, 87, 194, 0.4)';
+  }
+
+  // Star burst
+  var burst = document.getElementById('sprite-burst-overlay');
+  if (burst) {
+    burst.classList.remove('active');
+    void burst.offsetWidth;
+    burst.classList.add('active');
+    setTimeout(function() {
+      burst.classList.remove('active');
+      burst.style.opacity = '0';
+      burst.style.visibility = 'hidden';
+    }, 1200);
+  }
+
+  // Handle number
+  state.handleNumber = idx + 1;
+  updateHandleNumber(state.handleNumber);
+
+  // Bounce animation + model swap
+  doBounce(isFinal, function() {
+    if (isFinal) {
+      state.currentCheck = 0;
+      state.handleNumber = 0;
+      updateHandleNumber(0);
+      state.firstRevealDone = true;
+    } else {
+      state.currentCheck++;
+    }
+    setTimeout(function() {
+      generateCheckpoint();
+      state.checkpointLocked = false;
+      state.isBouncing = false;
+      resetRingGlow();
+      console.log('⏭️ Ready for checkpoint ' + (state.currentCheck + 1) + '/3 (target: ' + state.currentCheckpointAngle + '°)');
+    }, CONFIG.checkpoint.resetDelay);
+  });
+}
+
+/* ============================================================
+   Bounce animation (preserved from original)
+   ============================================================ */
+function doBounce(doSwap, callback) {
+  state.isBouncing = true;
+  var cfg = CONFIG.bounce;
+  var holder = document.getElementById('model-holder');
+  if (!holder) { if (callback) callback(); return; }
+  var pos = holder.getAttribute('position') || { x: 0, y: 0, z: 0 };
+  state.baseModelY = pos.y;
+  var bounceIdx = 0;
+
+  function nextBounce() {
+    if (bounceIdx >= cfg.bounceCount) {
+      holder.setAttribute('scale', '1 1 1');
+      if (callback) callback();
+      return;
+    }
+    var height = cfg.initialHeight * Math.pow(cfg.damping, bounceIdx);
+    var ss = cfg.squashStretch[bounceIdx] || cfg.squashStretch[cfg.squashStretch.length - 1];
+    var dur = cfg.bounceDuration;
+    var isLast = doSwap && bounceIdx === cfg.bounceCount - 1;
+    var startTime = performance.now();
+    state._switchDone = false;
+
+    requestAnimationFrame(function animate(now) {
+      var elapsed = now - startTime;
+      var progress = Math.min(1, elapsed / dur);
+      var y, sy, sxz;
+
+      if (progress < 0.5) {
+        var t = progress / 0.5;
+        var ease = 1 - (1 - t) * (1 - t);
+        y = state.baseModelY + height * ease;
+        var sinT = Math.sin(t * Math.PI);
+        sy = 1 + (ss.stretchY - 1) * sinT;
+        sxz = 1 + (ss.stretchXZ - 1) * sinT;
+      } else {
+        var t2 = (progress - 0.5) / 0.5;
+        var ease2 = t2 * t2;
+        y = state.baseModelY + height * (1 - ease2);
+        if (isLast && t2 > 0.95 && !state._switchDone) {
+          state._switchDone = true;
+          toggleModel();
+        }
+        if (t2 > 0.85) {
+          var k = (t2 - 0.85) / 0.15;
+          sy = 1 + (ss.squashY - 1) * k;
+          sxz = 1 + (ss.squashXZ - 1) * k;
+        } else {
+          sy = 1; sxz = 1;
+        }
+      }
+
+      var curPos = holder.getAttribute('position');
+      holder.setAttribute('position', { x: curPos.x, y: y, z: curPos.z });
+      var activeModel = state.showingFictional ? state.fictionalModel : state.realModel;
+      if (activeModel) activeModel.setAttribute('scale', (0.5 * sxz) + ' ' + (0.5 * sy) + ' ' + (0.5 * sxz));
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        if (isLast && !state._switchDone) {
+          state._switchDone = true;
+          toggleModel();
+        }
+        holder.setAttribute('position', { x: curPos.x, y: state.baseModelY, z: curPos.z });
+        // Settle animation
+        settleModel(activeModel, ss, function() {
+          bounceIdx++;
+          nextBounce();
+        });
+      }
+    });
+  }
+  nextBounce();
+}
+
+function settleModel(model, ss, callback) {
+  var startTime = performance.now();
+  var baseScale = 0.5;
+  requestAnimationFrame(function settle(now) {
+    var elapsed = now - startTime;
+    var t = Math.min(1, elapsed / 150);
+    var ease = 1 - (1 - t) * (1 - t);
+    var sy = baseScale * (ss.squashY + (1 - ss.squashY) * ease);
+    var sxz = baseScale * (ss.squashXZ + (1 - ss.squashXZ) * ease);
+    if (model) model.setAttribute('scale', sxz + ' ' + sy + ' ' + sxz);
+    if (t < 1) {
+      requestAnimationFrame(settle);
+    } else {
+      if (model) model.setAttribute('scale', baseScale + ' ' + baseScale + ' ' + baseScale);
+      if (callback) callback();
+    }
+  });
+}
+
+/* ============================================================
+   Angle calculation for ring drag
+   ============================================================ */
+function getAngle(x, y, el) {
+  var rect = el.getBoundingClientRect();
+  var cx = rect.left + rect.width / 2;
+  var cy = rect.top + rect.width / 2;
+  return Math.atan2(y - cy, x - cx) * (180 / Math.PI);
+}
+
+/* ============================================================
+   Update ring visual rotation
+   ============================================================ */
+function rotateRingUI(angle) {
+  var container = document.getElementById('ring-container');
+  var numEl = document.getElementById('handle-number');
+  if (container) {
+    container.style.transform = 'translate(-50%, -50%) rotate(' + (-angle) + 'deg)';
+    if (numEl) numEl.style.transform = 'rotate(' + angle + 'deg)';
+  }
+}
+
+/* ============================================================
+   A-Frame components
+   ============================================================ */
+AFRAME.registerComponent('rotation-monitor', {
+  schema: { enabled: { type: 'boolean', default: true } },
+  tick: function() {}
+});
+
+/* ============================================================
+   Pre-AR overlay controller
+   ============================================================ */
+var preArOverlay = {
+  _safetyTimer: null,
+  _dismissed: false,
+  setStatus: function(text) {
+    var el = document.getElementById('pre-ar-status');
+    if (el) el.textContent = text;
+  },
+  enableStart: function() {
+    var btn = document.getElementById('enter-ar-button');
+    if (btn) { btn.textContent = 'Start AR'; btn.disabled = false; }
+    this.setStatus('Model ready — tap to enter AR');
+  },
+  dismissOverlay: function() {
+    if (this._dismissed) return;
+    this._dismissed = true;
+    if (this._safetyTimer) { clearTimeout(this._safetyTimer); this._safetyTimer = null; }
+    var overlay = document.getElementById('pre-ar-overlay');
+    if (overlay) overlay.classList.add('is-hidden');
+    var ring = document.getElementById('ring-container');
+    if (ring) ring.classList.remove('ar-ui-hidden');
+    var hint = document.getElementById('ar-hint');
+    if (hint) hint.classList.remove('ar-ui-hidden');
+    generateCheckpoint();
+
+    // Show initial safecracking hint
+    HintSystem.show(CONFIG.feedback.hints.initial, CONFIG.feedback.hints.initialDuration);
+    HintSystem.resetInactivity(CONFIG.feedback);
+  },
+  _showOverlay: function() {
+    var overlay = document.getElementById('pre-ar-overlay');
+    if (overlay) overlay.classList.remove('is-hidden');
+    this._dismissed = false;
+  },
+  bind: function(sceneEl) {
+    var self = this;
+    self._dismissed = false;
+    var btn = document.getElementById('enter-ar-button');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = 'Starting AR…';
+
+      // Initialize audio on user gesture (required for iOS)
+      SafeCrackAudio.init();
+
+      sceneEl.emit('runreality');
+      if (self._safetyTimer) clearTimeout(self._safetyTimer);
+      self._safetyTimer = setTimeout(function() { self.dismissOverlay(); }, 5000);
+    });
+    sceneEl.addEventListener('realityready', function() { self.dismissOverlay(); });
+    sceneEl.addEventListener('realityerror', function() {
+      if (self._safetyTimer) { clearTimeout(self._safetyTimer); self._safetyTimer = null; }
+      self._showOverlay();
+      btn.textContent = 'AR Failed — Retry';
+      btn.disabled = false;
+      self.setStatus('AR failed to start.\nPlease check camera permissions.');
+    });
+  }
+};
+
+/* ============================================================
+   Main A-Frame component: rotate-ar-interaction
+   ============================================================ */
+AFRAME.registerComponent('rotate-ar-interaction', {
+  init: function() {
+    var self = this;
+    console.log('🎮 RotateItem AR Interaction initializing (Safecracking)...');
+
+    preArOverlay.bind(this.el);
+    ui.init();
+    ui.setStatus('Loading models...', 'waiting');
+
+    // Parse URL params or use test config
+    var params = (function() {
+      var sp = new URLSearchParams(window.location.search);
+      if (testConfig.enabled) {
+        return { realGlb: testConfig.realGlb, fictionalGlb: testConfig.fictionalGlb, interaction: 'Rotate', itemName: testConfig.itemName, realName: testConfig.realName || 'Real Item' };
+      }
+      return {
+        realGlb: sp.get('real_glb'),
+        fictionalGlb: sp.get('fictional_glb'),
+        interaction: sp.get('interaction') || 'Rotate',
+        itemName: sp.get('item_name') || 'Fictional Item',
+        realName: sp.get('real_name') || 'Real Item'
+      };
+    })();
+
+    if (!params.realGlb || !params.fictionalGlb) {
+      console.error('❌ Missing model URL parameters');
+      ui.setStatus('Error: No model URLs provided', 'error');
+      return;
+    }
+
+    state.realGlbUrl = params.realGlb;
+    state.fictionalGlbUrl = params.fictionalGlb;
+    state.itemName = params.itemName;
+    state.realName = params.realName;
+
+    this.el.addEventListener('loaded', function() {
+      console.log('📦 Scene loaded');
+      generateCheckpoint();
+      state.currentCheck = 0;
+      state.handleNumber = 0;
+      state.showingFictional = false;
+      state.firstRevealDone = false;
+
+      self.loadModels();
+      setupRingRotation();
+      setupModelDrag();
+      ui.show();
+      resetRingGlow();
+      updateHandleNumber(0);
+      setupStarBlinks();
+    });
+  },
+
+  loadModels: function() {
+    state.realModel = document.getElementById('realModel');
+    state.fictionalModel = document.getElementById('fictionalModel');
+    if (!state.realModel || !state.fictionalModel) {
+      console.error('❌ Model entities not found!');
+      return;
+    }
+    console.log('📦 Loading Real model...');
+    console.log('📦 Loading Fictional model...');
+    state.realModel.setAttribute('gltf-model', state.realGlbUrl);
+    state.fictionalModel.setAttribute('gltf-model', state.fictionalGlbUrl);
+
+    state.realModel.addEventListener('model-loaded', function() {
+      console.log('✅ Real model loaded');
+      setModelOpacity(state.realModel, 1);
+      setModelVisible(state.realModel, true);
+      ui.setStatus('Turn the ring to rotate ✨', 'waiting');
+      preArOverlay.enableStart();
+    });
+    state.fictionalModel.addEventListener('model-loaded', function() {
+      console.log('✅ Fictional model loaded');
+      setModelVisible(state.fictionalModel, false);
+      setModelOpacity(state.fictionalModel, 0);
+    });
+    state.realModel.addEventListener('model-error', function(e) {
+      console.error('❌ Real model load error:', e);
+      ui.setStatus('Error loading real model', 'error');
+    });
+    state.fictionalModel.addEventListener('model-error', function(e) {
+      console.error('❌ Fictional model load error:', e);
+      ui.setStatus('Error loading fictional model', 'error');
+    });
+  }
+});
+
+/* ============================================================
+   Ring rotation control setup
+   ============================================================ */
+function setupRingRotation() {
+  var container = document.getElementById('ring-container');
+  var track = document.getElementById('ring-track');
+  var handle = document.getElementById('ring-handle');
+  if (!container || !track) { console.error('❌ Ring elements not found!'); return; }
+
+  rotateRingUI(0);
+
+  function onTouchStart(e) {
+    if (state.isBouncing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var touch = e.touches[0];
+    ringDrag.isActive = true;
+    ringDrag.lastAngle = getAngle(touch.clientX, touch.clientY, container);
+    ringDrag.currentRotation = state.currentRotationY;
+  }
+
+  function onMouseDown(e) {
+    if (state.isBouncing) return;
+    e.preventDefault();
+    ringDrag.isActive = true;
+    ringDrag.lastAngle = getAngle(e.clientX, e.clientY, container);
+    ringDrag.currentRotation = state.currentRotationY;
+    container.style.cursor = 'grabbing';
+  }
+
+  track.addEventListener('touchstart', onTouchStart, { passive: false });
+  if (handle) handle.addEventListener('touchstart', onTouchStart, { passive: false });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!ringDrag.isActive || state.isBouncing) return;
+    e.preventDefault();
+    var touch = e.touches[0];
+    var angle = getAngle(touch.clientX, touch.clientY, container);
+    var delta = angle - ringDrag.lastAngle;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    ringDrag.lastAngle = angle;
+    ringDrag.currentRotation -= delta;
+    rotateRingUI(ringDrag.currentRotation);
+    processRotation(ringDrag.currentRotation);
+  }, { passive: false });
+
+  document.addEventListener('touchend', function() {
+    if (ringDrag.isActive) { ringDrag.isActive = false; }
+  });
+
+  track.addEventListener('mousedown', onMouseDown);
+  if (handle) handle.addEventListener('mousedown', onMouseDown);
+
+  document.addEventListener('mousemove', function(e) {
+    if (!ringDrag.isActive || state.isBouncing) return;
+    var angle = getAngle(e.clientX, e.clientY, container);
+    var delta = angle - ringDrag.lastAngle;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    ringDrag.lastAngle = angle;
+    ringDrag.currentRotation -= delta;
+    rotateRingUI(ringDrag.currentRotation);
+    processRotation(ringDrag.currentRotation);
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (ringDrag.isActive) {
+      ringDrag.isActive = false;
+      container.style.cursor = 'grab';
+    }
+  });
+
+  console.log('✅ Ring rotation control setup complete');
+}
+
+/* ============================================================
+   Model drag (position) setup
+   ============================================================ */
+function setupModelDrag() {
+  var scene = document.querySelector('a-scene');
+  var holder = document.getElementById('position-holder');
+  if (!holder) { console.error('❌ Position holder not found!'); return; }
+  state.positionHolder = holder;
+  var ringContainer = document.getElementById('ring-container');
+
+  function isInsideRing(touch) {
+    if (!ringContainer) return false;
+    var r = ringContainer.getBoundingClientRect();
+    return touch.clientX >= r.left && touch.clientX <= r.right && touch.clientY >= r.top && touch.clientY <= r.bottom;
+  }
+
+  scene.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1 && !isInsideRing(e.touches[0]) && !ringDrag.isActive) {
+      var touch = e.touches[0];
+      var pos = holder.getAttribute('position');
+      dragState.isActive = true;
+      dragState.startX = touch.clientX;
+      dragState.startY = touch.clientY;
+      dragState.startModelX = pos.x;
+      dragState.startModelZ = pos.z;
+    }
+  });
+
+  scene.addEventListener('touchmove', function(e) {
+    if (e.touches.length !== 1) { dragState.isActive = false; return; }
+    if (!dragState.isActive) return;
+    if (ringDrag.isActive) { dragState.isActive = false; return; }
+    var touch = e.touches[0];
+    var dx = 0.005 * (touch.clientX - dragState.startX);
+    var dz = 0.005 * (touch.clientY - dragState.startY);
+    var pos = holder.getAttribute('position');
+    holder.setAttribute('position', { x: dragState.startModelX + dx, y: pos.y, z: dragState.startModelZ + dz });
+  });
+
+  scene.addEventListener('touchend', function() { dragState.isActive = false; });
+  console.log('✅ Single finger drag control setup complete');
+}
+
+/* ============================================================
+   Star blink particles (preserved from original)
+   ============================================================ */
+var starState = { blinkStars: [], blinkInterval: null, maxStars: 6 };
+
+function spawnStar() {
+  var container = document.getElementById('star-blink-container');
+  if (!container || starState.blinkStars.length >= starState.maxStars) return;
+  var el = document.createElement('div');
+  el.className = 'star-blink';
+  var sizes = ['star-sm', 'star-md', 'star-lg'];
+  el.classList.add(sizes[Math.floor(Math.random() * sizes.length)]);
+  var x, y;
+  switch (Math.floor(Math.random() * 4)) {
+    case 0: x = Math.random() * 90 + 5; y = Math.random() * 25 + 5; break;
+    case 1: x = Math.random() * 90 + 5; y = Math.random() * 20 + 70; break;
+    case 2: x = Math.random() * 20 + 3; y = Math.random() * 60 + 20; break;
+    case 3: x = Math.random() * 20 + 75; y = Math.random() * 60 + 20; break;
+  }
+  el.style.left = x + '%';
+  el.style.top = y + '%';
+  var dur = 2 + Math.random() * 2;
+  var delay = Math.random() * 1;
+  el.style.setProperty('--star-duration', dur + 's');
+  el.style.setProperty('--star-delay', delay + 's');
+  container.appendChild(el);
+  starState.blinkStars.push(el);
+  setTimeout(function() {
+    if (el.parentNode) el.parentNode.removeChild(el);
+    var idx = starState.blinkStars.indexOf(el);
+    if (idx !== -1) starState.blinkStars.splice(idx, 1);
+  }, (dur + delay) * 1000 + 200);
+}
+
+function setupStarBlinks() {
+  for (var i = 0; i < 3; i++) {
+    setTimeout(spawnStar, 400 * i);
+  }
+  starState.blinkInterval = setInterval(spawnStar, 1500);
+  console.log('✨ Floating star blinks started');
+}
+
+})();
