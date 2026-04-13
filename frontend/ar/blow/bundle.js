@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  console.log("✅ BlowItem AR Interaction loaded");
+  console.log("✅ BlowItem AR Interaction loaded (giggle mode)");
 
   // ─── TEST MODE ───
   var TEST_MODE = {
@@ -21,41 +21,16 @@
         threshold: 0.06,
         smoothing: 0.3,
         calibrationTime: 2000,
-        decayRate: 0.15,
-        // 3DS-style wind detection defaults
         lowFreqRatioMin: 0.03,
         spectralFlatnessMin: 0.02,
         energyStabilityMax: 0.85
       },
-      rolling: {
-        maxRotationSpeed: 540,
-        maxTranslateSpeed: 6.0,
-        friction: 0.92,
-        rollOutDistance: 3.0,
-        rollInStartZ: 3.0,
-        rollInDuration: 800
-      },
-      progress: {
-        target: 100,
-        blowMultiplier: 12.0,
-        decayRate: 0.02,
-        checkpoints: [33, 66, 100],
-        messages: ["Keep blowing!", "Almost there!", null]
-      },
-      bounce: {
-        initialHeight: 0.3,
-        damping: 0.4,
-        bounceDuration: 350,
-        bounceCount: 3,
-        squashStretch: [
-          { squashY: 0.7, stretchY: 1.25, squashXZ: 1.2, stretchXZ: 0.85 },
-          { squashY: 0.8, stretchY: 1.15, squashXZ: 1.15, stretchXZ: 0.9 },
-          { squashY: 0.88, stretchY: 1.08, squashXZ: 1.08, stretchXZ: 0.95 }
-        ]
-      },
-      animation: {
-        transitionDuration: 400,
-        swapPause: 300
+      giggle: {
+        minBlowDuration: 300,
+        cooldownDuration: 300,
+        stage1: { wobbleDeg: 5, wobbleCycles: 3, wobblePeriod: 200, squashY: 0.95, stretchY: 1.05 },
+        stage2: { wobbleDeg: 12, wobbleCycles: 5, wobblePeriod: 140, squashY: 0.85, stretchY: 1.2, jitter: 0.02 },
+        stage3: { wobbleDeg: 15, wobblePeriod: 80, tremorDuration: 600, shrinkDuration: 150, popDuration: 350, popOvershoot: 1.15 }
       },
       particles: {
         maxCount: 15,
@@ -72,14 +47,36 @@
     Object.keys(defaults).forEach(function (k) {
       if (defaults[k] && typeof defaults[k] === "object" && !Array.isArray(defaults[k]) &&
           ext[k] && typeof ext[k] === "object" && !Array.isArray(ext[k])) {
-        merged[k] = Object.assign({}, defaults[k], ext[k]);
+        // Deep merge one level for giggle sub-objects (stage1, stage2, stage3)
+        var sub = {};
+        Object.keys(defaults[k]).forEach(function (sk) {
+          if (defaults[k][sk] && typeof defaults[k][sk] === "object" && !Array.isArray(defaults[k][sk]) &&
+              ext[k][sk] && typeof ext[k][sk] === "object" && !Array.isArray(ext[k][sk])) {
+            sub[sk] = Object.assign({}, defaults[k][sk], ext[k][sk]);
+          } else {
+            sub[sk] = sk in (ext[k] || {}) ? ext[k][sk] : defaults[k][sk];
+          }
+        });
+        merged[k] = sub;
       } else {
         merged[k] = k in ext ? ext[k] : defaults[k];
       }
     });
-    console.log("⚙️ BLOW_CONFIG merged from ar-config.js", merged);
+    console.log("⚙️ BLOW_CONFIG merged", merged);
     return merged;
   })();
+
+  // ─── BLOW STATES ───
+  var BLOW_STATE = {
+    IDLE: "idle",
+    BLOWING: "blowing",
+    GIGGLE_1: "giggle_1",
+    COOLDOWN_1: "cooldown_1",
+    GIGGLE_2: "giggle_2",
+    COOLDOWN_2: "cooldown_2",
+    GIGGLE_3: "giggle_3",
+    TRANSFORMING: "transforming"
+  };
 
   // ─── STATE ───
   var state = {
@@ -93,10 +90,6 @@
     realName: null,
     showingFictional: false,
     toggleCount: 0,
-    progress: 0,
-    currentCheckpoint: 0,
-    isBouncing: false,
-    isSwapping: false,
     baseModelY: 0,
     // Blow detection
     audioContext: null,
@@ -111,25 +104,19 @@
     isCalibrating: false,
     calibrationSamples: [],
     micReady: false,
-    // Rolling
-    rollVelocity: 0,
-    totalRotationX: 0,
-    originZ: -2,
-    totalDistance: 0
+    // Giggle state machine
+    blowState: "idle",
+    blowCount: 0,
+    blowStartTime: 0,
+    blowEndTime: 0,
+    isBlowingNow: false,
+    isAnimating: false
   };
 
   // ─── BLOW DETECTION (3DS-style) ───
-  // Nintendo 3DS approach: detect sustained, loud, low-frequency broadband noise.
-  // Three checks run every frame:
-  //   1. Low-frequency energy ratio — wind energy is concentrated below ~500Hz
-  //   2. Spectral flatness — wind is broadband noise (flat spectrum ≈ 1),
-  //      speech has harmonic peaks (low flatness)
-  //   3. Energy stability — wind amplitude is steady across frames,
-  //      speech fluctuates with syllable rhythm
   var blowDetector = {
-    // Ring buffer for energy stability (stores recent per-frame RMS values)
     _energyHistory: [],
-    _energyHistorySize: 12, // ~200ms at 60fps
+    _energyHistorySize: 12,
 
     init: function (onReady) {
       console.log("🎤 Initializing microphone (3DS-style blow detection)...");
@@ -145,7 +132,6 @@
           state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
           var source = state.audioContext.createMediaStreamSource(stream);
 
-          // AnalyserNode — higher FFT for better frequency resolution
           state.analyser = state.audioContext.createAnalyser();
           state.analyser.fftSize = cfg.blow.fftSize;
           state.analyser.smoothingTimeConstant = 0.3;
@@ -158,7 +144,6 @@
           state.freqData = new Uint8Array(binCount);
           state.timeData = new Float32Array(cfg.blow.fftSize);
 
-          // Calculate Hz per bin for logging
           var hzPerBin = state.audioContext.sampleRate / cfg.blow.fftSize;
           console.log("🎤 Mic ready. bins:", binCount, "hzPerBin:", hzPerBin.toFixed(1),
             "lowFreqCutoff:", (cfg.blow.lowFreqBins * hzPerBin).toFixed(0) + "Hz");
@@ -182,7 +167,6 @@
             var sum = 0;
             for (var i = 0; i < state.calibrationSamples.length; i++) sum += state.calibrationSamples[i];
             state.noiseFloor = sum / state.calibrationSamples.length;
-            // Set threshold just above noise floor
             var dynamicThreshold = state.noiseFloor + 0.02;
             if (dynamicThreshold > cfg.blow.threshold) {
               cfg.blow.threshold = dynamicThreshold;
@@ -203,7 +187,6 @@
       requestAnimationFrame(sample);
     },
 
-    // Raw low-frequency intensity (0-1)
     computeRawIntensity: function () {
       var sum = 0;
       var bins = Math.min(cfg.blow.lowFreqBins, state.freqData.length);
@@ -213,9 +196,6 @@
       return sum / (bins * 255);
     },
 
-    // ── CHECK 1: Low-frequency energy ratio ──
-    // Wind: >45% of total energy lives in the lowest bins (< ~500Hz)
-    // Speech: energy spreads into mid/high frequencies (formants 300-3kHz)
     checkLowFreqRatio: function () {
       var binCount = state.freqData.length;
       var lowBins = cfg.blow.lowFreqBins;
@@ -225,13 +205,10 @@
         totalSum += val;
         if (i < lowBins) lowSum += val;
       }
-      if (totalSum < 1) return false; // silence
-      var ratio = lowSum / totalSum;
-      this._debugLowFreqRatio = ratio;
-      return ratio >= cfg.blow.lowFreqRatioMin;
+      if (totalSum < 1) return false;
+      return (lowSum / totalSum) >= cfg.blow.lowFreqRatioMin;
     },
 
-    // ── CHECK 2: Spectral flatness (Wiener entropy) ──
     checkSpectralFlatness: function () {
       state.analyser.getFloatFrequencyData(state.floatFreqData);
       var binCount = state.floatFreqData.length;
@@ -251,12 +228,9 @@
       var geoMean = Math.exp(logSum / n);
       var ariMean = linSum / n;
       if (ariMean < 1e-12) return false;
-      var flatness = geoMean / ariMean;
-      this._debugFlatness = flatness;
-      return flatness >= cfg.blow.spectralFlatnessMin;
+      return (geoMean / ariMean) >= cfg.blow.spectralFlatnessMin;
     },
 
-    // ── CHECK 3: Energy stability ──
     checkEnergyStability: function () {
       state.analyser.getFloatTimeDomainData(state.timeData);
       var len = state.timeData.length;
@@ -275,37 +249,26 @@
       var sum = 0, count = this._energyHistory.length;
       for (var j = 0; j < count; j++) sum += this._energyHistory[j];
       var mean = sum / count;
-      if (mean < 0.005) { this._debugCV = -1; return false; }
+      if (mean < 0.005) return false;
       var variance = 0;
       for (var k = 0; k < count; k++) {
         var d = this._energyHistory[k] - mean;
         variance += d * d;
       }
       var stddev = Math.sqrt(variance / count);
-      var cv = stddev / mean;
-      this._debugCV = cv;
-      return cv <= cfg.blow.energyStabilityMax;
+      return (stddev / mean) <= cfg.blow.energyStabilityMax;
     },
-
-    // Debug counter to throttle logging
-    _debugCounter: 0,
-    _debugLowFreqRatio: 0,
-    _debugFlatness: 0,
-    _debugCV: 0,
 
     update: function () {
       if (!state.micReady || !state.analyser) return 0;
       state.analyser.getByteFrequencyData(state.freqData);
       var raw = blowDetector.computeRawIntensity();
 
-      // Subtract noise floor
       var adjusted = Math.max(0, raw - state.noiseFloor);
       var normalized = Math.min(1, adjusted / (1 - state.noiseFloor + 0.001));
 
-      // Apply amplitude threshold
       if (normalized < cfg.blow.threshold) normalized = 0;
 
-      // 3DS-style triple validation: all three must pass
       if (normalized > 0) {
         var lowFreqOk = blowDetector.checkLowFreqRatio();
         var flatnessOk = blowDetector.checkSpectralFlatness();
@@ -314,7 +277,6 @@
           normalized = 0;
         }
       } else {
-        // Still update energy history even when quiet (for stability tracking)
         state.analyser.getFloatTimeDomainData(state.timeData);
         var len = state.timeData.length;
         var e = 0;
@@ -323,7 +285,6 @@
         if (this._energyHistory.length > this._energyHistorySize) this._energyHistory.shift();
       }
 
-      // Exponential smoothing
       state.smoothedIntensity = cfg.blow.smoothing * normalized +
         (1 - cfg.blow.smoothing) * state.smoothedIntensity;
 
@@ -339,16 +300,9 @@
     init: function () {
       this.elements = {
         hint: document.getElementById("ar-hint"),
-        progressContainer: document.getElementById("blow-progress-container"),
-        progressBar: document.getElementById("blow-progress-bar"),
-        blowMeter: document.getElementById("blow-meter"),
-        blowMeterFill: document.getElementById("blow-meter-fill"),
-        blowMeterIcon: document.getElementById("blow-meter-icon"),
         blowPrompt: document.getElementById("blow-prompt"),
-        toggleCount: document.getElementById("toggle-count"),
         itemName: document.getElementById("item-name-display"),
-        status: document.getElementById("ar-status"),
-        statusText: document.getElementById("status-text")
+        stageDots: document.getElementById("stage-dots")
       };
       console.log("🎨 UI initialized");
     },
@@ -359,52 +313,27 @@
     },
 
     showUI: function () {
-      var els = ["hint", "progressContainer", "blowMeter", "blowPrompt", "toggleCount"];
+      var els = ["hint", "blowPrompt", "stageDots"];
       for (var i = 0; i < els.length; i++) {
         var el = this.elements[els[i]];
         if (el) el.classList.remove("ar-ui-hidden");
       }
     },
 
-    updateBlowMeter: function (intensity) {
-      var fill = this.elements.blowMeterFill;
-      var icon = this.elements.blowMeterIcon;
-      if (fill) {
-        if (intensity > 0.01) {
-          fill.style.opacity = "1";
-          // Color intensity: white → cyan → bright cyan
-          var r = Math.round(255 - intensity * 178);
-          var g = Math.round(255 - intensity * 47);
-          var b = Math.round(255 - intensity * 30);
-          fill.style.borderColor = "rgba(" + r + "," + g + "," + b + ", " + (0.4 + intensity * 0.6) + ")";
+    updateStageDots: function (blowCount) {
+      var dots = this.elements.stageDots;
+      if (!dots) return;
+      var spans = dots.querySelectorAll(".stage-dot");
+      for (var i = 0; i < spans.length; i++) {
+        if (i < blowCount) {
+          spans[i].classList.add("filled");
+          spans[i].classList.remove("pop");
+          spans[i].offsetWidth; // force reflow
+          spans[i].classList.add("pop");
         } else {
-          fill.style.opacity = "0";
+          spans[i].classList.remove("filled");
+          spans[i].classList.remove("pop");
         }
-      }
-      if (icon) {
-        if (intensity > 0.05) {
-          icon.classList.add("active");
-        } else {
-          icon.classList.remove("active");
-        }
-      }
-    },
-
-    updateProgress: function (progress) {
-      var bar = this.elements.progressBar;
-      if (bar) {
-        bar.style.width = Math.min(100, progress) + "%";
-      }
-    },
-
-    updateToggleCount: function (count) {
-      var el = this.elements.toggleCount;
-      if (el) {
-        el.textContent = count + " / 3";
-        el.classList.add("visible");
-        el.classList.remove("pop");
-        el.offsetWidth; // force reflow
-        el.classList.add("pop");
       }
     },
 
@@ -413,35 +342,9 @@
       if (el) {
         el.textContent = "✨ " + name;
         el.classList.add("visible");
+        setTimeout(function () { el.classList.remove("visible"); }, 3000);
       }
-    },
-
-    flashCheckpoint: function () {
-      var bar = this.elements.progressBar;
-      if (bar) {
-        bar.classList.add("checkpoint-flash");
-        setTimeout(function () {
-          bar.classList.remove("checkpoint-flash");
-        }, 600);
-      }
-    },
-
-    showCheckpointMessage: function (msg) {
-      if (!msg) return;
-      var el = document.getElementById("checkpoint-message");
-      if (!el) {
-        el = document.createElement("div");
-        el.id = "checkpoint-message";
-        document.body.appendChild(el);
-      }
-      el.textContent = msg;
-      el.classList.remove("show");
-      el.offsetWidth;
-      el.classList.add("show");
-      setTimeout(function () { el.classList.remove("show"); }, 2000);
-    },
-
-
+    }
   };
 
   // ─── WIND PARTICLES ───
@@ -482,8 +385,6 @@
     }
   };
 
-
-
   // ─── MODEL HELPERS ───
   function setModelOpacity(entity, opacity) {
     if (!entity || !entity.object3D) return;
@@ -509,103 +410,6 @@
     if (entity) entity.setAttribute("visible", visible);
   }
 
-  // ─── BOUNCE ANIMATION (from rotate) ───
-  function bounceModel(triggerSwap, onComplete) {
-    state.isBouncing = true;
-    var b = cfg.bounce;
-    var holder = document.getElementById("model-holder");
-    if (!holder) { if (onComplete) onComplete(); return; }
-    var pos = holder.getAttribute("position") || { x: 0, y: 0, z: 0 };
-    state.baseModelY = pos.y;
-    var bounceIdx = 0;
-
-    function doBounce() {
-      if (bounceIdx >= b.bounceCount) {
-        holder.setAttribute("scale", "1 1 1");
-        if (onComplete) onComplete();
-        return;
-      }
-      var height = b.initialHeight * Math.pow(b.damping, bounceIdx);
-      var ss = b.squashStretch[bounceIdx] || b.squashStretch[b.squashStretch.length - 1];
-      var dur = b.bounceDuration;
-      var isLastBounce = triggerSwap && bounceIdx === b.bounceCount - 1;
-      var startTime = performance.now();
-      var switchDone = false;
-
-      function animate(now) {
-        var elapsed = now - startTime;
-        var t = Math.min(1, elapsed / dur);
-        var y, sy, sxz;
-
-        if (t < 0.5) {
-          var up = t / 0.5;
-          var ease = 1 - (1 - up) * (1 - up);
-          y = state.baseModelY + height * ease;
-          var sinVal = Math.sin(up * Math.PI);
-          sy = 1 + (ss.stretchY - 1) * sinVal;
-          sxz = 1 + (ss.stretchXZ - 1) * sinVal;
-        } else {
-          var down = (t - 0.5) / 0.5;
-          var easeDown = down * down;
-          y = state.baseModelY + height * (1 - easeDown);
-          if (isLastBounce && down > 0.95 && !switchDone) {
-            switchDone = true;
-            doModelSwap();
-          }
-          if (down > 0.85) {
-            var k = (down - 0.85) / 0.15;
-            sy = 1 + (ss.squashY - 1) * k;
-            sxz = 1 + (ss.squashXZ - 1) * k;
-          } else {
-            sy = 1; sxz = 1;
-          }
-        }
-
-        var currentPos = holder.getAttribute("position");
-        holder.setAttribute("position", { x: currentPos.x, y: y, z: currentPos.z });
-        var activeModel = state.showingFictional ? state.fictionalModel : state.realModel;
-        if (activeModel) {
-          activeModel.setAttribute("scale", (0.5 * sxz) + " " + (0.5 * sy) + " " + (0.5 * sxz));
-        }
-
-        if (t < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          if (isLastBounce && !switchDone) {
-            switchDone = true;
-            doModelSwap();
-          }
-          holder.setAttribute("position", { x: currentPos.x, y: state.baseModelY, z: currentPos.z });
-          // Settle squash
-          settleSquash(activeModel, ss, function () {
-            bounceIdx++;
-            doBounce();
-          });
-        }
-      }
-      requestAnimationFrame(animate);
-    }
-    doBounce();
-  }
-
-  function settleSquash(model, ss, onDone) {
-    var start = performance.now();
-    var scale = 0.5;
-    requestAnimationFrame(function frame(now) {
-      var t = Math.min(1, (now - start) / 150);
-      var ease = 1 - (1 - t) * (1 - t);
-      var sy = scale * (ss.squashY + (1 - ss.squashY) * ease);
-      var sxz = scale * (ss.squashXZ + (1 - ss.squashXZ) * ease);
-      if (model) model.setAttribute("scale", sxz + " " + sy + " " + sxz);
-      if (t < 1) {
-        requestAnimationFrame(frame);
-      } else {
-        if (model) model.setAttribute("scale", scale + " " + scale + " " + scale);
-        if (onDone) onDone();
-      }
-    });
-  }
-
   // ─── MODEL SWAP ───
   function doModelSwap() {
     if (state.showingFictional) {
@@ -626,164 +430,364 @@
       console.log("🔄 Switched to Fictional");
     }
     state.toggleCount++;
-    ui.updateToggleCount(state.toggleCount);
     console.log("🔄 Toggle #" + state.toggleCount);
-
-    if (state.toggleCount >= 3) {
-      var btn = document.getElementById("back-to-main");
-      if (btn && !btn.classList.contains("visible")) {
-        btn.classList.add("visible");
-        console.log("🏠 Back button shown after", state.toggleCount, "toggles");
-      }
-    }
   }
 
-  // ─── ROLL MODEL BACK TO ORIGIN ───
-  function rollModelBack(onComplete) {
-    var posHolder = document.getElementById("position-holder");
-    var modelHolder = document.getElementById("model-holder");
-    if (!posHolder) { if (onComplete) onComplete(); return; }
+  // ─── GIGGLE ANIMATIONS ───
+  var DEG2RAD = Math.PI / 180;
 
-    var pos = posHolder.getAttribute("position");
-    var startZ = pos.z;
-    var targetZ = state.originZ;
+  // Smooth noise function — replaces jerky Math.random() with sine-based smooth noise
+  function smoothNoise(time, seed) {
+    return Math.sin(time * 7.13 + seed * 31.7) * 0.5 +
+           Math.sin(time * 13.27 + seed * 17.3) * 0.3 +
+           Math.sin(time * 23.41 + seed * 53.1) * 0.2;
+  }
+
+  // Ease-out cubic for smooth deceleration (like Rotate's bounce settle)
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  // Settle animation: smoothly returns scale to base after wobble (like Rotate's post-bounce)
+  function settleScale(activeModel, baseScale, duration, onComplete) {
+    if (!activeModel) { if (onComplete) onComplete(); return; }
+    var startScale = {
+      x: activeModel.object3D.scale.x,
+      y: activeModel.object3D.scale.y,
+      z: activeModel.object3D.scale.z
+    };
     var startTime = performance.now();
-    var duration = cfg.rolling.rollInDuration;
-    var startRotation = state.totalRotationX;
-    var rollBackRotation = Math.abs(startZ - targetZ) / cfg.rolling.rollOutDistance * 360;
-
-    function animate(now) {
-      var t = Math.min(1, (now - startTime) / duration);
-      var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      var z = startZ + (targetZ - startZ) * ease;
-
-      state.totalRotationX = startRotation + rollBackRotation * ease;
-
-      var currentPos = posHolder.getAttribute("position");
-      posHolder.setAttribute("position", { x: currentPos.x, y: currentPos.y, z: z });
-
-      if (modelHolder) {
-        var rot = modelHolder.getAttribute("rotation") || { x: 0, y: 0, z: 0 };
-        modelHolder.setAttribute("rotation", { x: state.totalRotationX, y: rot.y, z: rot.z });
-      }
-
+    function settle(now) {
+      var elapsed = now - startTime;
+      var t = Math.min(1, elapsed / duration);
+      var ease = easeOutCubic(t);
+      var sx = startScale.x + (baseScale - startScale.x) * ease;
+      var sy = startScale.y + (baseScale - startScale.y) * ease;
+      var sz = startScale.z + (baseScale - startScale.z) * ease;
+      activeModel.object3D.scale.set(sx, sy, sz);
       if (t < 1) {
-        requestAnimationFrame(animate);
+        requestAnimationFrame(settle);
       } else {
-        posHolder.setAttribute("position", { x: currentPos.x, y: currentPos.y, z: targetZ });
+        activeModel.object3D.scale.set(baseScale, baseScale, baseScale);
         if (onComplete) onComplete();
       }
+    }
+    requestAnimationFrame(settle);
+  }
+
+  // Combined wobble + squash-stretch in a single rAF loop for smooth animation
+  function wobbleAndSquash(opts, onComplete) {
+    // opts: { deg, cycles, period, squashY, stretchY, jitter, bounceY }
+    var holder = state.modelHolder;
+    var activeModel = state.showingFictional ? state.fictionalModel : state.realModel;
+    if (!holder) { if (onComplete) onComplete(); return; }
+    var startTime = performance.now();
+    var totalDuration = opts.cycles * opts.period;
+    var baseScale = 0.5;
+    var jitter = opts.jitter || 0;
+    var bounceY = opts.bounceY || 0; // Y-axis bounce amplitude (like Rotate's vertical bounce)
+    // Smooth jitter state — pre-generate seed for deterministic smooth noise
+    var jitterSeedX = Math.random() * 100;
+    var jitterSeedZ = Math.random() * 100 + 50;
+    // Previous values for interpolation (lerp smoothing)
+    var prevJX = 0, prevJZ = 0;
+    var prevAngle = 0;
+    var jitterLerp = 0.3; // Smoothing factor — higher for responsive but smooth feel
+    var angleLerp = 0.4;  // Rotation smoothing — prevents micro-stutters
+    // Remember base position for bounce
+    var baseY = holder.object3D.position.y;
+
+    function animate(now) {
+      var elapsed = now - startTime;
+      if (elapsed >= totalDuration) {
+        // Smooth settle for ALL properties — rotation, position, and scale
+        var settleStartRot = holder.object3D.rotation.z;
+        var settleStartX = holder.object3D.position.x;
+        var settleStartY = holder.object3D.position.y - baseY;
+        var settleStartZ = holder.object3D.position.z;
+        var settleStart = performance.now();
+        var settleDur = 180; // Slightly longer for more visible ease
+        function settleAll(now2) {
+          var st = Math.min(1, (now2 - settleStart) / settleDur);
+          // Smooth ease-out that decelerates naturally
+          var ease = easeOutCubic(st);
+          holder.object3D.rotation.z = settleStartRot * (1 - ease);
+          holder.object3D.position.x = settleStartX * (1 - ease);
+          holder.object3D.position.y = baseY + settleStartY * (1 - ease);
+          holder.object3D.position.z = settleStartZ * (1 - ease);
+          if (st < 1) {
+            requestAnimationFrame(settleAll);
+          } else {
+            holder.object3D.rotation.z = 0;
+            holder.object3D.position.x = 0;
+            holder.object3D.position.y = baseY;
+            holder.object3D.position.z = 0;
+            // Settle scale smoothly (like Rotate's squash recovery)
+            settleScale(activeModel, baseScale, 150, onComplete);
+          }
+        }
+        requestAnimationFrame(settleAll);
+        return;
+      }
+
+      var t = elapsed / totalDuration;
+      // Improved envelope: fast cubic ease-in, smooth ease-out decay
+      var envelope;
+      if (t < 0.12) {
+        // Quick ramp up — slightly faster attack for snappier feel
+        var rampT = t / 0.12;
+        envelope = rampT * rampT * (3 - 2 * rampT); // smoothstep
+      } else {
+        // Smooth decay using cosine for organic feel
+        var decayT = (t - 0.12) / 0.88;
+        envelope = Math.cos(decayT * Math.PI * 0.5);
+      }
+      envelope = Math.max(0, envelope);
+
+      // Wobble rotation — smooth sine wave with lerp interpolation
+      var phase = (elapsed / opts.period) * Math.PI * 2;
+      var targetAngle = Math.sin(phase) * opts.deg * envelope * DEG2RAD;
+      // Lerp rotation for sub-frame smoothness (prevents aliasing at high wobble speeds)
+      prevAngle += (targetAngle - prevAngle) * angleLerp;
+      holder.object3D.rotation.z = prevAngle;
+
+      // Y-axis bounce — synced to wobble, like Rotate's vertical bounce physics
+      if (bounceY > 0) {
+        var bounceWave = Math.abs(Math.sin(phase * 0.5)); // Half freq, always positive
+        holder.object3D.position.y = baseY + bounceY * bounceWave * envelope;
+      }
+
+      // Squash-stretch — synced with wobble, phase-shifted for organic motion
+      if (activeModel && opts.squashY && opts.stretchY) {
+        var squashWave = Math.sin(phase + Math.PI * 0.5); // 90° offset from wobble
+        var sy, sxz;
+        if (squashWave > 0) {
+          sy = baseScale * (1 + (opts.stretchY - 1) * squashWave * envelope);
+          sxz = baseScale * (1 - (opts.stretchY - 1) * squashWave * envelope * 0.5);
+        } else {
+          sy = baseScale * (1 + (opts.squashY - 1) * (-squashWave) * envelope);
+          sxz = baseScale * (1 - (opts.squashY - 1) * (-squashWave) * envelope * 0.5);
+        }
+        activeModel.object3D.scale.set(sxz, sy, sxz);
+      }
+
+      // Jitter — smooth sine-based noise with lerp interpolation
+      if (jitter > 0) {
+        var jitterStrength = jitter * envelope;
+        var timeSeconds = elapsed / 1000;
+        // Generate smooth target positions using layered sine waves
+        var targetJX = smoothNoise(timeSeconds, jitterSeedX) * jitterStrength;
+        var targetJZ = smoothNoise(timeSeconds, jitterSeedZ) * jitterStrength;
+        // Lerp for extra smoothness (prevents any discontinuity)
+        prevJX += (targetJX - prevJX) * jitterLerp;
+        prevJZ += (targetJZ - prevJZ) * jitterLerp;
+        holder.object3D.position.x = prevJX;
+        holder.object3D.position.z = prevJZ;
+      }
+
+      requestAnimationFrame(animate);
     }
     requestAnimationFrame(animate);
   }
 
-  // ─── CHECKPOINT HANDLER ───
-  function onCheckpoint(checkIdx) {
-    console.log("🎯 Checkpoint " + (checkIdx + 1) + "/3 reached!");
+  // Stage 1: light wobble + subtle squash-stretch + gentle bounce
+  function playGiggle1(onComplete) {
+    state.isAnimating = true;
+    var s = cfg.giggle.stage1;
+    wobbleAndSquash({
+      deg: s.wobbleDeg,
+      cycles: s.wobbleCycles,
+      period: s.wobblePeriod,
+      squashY: s.squashY,
+      stretchY: s.stretchY,
+      jitter: 0,
+      bounceY: 0.03 // Subtle vertical bounce like Rotate's gentle oscillation
+    }, function () {
+      state.isAnimating = false;
+      if (onComplete) onComplete();
+    });
+  }
 
-    // Checkpoint message
-    var msg = cfg.progress.messages[checkIdx];
-    if (msg) ui.showCheckpointMessage(msg);
+  // Stage 2: vigorous wobble + strong squash-stretch + jitter + bounce
+  function playGiggle2(onComplete) {
+    state.isAnimating = true;
+    var s = cfg.giggle.stage2;
+    wobbleAndSquash({
+      deg: s.wobbleDeg,
+      cycles: s.wobbleCycles,
+      period: s.wobblePeriod,
+      squashY: s.squashY,
+      stretchY: s.stretchY,
+      jitter: s.jitter,
+      bounceY: 0.08 // More visible vertical bounce for higher intensity
+    }, function () {
+      state.isAnimating = false;
+      if (onComplete) onComplete();
+    });
+  }
 
-    // Flash progress bar
-    ui.flashCheckpoint();
+  // Stage 3: intense tremor → grow big → swap → pop out new model
+  function playTransform(onComplete) {
+    state.isAnimating = true;
+    var s = cfg.giggle.stage3;
+    var holder = state.modelHolder;
+    if (!holder) { state.isAnimating = false; if (onComplete) onComplete(); return; }
 
-    // Vibrate (Android)
-    if (navigator.vibrate) navigator.vibrate(50);
+    // Phase 1: Intense tremor with jitter
+    var tremorCycles = Math.floor(s.tremorDuration / s.wobblePeriod);
+    wobbleAndSquash({
+      deg: s.wobbleDeg,
+      cycles: tremorCycles,
+      period: s.wobblePeriod,
+      squashY: 0.85,
+      stretchY: 1.2,
+      jitter: 0.03,
+      bounceY: 0.12 // Strong vertical bounce during transform tremor
+    }, function () {
+      // Phase 2: Grow big (expand to overshoot scale) — smooth ease-out like Rotate
+      var activeModel = state.showingFictional ? state.fictionalModel : state.realModel;
+      var growStart = performance.now();
+      var baseScale = 0.5;
+      var growTarget = baseScale * s.popOvershoot;
 
-    var isFullProgress = checkIdx === cfg.progress.checkpoints.length - 1;
+      function grow(now) {
+        var elapsed = now - growStart;
+        var t = Math.min(1, elapsed / s.shrinkDuration);
+        // Smooth ease-out cubic (like Rotate's bounce rise)
+        var ease = easeOutCubic(t);
+        var sc = baseScale + (growTarget - baseScale) * ease;
+        if (activeModel) {
+          activeModel.object3D.scale.set(sc, sc, sc);
+        }
+        if (t < 1) {
+          requestAnimationFrame(grow);
+        } else {
+          // Phase 3: Swap model
+          doModelSwap();
 
-    // At final checkpoint: swap model in place, reset progress for next cycle
-    if (isFullProgress) {
-      doModelSwap();
-      // Reset rotation so swapped model appears upright
-      state.totalRotationX = 0;
-      var holder = document.getElementById("model-holder");
-      if (holder) {
-        holder.setAttribute("rotation", { x: 0, y: 0, z: 0 });
+          // Phase 4: New model pops in with bounce-back settle (like Rotate's bounce)
+          var newModel = state.showingFictional ? state.fictionalModel : state.realModel;
+          if (newModel) newModel.object3D.scale.set(growTarget, growTarget, growTarget);
+          var popStart = performance.now();
+
+          function pop(now) {
+            var elapsed = now - popStart;
+            var t = Math.min(1, elapsed / s.popDuration);
+            // Ease-out-back: bounce overshoot that settles (same as Rotate)
+            var c1 = 1.70158;
+            var c3 = c1 + 1;
+            var ease = 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+            var sc = growTarget + (baseScale - growTarget) * ease;
+            if (sc < 0.01) sc = 0.01;
+            if (newModel) {
+              newModel.object3D.scale.set(sc, sc, sc);
+            }
+            if (t < 1) {
+              requestAnimationFrame(pop);
+            } else {
+              // Smooth final settle (like Rotate's settle animation)
+              settleScale(newModel, baseScale, 150, function () {
+                holder.object3D.rotation.set(0, 0, 0);
+                holder.object3D.position.set(0, 0, 0);
+                state.isAnimating = false;
+                if (onComplete) onComplete();
+              });
+            }
+          }
+          requestAnimationFrame(pop);
+        }
       }
-      // Reset progress and distance for next cycle
-      state.progress = 0;
-      state.totalDistance = 0;
-      state.currentCheckpoint = 0;
-      ui.updateProgress(0);
+      requestAnimationFrame(grow);
+    });
+  }
+
+  // ─── BLOW STATE MACHINE ───
+  var BLOW_THRESHOLD = 0.03;
+
+  function updateBlowStateMachine(intensity) {
+    var now = performance.now();
+    var wasBlowing = state.isBlowingNow;
+    state.isBlowingNow = intensity > BLOW_THRESHOLD;
+
+    // Detect blow start
+    if (state.isBlowingNow && !wasBlowing) {
+      state.blowStartTime = now;
+    }
+    // Detect blow end
+    if (!state.isBlowingNow && wasBlowing) {
+      state.blowEndTime = now;
     }
 
-    // Stop all motion
-    state.isBouncing = false;
-    state.isSwapping = false;
-    state.rollVelocity = 0;
-    console.log("⏭️ Checkpoint done. Toggle count:", state.toggleCount);
+    // Don't process state transitions while animating
+    if (state.isAnimating) return;
+
+    var bs = state.blowState;
+    var g = cfg.giggle;
+
+    switch (bs) {
+      case BLOW_STATE.IDLE:
+        if (state.isBlowingNow && (now - state.blowStartTime) >= g.minBlowDuration) {
+          state.blowState = BLOW_STATE.GIGGLE_1;
+          state.blowCount = 1;
+          ui.updateStageDots(1);
+          console.log("🌬️ Blow 1 → GIGGLE_1");
+          playGiggle1(function () {
+            state.blowState = BLOW_STATE.COOLDOWN_1;
+            console.log("⏸️ → COOLDOWN_1");
+          });
+        }
+        break;
+
+      case BLOW_STATE.COOLDOWN_1:
+        if (state.isBlowingNow && state.blowStartTime > state.blowEndTime &&
+            state.blowEndTime > 0 && (state.blowStartTime - state.blowEndTime) >= g.cooldownDuration &&
+            (now - state.blowStartTime) >= g.minBlowDuration) {
+          state.blowState = BLOW_STATE.GIGGLE_2;
+          state.blowCount = 2;
+          ui.updateStageDots(2);
+          console.log("🌬️ Blow 2 → GIGGLE_2");
+          playGiggle2(function () {
+            state.blowState = BLOW_STATE.COOLDOWN_2;
+            console.log("⏸️ → COOLDOWN_2");
+          });
+        }
+        break;
+
+      case BLOW_STATE.COOLDOWN_2:
+        if (state.isBlowingNow && state.blowStartTime > state.blowEndTime &&
+            state.blowEndTime > 0 && (state.blowStartTime - state.blowEndTime) >= g.cooldownDuration &&
+            (now - state.blowStartTime) >= g.minBlowDuration) {
+          state.blowState = BLOW_STATE.GIGGLE_3;
+          state.blowCount = 3;
+          ui.updateStageDots(3);
+          console.log("🌬️ Blow 3 → TRANSFORM");
+          playTransform(function () {
+            // Reset cycle
+            state.blowState = BLOW_STATE.IDLE;
+            state.blowCount = 0;
+            state.blowStartTime = 0;
+            state.blowEndTime = 0;
+            state.isBlowingNow = false;
+            ui.updateStageDots(0);
+            console.log("🔄 Cycle reset → IDLE");
+          });
+        }
+        break;
+
+      default:
+        break;
+    }
   }
 
   // ─── MAIN GAME LOOP ───
   function gameLoop() {
-    if (state.isBouncing || state.isSwapping) {
-      requestAnimationFrame(gameLoop);
-      return;
-    }
-
     var intensity = blowDetector.update();
 
-    // Update UI
-    ui.updateBlowMeter(intensity);
-
-    // Wind particles
     if (intensity > 0.05) {
       windParticles.spawn(intensity);
     }
 
-    var maxRotPerFrame = cfg.rolling.maxRotationSpeed / 60;
-
-    // Rolling physics: accumulate velocity when blowing, friction when not
-    if (intensity > 0) {
-      // Accelerate
-      state.rollVelocity += intensity * maxRotPerFrame * 0.5;
-      if (state.rollVelocity > maxRotPerFrame) {
-        state.rollVelocity = maxRotPerFrame;
-      }
-    } else {
-      // Coast with friction (inertia)
-      state.rollVelocity *= cfg.rolling.friction;
-      if (state.rollVelocity < 0.01) state.rollVelocity = 0;
-    }
-
-    // Apply rotation continuously (smooth animation)
-    if (state.rollVelocity > 0) {
-      state.totalRotationX -= state.rollVelocity;
-    }
-    var holder = document.getElementById("model-holder");
-    if (holder) {
-      holder.setAttribute("rotation", { x: state.totalRotationX, y: 0, z: 0 });
-    }
-
-    // Translate model away from camera (only forward, never backward)
-    var posHolder = document.getElementById("position-holder");
-    if (posHolder && state.rollVelocity > 0) {
-      var translateSpeed = (state.rollVelocity / maxRotPerFrame) * cfg.rolling.maxTranslateSpeed / 60;
-      var pos = posHolder.getAttribute("position");
-      posHolder.setAttribute("position", { x: pos.x, y: pos.y, z: pos.z - translateSpeed });
-      // Accumulate total distance for progress
-      state.totalDistance += translateSpeed;
-    }
-
-    // Progress derived from cumulative distance (never decreases within a cycle)
-    var newProgress = Math.min(cfg.progress.target, (state.totalDistance / cfg.rolling.rollOutDistance) * cfg.progress.target);
-    if (newProgress > state.progress) {
-      state.progress = newProgress;
-    }
-    ui.updateProgress(state.progress);
-
-    // Check checkpoints
-    if (state.currentCheckpoint < cfg.progress.checkpoints.length) {
-      var threshold = cfg.progress.checkpoints[state.currentCheckpoint];
-      if (state.progress >= threshold) {
-        state.isSwapping = true;
-        var cpIdx = state.currentCheckpoint;
-        state.currentCheckpoint++;
-        onCheckpoint(cpIdx);
-      }
-    }
+    updateBlowStateMachine(intensity);
 
     requestAnimationFrame(gameLoop);
   }
@@ -817,12 +821,10 @@
       var el = document.getElementById("pre-ar-overlay");
       if (el) el.classList.add("is-hidden");
 
-      // Show UI
       ui.showUI();
 
-      // Start microphone + game loop
       blowDetector.init(function () {
-        console.log("🎮 Starting game loop");
+        console.log("🎮 Starting game loop (giggle mode)");
         requestAnimationFrame(gameLoop);
       });
     },
@@ -867,7 +869,7 @@
     var drag = { isActive: false, startX: 0, startY: 0, startMX: 0, startMZ: 0 };
 
     sceneEl.addEventListener("touchstart", function (e) {
-      if (e.touches.length === 1 && !state.isBouncing) {
+      if (e.touches.length === 1 && !state.isAnimating) {
         var t = e.touches[0];
         var pos = posHolder.getAttribute("position");
         drag.isActive = true;
@@ -879,7 +881,7 @@
     });
 
     sceneEl.addEventListener("touchmove", function (e) {
-      if (drag.isActive && e.touches.length === 1 && !state.isBouncing) {
+      if (drag.isActive && e.touches.length === 1 && !state.isAnimating) {
         var t = e.touches[0];
         var dx = 0.005 * (t.clientX - drag.startX);
         var dz = 0.005 * (t.clientY - drag.startY);
@@ -897,14 +899,13 @@
   AFRAME.registerComponent("blow-ar-interaction", {
     init: function () {
       var self = this;
-      console.log("🎮 BlowItem AR Interaction initializing...");
+      console.log("🎮 BlowItem AR Interaction initializing (giggle mode)...");
 
       overlay.bind(this.el);
       ui.init();
       windParticles.init();
       ui.setStatus("Loading models...");
 
-      // Parse parameters
       var params = (function () {
         if (TEST_MODE.enabled) {
           console.log("🧪 TEST MODE: Using local assets");
@@ -937,11 +938,10 @@
 
       this.el.addEventListener("loaded", function () {
         console.log("📦 Scene loaded");
-        state.progress = 0;
-        state.currentCheckpoint = 0;
         state.showingFictional = false;
         state.toggleCount = 0;
-        ui.updateToggleCount(0);
+        state.blowCount = 0;
+        state.blowState = BLOW_STATE.IDLE;
         self.loadModels();
         setupDrag();
       });

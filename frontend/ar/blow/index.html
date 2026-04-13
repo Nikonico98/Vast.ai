@@ -66,77 +66,51 @@
         }
 
 
-        /* ===== BLOW METER (arc at bottom) ===== */
-        #blow-meter {
-            display: none !important
-        }
-
-        #blow-meter-arc {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            border: 10px solid rgba(255, 255, 255, 0.15);
-            box-sizing: border-box;
-            position: relative;
-            background: transparent;
-            /* Mask to show only top half */
-            clip-path: inset(0 0 50% 0)
-        }
-
-        #blow-meter-fill {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            border: 10px solid #b39ddb;
-            box-sizing: border-box;
-            clip-path: inset(0 0 50% 0);
-            /* Rotate to show fill amount — controlled by JS */
-            transform: rotate(0deg);
-            transform-origin: center center;
-            transition: opacity 0.15s ease;
-            opacity: 0
-        }
-
-        #blow-meter-icon {
-            position: absolute;
-            bottom: 2px;
+        /* ===== STAGE DOTS ===== */
+        #stage-dots {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 80px);
             left: 50%;
             transform: translateX(-50%);
-            font-size: 22px;
-            z-index: 2;
-            animation: micPulse 2s ease-in-out infinite
+            display: flex;
+            gap: 12px;
+            z-index: 1000;
+            opacity: 0;
+            animation: fadeIn .5s ease 1.5s forwards
         }
 
-        #blow-meter-icon.active {
-            animation: micPulseActive 0.4s ease-in-out infinite
+        .stage-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.15);
+            transition: background .3s ease, border-color .3s ease, transform .3s ease;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px)
         }
 
-        @keyframes micPulse {
+        .stage-dot.filled {
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            border-color: #b39ddb;
+            box-shadow: 0 0 8px rgba(126, 87, 194, 0.6)
+        }
 
-            0%,
-            100% {
-                transform: translateX(-50%) scale(1);
-                opacity: 0.7
+        .stage-dot.pop {
+            animation: dotPop .3s ease forwards
+        }
+
+        @keyframes dotPop {
+            0% {
+                transform: scale(1)
             }
 
             50% {
-                transform: translateX(-50%) scale(1.1);
-                opacity: 1
+                transform: scale(1.5)
             }
-        }
 
-        @keyframes micPulseActive {
-
-            0%,
             100% {
-                transform: translateX(-50%) scale(1);
-            }
-
-            50% {
-                transform: translateX(-50%) scale(1.2);
+                transform: scale(1)
             }
         }
 
@@ -157,18 +131,7 @@
             text-align: center
         }
 
-        /* ===== TOGGLE COUNT ===== */
-        #toggle-count {
-            display: none !important
-        }
 
-        #toggle-count.visible {
-            opacity: 1
-        }
-
-        #toggle-count.pop {
-            animation: numberPop .3s ease forwards
-        }
 
         /* ===== BACK BUTTON ===== */
         #back-to-main {
@@ -231,34 +194,7 @@
             transform: translateX(-50%) translateY(0)
         }
 
-        /* ===== CHECKPOINT MESSAGE ===== */
-        #checkpoint-message {
-            position: fixed;
-            top: calc(env(safe-area-inset-top, 20px) + 155px);
-            left: 50%;
-            transform: translateX(-50%) translateY(-8px);
-            background: rgba(0, 0, 0, .75);
-            color: #fff;
-            padding: 10px 22px;
-            border-radius: 16px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 14px;
-            font-weight: 600;
-            z-index: 10001;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity .3s ease, transform .3s ease;
-            text-align: center;
-            white-space: nowrap
-        }
 
-        #checkpoint-message.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0)
-        }
 
         /* ===== WIND PARTICLES ===== */
         #wind-particle-container {
@@ -390,15 +326,6 @@
                 transform: translateX(-50%) scale(1)
             }
 
-            50% {
-                transform: translateX(-50%) scale(1.4);
-                color: #b39ddb
-            }
-
-            100% {
-                transform: translateX(-50%) scale(1);
-                color: #fff
-            }
         }
 
         .ar-ui-hidden {
@@ -425,21 +352,19 @@
         <span class="hint-icon">🌬️</span>
         <div class="hint-text">
             <span class="hint-title">AR Interaction: <span id="interaction-type">Blow</span></span>
-            <span class="hint-subtitle" id="interaction-hint">Blow on the mic to roll</span>
+            <span class="hint-subtitle" id="interaction-hint">Blow 3 times for a surprise!</span>
         </div>
     </div>
 
-    <!-- Progress Bar (removed) -->
-
-    <!-- Toggle Count -->
-    <div id="toggle-count" class="ar-ui-hidden">0 / 3</div>
+    <!-- Stage Dots -->
+    <div id="stage-dots" class="ar-ui-hidden">
+        <span class="stage-dot"></span>
+        <span class="stage-dot"></span>
+        <span class="stage-dot"></span>
+    </div>
 
     <!-- Item Name Display -->
     <div id="item-name-display"></div>
-
-    <!-- Checkpoint Message -->
-
-
 
     <!-- Wind Particles -->
     <div id="wind-particle-container"></div>
@@ -476,16 +401,8 @@
         <a-plane id="ground" rotation="-90 0 0" width="1000" height="1000" material="shader: shadow" shadow></a-plane>
     </a-scene>
 
-    <!-- Blow Meter -->
-    <div id="blow-meter" class="ar-ui-hidden">
-        <div id="blow-meter-arc">
-            <div id="blow-meter-fill"></div>
-        </div>
-        <div id="blow-meter-icon">🎤</div>
-    </div>
-
     <!-- Blow Prompt -->
-    <div id="blow-prompt" class="ar-ui-hidden">Blow on the mic!</div>
+    <div id="blow-prompt" class="ar-ui-hidden">🌬️ Blow to make it giggle!</div>
 
     <!-- Back Button -->
     <button id="back-to-main">🏠 Back to Main Page</button>
