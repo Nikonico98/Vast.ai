@@ -1,0 +1,731 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Niko_Wall</title>
+    <meta itemprop="name" content="Niko_Wall">
+    <meta name="twitter:title" content="Niko_Wall">
+    <meta property="og:title" content="Niko_Wall">
+    <meta property="og:site_name" content="Niko_Wall">
+    <meta name="description" content="">
+    <meta itemprop="description" content="">
+    <meta property="og:description" content="">
+    <meta name="twitter:description" content="">
+    <script crossorigin="anonymous" src="./external/scripts/8frame-1.4.1.min.js"></script>
+    <script crossorigin="anonymous" src="./external/xrextras/xrextras.js"></script>
+    <script crossorigin="anonymous" src="./external/landing-page/landing-page.js"></script>
+    <script crossorigin="anonymous" src="./external/xr/xr.js" async="true" data-preload-chunks="face, slam"></script>
+    <meta name="8thwall:renderer" content="aframe:1.4.1" />
+    <meta name="8thwall:package" content="@8thwall.xrextras" />
+    <meta name="8thwall:package" content="@8thwall.landing-page" />
+    <style>
+        #ar-status {
+            display: none !important
+        }
+
+        #ar-hint {
+            position: fixed;
+            top: env(safe-area-inset-top, 20px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, .7);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
+            opacity: 0;
+            animation: fadeIn .5s ease 1s forwards
+        }
+
+        #ar-hint .hint-icon {
+            font-size: 18px
+        }
+
+        #ar-hint .hint-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px
+        }
+
+        #ar-hint .hint-title {
+            font-weight: 600;
+            font-size: 15px
+        }
+
+        #ar-hint .hint-subtitle {
+            font-size: 12px;
+            opacity: .8
+        }
+
+        #ar-status {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, .9);
+            color: #333;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        #ar-status .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+            animation: pulse 1.5s infinite
+        }
+
+        #ar-status.waiting .status-dot {
+            background: #ff9800
+        }
+
+        #ar-status.complete .status-dot {
+            background: #4caf50;
+            animation: none
+        }
+
+        #back-to-main {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 16px);
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1100;
+            box-shadow: 0 4px 16px rgba(102, 126, 234, .5);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            pointer-events: none;
+            transition: transform .5s cubic-bezier(.34, 1.56, .64, 1), opacity .4s ease
+        }
+
+        #back-to-main.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto
+        }
+
+        #back-to-main:active {
+            transform: translateX(-50%) translateY(0) scale(.95)
+        }
+
+
+
+        /* ---- Joystick ---- */
+        #joystick-zone {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 10px) + 90px);
+            left: 24px;
+            width: 120px;
+            height: 120px;
+            z-index: 1200;
+            touch-action: none;
+            -webkit-touch-callout: none
+        }
+
+        #joystick-base {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, .35);
+            border: 2px solid rgba(196, 160, 255, .5);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            position: relative
+        }
+
+        #joystick-thumb {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #C4A0FF 0%, #9B59B6 100%);
+            border: 2px solid rgba(255, 255, 255, .6);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            transition: none
+        }
+
+        #joystick-label {
+            text-align: center;
+            color: rgba(255, 255, 255, .6);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 10px;
+            font-weight: 600;
+            margin-top: 4px;
+            letter-spacing: 0.5px
+        }
+
+        /* ---- Depth slider (right edge, vertical) ---- */
+        #depth-zone {
+            position: fixed;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1200;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            touch-action: none
+        }
+
+        #depth-zone .depth-label {
+            color: rgba(255, 255, 255, .6);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px
+        }
+
+        #depth-zone .depth-val {
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums
+        }
+
+        #depth-slider {
+            -webkit-appearance: slider-vertical;
+            appearance: slider-vertical;
+            writing-mode: vertical-lr;
+            direction: rtl;
+            width: 28px;
+            height: 180px;
+            background: transparent;
+            outline: none
+        }
+
+        #depth-slider::-webkit-slider-runnable-track {
+            width: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, .25)
+        }
+
+        #depth-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #C4A0FF;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+            margin-left: -9px
+        }
+
+        /* ---- Rotation slider (bottom center) ---- */
+        #rotation-zone {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 10px) + 90px);
+            left: 160px;
+            right: 60px;
+            z-index: 1200;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            touch-action: none
+        }
+
+        #rotation-zone .rot-label {
+            color: rgba(255, 255, 255, .6);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 10px;
+            font-weight: 600;
+            min-width: 18px;
+            text-align: center
+        }
+
+        #rotation-zone .rot-val {
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+            min-width: 32px;
+            text-align: left;
+            font-variant-numeric: tabular-nums
+        }
+
+        #rotation-slider {
+            flex: 1;
+            height: 28px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            outline: none
+        }
+
+        #rotation-slider::-webkit-slider-runnable-track {
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, .25)
+        }
+
+        #rotation-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #C4A0FF;
+            border: 2px solid #fff;
+            margin-top: -9px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .3)
+        }
+
+        /* ---- CTA button ---- */
+        #cta-btn {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 10px) + 24px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 14px 48px;
+            border-radius: 28px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            z-index: 1200;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, .6);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform .3s ease, opacity .3s ease, background .3s ease
+        }
+
+        #cta-btn.visible {
+            opacity: 1;
+            pointer-events: auto
+        }
+
+        #cta-btn:active {
+            transform: translateX(-50%) scale(.93)
+        }
+
+        #cta-btn.reset-mode {
+            background: rgba(196, 160, 255, .9);
+            box-shadow: 0 4px 16px rgba(196, 160, 255, .5)
+        }
+
+        .wall-controls-hidden #joystick-zone,
+        .wall-controls-hidden #depth-zone,
+        .wall-controls-hidden #rotation-zone {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .3s ease
+        }
+
+
+
+        #portal-flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, rgba(102, 126, 234, .5) 0, transparent 70%);
+            z-index: 9998;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity .3s ease
+        }
+
+        #portal-flash.active {
+            opacity: 1
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-10px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0)
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .5
+            }
+        }
+
+        .ar-ui-hidden {
+            display: none !important
+        }
+
+        #item-name-display {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 20px) + 100px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, .4);
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+            transition: opacity .3s, transform .3s;
+            pointer-events: none
+        }
+
+        #item-name-display.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0)
+        }
+
+        #wall-hint {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 20px) + 80px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 10px 22px;
+            border-radius: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10001;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            text-align: center
+        }
+
+        #wall-hint.visible {
+            opacity: 1
+        }
+
+        #pre-ar-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: linear-gradient(180deg, #1d1135 0, #4a2d7a 25%, #7e57c2 50%, #b39ddb 75%, #ede7f6 100%);
+            z-index: 1500;
+            transition: opacity .3s ease, visibility .3s ease
+        }
+
+        #pre-ar-overlay.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none
+        }
+
+        .pre-ar-panel {
+            width: min(100%, 320px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center
+        }
+
+        #pre-ar-title {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #fff
+        }
+
+        #pre-ar-status {
+            margin: 12px 0 0 0;
+            color: rgba(255, 255, 255, .85);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-line
+        }
+
+        #enter-ar-button {
+            width: 100%;
+            max-width: 320px;
+            margin-top: 22px;
+            padding: 14px 18px;
+            border: 0;
+            border-radius: 12px;
+            background: #fff;
+            color: #4a2d7a;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .2s ease, opacity .2s ease;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, .15)
+        }
+
+        #enter-ar-button:disabled {
+            opacity: .5;
+            cursor: not-allowed
+        }
+
+        #enter-ar-button:not(:disabled):active {
+            transform: translateY(1px)
+        }
+
+        /* ---- Crosshair reticle ---- */
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            z-index: 1100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity .4s ease
+        }
+
+        #crosshair.visible {
+            opacity: 1
+        }
+
+        #crosshair .ring {
+            width: 60px;
+            height: 60px;
+            border: 2px solid rgba(255, 255, 255, .7);
+            border-radius: 50%;
+            animation: crosshairPulse 2s ease-in-out infinite
+        }
+
+        #crosshair .dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 6px;
+            height: 6px;
+            background: #C4A0FF;
+            border-radius: 50%;
+            box-shadow: 0 0 6px rgba(196, 160, 255, .8)
+        }
+
+        @keyframes crosshairPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: .7
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 1
+            }
+        }
+
+        /* ---- hitTest surface feedback ---- */
+        #crosshair.point-detected .ring {
+            border-color: rgba(255, 200, 50, .85);
+            animation-duration: 1.2s
+        }
+
+        #crosshair.point-detected .dot {
+            background: #ffc832;
+            box-shadow: 0 0 8px rgba(255, 200, 50, .9)
+        }
+
+        #crosshair.surface-detected .ring {
+            border-color: rgba(80, 220, 100, .9);
+            animation-duration: .8s
+        }
+
+        #crosshair.surface-detected .dot {
+            background: #50dc64;
+            box-shadow: 0 0 10px rgba(80, 220, 100, .9)
+        }
+
+        /* ---- Place Wall button ---- */
+        #place-wall-btn {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 10px) + 24px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 14px 48px;
+            border-radius: 28px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            z-index: 1200;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, .6);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform .3s ease, opacity .3s ease
+        }
+
+        #place-wall-btn.visible {
+            opacity: 1;
+            pointer-events: auto
+        }
+
+        #place-wall-btn:active {
+            transform: translateX(-50%) scale(.93)
+        }
+    </style>
+</head>
+
+<body class="wall-controls-hidden">
+    <script src="ar-config.js"></script>
+    <script src="bundle.js"></script>
+    <div id="pre-ar-overlay">
+        <div class="pre-ar-panel">
+            <h1 id="pre-ar-title">Preparing AR</h1>
+            <p id="pre-ar-status">Loading 3D model…</p><button id="enter-ar-button" type="button"
+                disabled="disabled">Loading…</button>
+        </div>
+    </div>
+    <div id="ar-hint" class="ar-ui-hidden"><span class="hint-icon">🧱</span>
+        <div class="hint-text"><span class="hint-title">AR Interaction: <span id="interaction-type">Wall</span></span>
+            <span class="hint-subtitle" id="interaction-hint">Point camera at wall, then tap Place</span>
+        </div>
+    </div>
+    <div id="wall-hint"></div>
+    <div id="item-name-display"></div>
+    <div id="portal-flash"></div>
+    <!-- Crosshair reticle for SLAM placement -->
+    <div id="crosshair">
+        <div class="ring"></div>
+        <div class="dot"></div>
+    </div>
+    <!-- Place Wall button -->
+    <button id="place-wall-btn">📍 Place Wall</button>
+    <!-- Virtual Joystick (X/Y) -->
+    <div id="joystick-zone">
+        <div id="joystick-base">
+            <div id="joystick-thumb"></div>
+        </div>
+        <div id="joystick-label">MOVE</div>
+    </div>
+    <!-- Depth slider (Z) -->
+    <div id="depth-zone">
+        <span class="depth-label">DEPTH</span>
+        <input type="range" id="depth-slider" min="-6" max="0" step="0.1" value="-3">
+        <span class="depth-val" id="depth-val">-3.0</span>
+    </div>
+    <!-- Rotation slider -->
+    <div id="rotation-zone">
+        <span class="rot-label">↻</span>
+        <input type="range" id="rotation-slider" min="0" max="360" step="1" value="0">
+        <span class="rot-val" id="rotation-val">0°</span>
+    </div>
+    <!-- Single CTA button -->
+    <button id="cta-btn">✅ Confirm</button>
+    <a-scene wall-ar-interaction xrextras-gesture-detector landing-page xrextras-runtime-error
+        renderer="colorManagement: true" xrweb="allowedDevices: any; delayRun: true">
+        <a-assets timeout="30000"></a-assets>
+        <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap"
+            cursor="fuse: false; rayOrigin: mouse;"></a-camera>
+        <a-entity id="key-light" light="
+                  type: directional;
+                  intensity: 1.2;
+                  color: #FFF5E6;
+                  castShadow: true;
+                  shadowMapHeight: 2048;
+                  shadowMapWidth: 2048;
+                  shadowCameraTop: 10;
+                  shadowRadius: 8" position="5 8 5"></a-entity>
+        <a-entity id="fill-light" light="
+                  type: directional;
+                  intensity: 0.8;
+                  color: #E6F0FF;
+                  castShadow: false" position="-5 5 3"></a-entity>
+        <a-entity id="back-light" light="
+                  type: directional;
+                  intensity: 0.6;
+                  color: #FFFFFF;
+                  castShadow: false" position="0 5 -8"></a-entity>
+        <a-entity id="bottom-fill" light="
+                  type: directional;
+                  intensity: 0.3;
+                  color: #FFFFFF;
+                  castShadow: false" position="0 -5 0"></a-entity>
+        <a-light type="ambient" intensity="0.5" color="#FFFFFF"></a-light>
+        <a-light type="hemisphere" intensity="0.4" color="#87CEEB" groundcolor="#8B7355"></a-light>
+        <!-- Virtual wall plane (hidden until tap-to-place) -->
+        <a-entity id="wall-anchor" position="0 1.5 -3" rotation="0 0 0" visible="false">
+            <a-plane id="wall-plane" class="cantap" width="3" height="2"
+                material="color: #C4A0FF; opacity: 0.35; transparent: true; side: double"
+                shadow="cast: false; receive: false"></a-plane>
+            <!-- Wall edge wireframe overlay -->
+            <a-plane id="wall-edge" width="3" height="2" position="0 0 0.001"
+                material="color: #9B59B6; opacity: 0.6; transparent: true; wireframe: true; side: double"
+                shadow="cast: false; receive: false"></a-plane>
+        </a-entity>
+        <!-- Model holder (behind wall) -->
+        <a-entity id="position-holder" position="0 1.5 -3.3" xrextras-pinch-scale="min: 0.25; max: 3" scale="1 1 1">
+            <a-entity id="model-holder">
+                <a-entity id="realModel" scale="0.5 0.5 0.5" shadow="cast: true; receive: false"></a-entity>
+                <a-entity id="fictionalModel" scale="0.5 0.5 0.5" visible="false"
+                    shadow="cast: true; receive: false"></a-entity>
+            </a-entity>
+        </a-entity>
+        <!-- Portal ring (initially invisible, scales up on confirm) -->
+        <a-ring id="portal-ring" position="0 1.5 -2.99" radius-inner="0" radius-outer="0.01"
+            material="color: #667eea; opacity: 0.8; transparent: true; side: double" visible="false"></a-ring>
+        <a-plane id="ground" rotation="-90 0 0" width="1000" height="1000" material="shader: shadow" shadow></a-plane>
+    </a-scene>
+    <div id="ar-status" class="ar-ui-hidden waiting"><span class="status-dot"></span> <span id="status-text">Loading
+            models...</span></div>
+    <button id="back-to-main">🏠 Back to Main Page</button>
+    <script>!function () { var t = document.getElementById("back-to-main"); t && t.addEventListener("click", function () { try { localStorage.setItem("iw_ar_completed", JSON.stringify({ timestamp: Date.now(), interaction: "Wall" })) } catch (t) { } var e = new URLSearchParams(window.location.search).get("return_url"); window.close(), setTimeout(function () { e && (window.location.href = e) }, 500) }) }()</script>
+</body>
+
+</html>

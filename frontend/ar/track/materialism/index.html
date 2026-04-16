@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Niko_Track</title>
+
+      <!-- Meta -->
+      <meta itemprop="name" content="Niko_Track" />
+      <meta name="twitter:title" content="Niko_Track" />
+      <meta property="og:title" content="Niko_Track" />
+      <meta property="og:site_name" content="Niko_Track" />
+      <meta name="description" content="" />
+      <meta itemprop="description" content="" />
+      <meta property="og:description" content="" />
+      <meta name="twitter:description" content="" />
+
+      <!-- 8th Wall / A-Frame scripts -->
+      <script crossorigin="anonymous" src="./external/scripts/8frame-1.4.1.min.js"></script>
+      <script crossorigin="anonymous" src="./external/xrextras/xrextras.js"></script>
+      <script crossorigin="anonymous" src="./external/landing-page/landing-page.js"></script>
+      <script crossorigin="anonymous" src="./external/xr/xr.js" async="true" data-preload-chunks="face, slam"></script>
+
+      <!-- 8th Wall packages -->
+      <meta name="8thwall:renderer" content="aframe:1.4.1" />
+      <meta name="8thwall:package" content="@8thwall.xrextras" />
+      <meta name="8thwall:package" content="@8thwall.landing-page" />
+
+      <style>
+            /* ── AR Hint ── */
+            #ar-hint {
+                  position: fixed;
+                  top: env(safe-area-inset-top, 20px);
+                  left: 50%;
+                  transform: translateX(-50%);
+                  background: rgba(0, 0, 0, 0.7);
+                  color: #fff;
+                  padding: 12px 24px;
+                  border-radius: 24px;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  font-size: 14px;
+                  font-weight: 500;
+                  z-index: 1000;
+                  backdrop-filter: blur(10px);
+                  -webkit-backdrop-filter: blur(10px);
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                  opacity: 0;
+                  animation: fadeIn 0.5s ease 1s forwards;
+            }
+
+            #ar-hint .hint-icon {
+                  font-size: 18px;
+            }
+
+            #ar-hint .hint-text {
+                  display: flex;
+                  flex-direction: column;
+                  gap: 2px;
+            }
+
+            #ar-hint .hint-title {
+                  font-weight: 600;
+                  font-size: 15px;
+            }
+
+            #ar-hint .hint-subtitle {
+                  font-size: 12px;
+                  opacity: 0.8;
+            }
+
+            /* ── Aim Icon (crosshair) ── */
+            #aim-icon {
+                  position: fixed;
+                  top: 50%;
+                  left: 50%;
+                  transform: translate(-50%, -50%);
+                  width: 60px;
+                  height: 60px;
+                  z-index: 1000;
+                  pointer-events: none;
+                  transition: transform 0.2s, opacity 0.2s;
+            }
+
+            #aim-icon svg {
+                  width: 100%;
+                  height: 100%;
+            }
+
+            #aim-icon.targeting {
+                  transform: translate(-50%, -50%) scale(1.2);
+            }
+
+            #aim-icon.targeting svg circle {
+                  stroke: #4caf50;
+                  fill: rgba(76, 175, 80, 0.2);
+            }
+
+            /* ── Track Progress Ring ── */
+            #track-progress {
+                  position: fixed;
+                  top: 50%;
+                  left: 50%;
+                  transform: translate(-50%, -50%);
+                  width: 100px;
+                  height: 100px;
+                  z-index: 999;
+                  pointer-events: none;
+            }
+
+            #track-progress svg {
+                  width: 100%;
+                  height: 100%;
+                  transform: rotate(-90deg);
+            }
+
+            #track-progress .progress-bg {
+                  fill: none;
+                  stroke: rgba(255, 255, 255, 0.2);
+                  stroke-width: 4;
+            }
+
+            #track-progress .progress-fill {
+                  fill: none;
+                  stroke: #4caf50;
+                  stroke-width: 4;
+                  stroke-linecap: round;
+                  stroke-dasharray: 283;
+                  stroke-dashoffset: 283;
+                  transition: stroke-dashoffset 0.1s;
+            }
+
+            /* ── Tracking Text ── */
+            #tracking-text {
+                  position: fixed;
+                  top: calc(50% + 60px);
+                  left: 50%;
+                  transform: translateX(-50%);
+                  background: rgba(0, 0, 0, 0.7);
+                  color: #fff;
+                  padding: 8px 16px;
+                  border-radius: 16px;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  font-size: 14px;
+                  font-weight: 500;
+                  z-index: 1000;
+                  backdrop-filter: blur(10px);
+                  -webkit-backdrop-filter: blur(10px);
+                  opacity: 0;
+                  transition: opacity 0.3s;
+                  pointer-events: none;
+            }
+
+            #tracking-text.visible {
+                  opacity: 1;
+            }
+
+            /* ── Status Bar ── */
+            #ar-status {
+                  position: fixed;
+                  bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
+                  left: 50%;
+                  transform: translateX(-50%);
+                  background: rgba(255, 255, 255, 0.9);
+                  color: #333;
+                  padding: 10px 20px;
+                  border-radius: 20px;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  font-size: 13px;
+                  z-index: 1000;
+                  backdrop-filter: blur(10px);
+                  -webkit-backdrop-filter: blur(10px);
+                  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+            }
+
+            #ar-status .status-dot {
+                  width: 8px;
+                  height: 8px;
+                  border-radius: 50%;
+                  background: #4caf50;
+                  animation: pulse 1.5s infinite;
+            }
+
+            #ar-status.waiting .status-dot {
+                  background: #ff9800;
+            }
+
+            #ar-status.complete .status-dot {
+                  background: #4caf50;
+                  animation: none;
+            }
+
+            /* ── Back to Main Button ── */
+            #back-to-main {
+                  position: fixed;
+                  bottom: calc(env(safe-area-inset-bottom, 20px) + 16px);
+                  left: 50%;
+                  transform: translateX(-50%) translateY(100px);
+                  background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+                  color: #fff;
+                  border: none;
+                  padding: 12px 28px;
+                  border-radius: 24px;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  font-size: 15px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  z-index: 1100;
+                  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5);
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  opacity: 0;
+                  pointer-events: none;
+                  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease;
+            }
+
+            #back-to-main.visible {
+                  transform: translateX(-50%) translateY(0);
+                  opacity: 1;
+                  pointer-events: auto;
+            }
+
+            #back-to-main:active {
+                  transform: translateX(-50%) translateY(0) scale(0.95);
+            }
+
+            /* ── Keyframes ── */
+            @keyframes fadeIn {
+                  from {
+                        opacity: 0;
+                        transform: translateX(-50%) translateY(-10px);
+                  }
+
+                  to {
+                        opacity: 1;
+                        transform: translateX(-50%) translateY(0);
+                  }
+            }
+
+            @keyframes pulse {
+
+                  0%,
+                  100% {
+                        opacity: 1;
+                  }
+
+                  50% {
+                        opacity: 0.5;
+                  }
+            }
+
+            /* ── Utility ── */
+            .ar-ui-hidden {
+                  display: none !important;
+            }
+
+            /* ── Item Name Display ── */
+            #item-name-display {
+                  position: fixed;
+                  top: calc(env(safe-area-inset-top, 20px) + 100px);
+                  left: 50%;
+                  transform: translateX(-50%);
+                  background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+                  color: #fff;
+                  padding: 10px 24px;
+                  border-radius: 20px;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  font-size: 14px;
+                  font-weight: 600;
+                  z-index: 1000;
+                  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                  opacity: 0;
+                  transform: translateX(-50%) translateY(-20px);
+                  transition: opacity 0.3s, transform 0.3s;
+                  pointer-events: none;
+            }
+
+            #item-name-display.visible {
+                  opacity: 1;
+                  transform: translateX(-50%) translateY(0);
+            }
+
+            /* ── Pre-AR Overlay ── */
+            #pre-ar-overlay {
+                  position: fixed;
+                  inset: 0;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  padding: 24px;
+                  background: linear-gradient(180deg, #1d1135 0, #4a2d7a 25%, #7e57c2 50%, #b39ddb 75%, #ede7f6 100%);
+                  z-index: 1500;
+                  transition: opacity 0.3s ease, visibility 0.3s ease;
+            }
+
+            #pre-ar-overlay.is-hidden {
+                  opacity: 0;
+                  visibility: hidden;
+                  pointer-events: none;
+            }
+
+            .pre-ar-panel {
+                  width: min(100%, 320px);
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  text-align: center;
+            }
+
+            #pre-ar-title {
+                  margin: 0;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  font-size: 22px;
+                  font-weight: 700;
+                  line-height: 1.2;
+                  color: #fff;
+            }
+
+            #pre-ar-status {
+                  margin: 12px 0 0 0;
+                  color: rgba(255, 255, 255, 0.85);
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  font-size: 14px;
+                  line-height: 1.5;
+                  white-space: pre-line;
+            }
+
+            #enter-ar-button {
+                  width: 100%;
+                  max-width: 320px;
+                  margin-top: 22px;
+                  padding: 14px 18px;
+                  border: 0;
+                  border-radius: 12px;
+                  background: #fff;
+                  color: #4a2d7a;
+                  font-size: 16px;
+                  font-weight: 700;
+                  cursor: pointer;
+                  transition: transform 0.2s ease, opacity 0.2s ease;
+                  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+            }
+
+            #enter-ar-button:disabled {
+                  opacity: 0.5;
+                  cursor: not-allowed;
+            }
+
+            #enter-ar-button:not(:disabled):active {
+                  transform: translateY(1px);
+            }
+      </style>
+</head>
+
+<body>
+      <!-- App scripts -->
+      <script src="ar-config.js"></script>
+      <script src="bundle.js"></script>
+
+      <!-- ══════════════════════════════════ -->
+      <!--  Pre-AR Overlay (loading screen)  -->
+      <!-- ══════════════════════════════════ -->
+      <div id="pre-ar-overlay">
+            <div class="pre-ar-panel">
+                  <h1 id="pre-ar-title">Preparing AR</h1>
+                  <p id="pre-ar-status">Loading 3D model…</p>
+                  <button id="enter-ar-button" type="button" disabled="disabled">Loading…</button>
+            </div>
+      </div>
+
+      <!-- ══════════════════════════════════ -->
+      <!--  AR HUD elements                  -->
+      <!-- ══════════════════════════════════ -->
+
+      <!-- Hint banner -->
+      <div id="ar-hint" class="ar-ui-hidden">
+            <span class="hint-icon">🎯</span>
+            <div class="hint-text">
+                  <span class="hint-title">
+                        AR Interaction: <span id="interaction-type">Track</span>
+                  </span>
+                  <span class="hint-subtitle" id="interaction-hint">
+                        Aim at the flying object for 5 seconds to explore!
+                  </span>
+            </div>
+      </div>
+
+      <!-- Crosshair / aim icon -->
+      <div id="aim-icon">
+            <svg viewBox="0 0 60 60">
+                  <circle cx="30" cy="30" r="20" fill="none" stroke="white" stroke-width="2" opacity="0.8" />
+                  <circle cx="30" cy="30" r="4" fill="white" opacity="0.9" />
+                  <line x1="30" y1="5" x2="30" y2="15" stroke="white" stroke-width="2" opacity="0.8" />
+                  <line x1="30" y1="45" x2="30" y2="55" stroke="white" stroke-width="2" opacity="0.8" />
+                  <line x1="5" y1="30" x2="15" y2="30" stroke="white" stroke-width="2" opacity="0.8" />
+                  <line x1="45" y1="30" x2="55" y2="30" stroke="white" stroke-width="2" opacity="0.8" />
+            </svg>
+      </div>
+
+      <!-- Circular progress ring -->
+      <div id="track-progress">
+            <svg viewBox="0 0 100 100">
+                  <circle class="progress-bg" cx="50" cy="50" r="45" />
+                  <circle class="progress-fill" cx="50" cy="50" r="45" />
+            </svg>
+      </div>
+
+      <!-- Tracking timer text -->
+      <div id="tracking-text">Tracking... 0.0s / 5.0s</div>
+
+      <!-- Item name popup -->
+      <div id="item-name-display"></div>
+
+      <!-- ══════════════════════════════════ -->
+      <!--  A-Frame Scene                    -->
+      <!-- ══════════════════════════════════ -->
+      <a-scene track-ar-interaction xrextras-gesture-detector landing-page xrextras-runtime-error
+            renderer="colorManagement: true" xrweb="allowedDevices: any; delayRun: true">
+            <a-assets timeout="30000"></a-assets>
+
+            <!-- Camera -->
+            <a-camera id="camera" position="0 1.6 0"></a-camera>
+
+            <!-- Lights -->
+            <a-entity id="key-light" position="5 8 5" light="type: directional;
+             intensity: 1.2;
+             color: #FFF5E6;
+             castShadow: true;
+             shadowMapHeight: 2048;
+             shadowMapWidth: 2048;
+             shadowCameraTop: 10;
+             shadowRadius: 8">
+            </a-entity>
+
+            <a-entity id="fill-light" position="-5 5 3" light="type: directional;
+             intensity: 0.8;
+             color: #E6F0FF;
+             castShadow: false">
+            </a-entity>
+
+            <a-entity id="back-light" position="0 5 -8" light="type: directional;
+             intensity: 0.6;
+             color: #FFFFFF;
+             castShadow: false">
+            </a-entity>
+
+            <a-entity id="bottom-fill" position="0 -5 0" light="type: directional;
+             intensity: 0.3;
+             color: #FFFFFF;
+             castShadow: false">
+            </a-entity>
+
+            <a-light type="ambient" intensity="0.5" color="#FFFFFF"></a-light>
+            <a-light type="hemisphere" intensity="0.4" color="#87CEEB" groundcolor="#8B7355"></a-light>
+
+            <!-- Flying shell entity -->
+            <a-entity id="sky-container" position="0 0 0">
+                  <a-entity id="shellEntity" sky-roam sky-shell-core position="0 2 -3"
+                        shadow="cast: true; receive: false">
+                  </a-entity>
+            </a-entity>
+
+            <!-- Shadow ground plane -->
+            <a-plane id="ground" rotation="-90 0 0" width="1000" height="1000" material="shader: shadow" shadow>
+            </a-plane>
+      </a-scene>
+
+      <!-- ══════════════════════════════════ -->
+      <!--  Back to Main button              -->
+      <!-- ══════════════════════════════════ -->
+      <button id="back-to-main">🏠 Back to Main Page</button>
+
+      <script>
+            (function () {
+                  const btn = document.getElementById("back-to-main");
+                  if (!btn) return;
+
+                  btn.addEventListener("click", function () {
+                        try {
+                              localStorage.setItem(
+                                    "iw_ar_completed",
+                                    JSON.stringify({ timestamp: Date.now(), interaction: "Track" })
+                              );
+                        } catch (e) { }
+
+                        const returnUrl = new URLSearchParams(window.location.search).get("return_url");
+                        window.close();
+                        setTimeout(function () {
+                              if (returnUrl) window.location.href = returnUrl;
+                        }, 500);
+                  });
+            })();
+      </script>
+</body>
+
+</html>

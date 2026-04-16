@@ -11,7 +11,7 @@ window.TAP_CONFIG={
     pulseScale:1.35,
     pulseMin:0.92,
     pulseDuration:650,
-    flySpeed:1600,
+    flySpeed:700,
     haloColor:"#ffffff",
     haloDuration:600,
     fadeDuration:800

@@ -1,11 +1,20 @@
 (()=>{"use strict";
 
 /* ============================================================
-   SafeCrackAudio — Web Audio API synthesized tick engine
+   SafeCrackAudio — Metal friction dial + click unlock sounds
+   with small-room reverb & delay for spatial depth
    ============================================================ */
 const SafeCrackAudio = (function() {
   let ctx = null;
   let initialized = false;
+  let masterGain = null;  // master volume
+  let dryGain = null;    // direct signal
+  let reverbGain = null; // wet reverb
+  let delayGain = null;  // wet delay
+  let reverbNode = null;
+  let delayNode = null;
+  let feedbackGain = null;
+  let delayFilter = null;
 
   function ensureCtx() {
     if (!ctx) {
@@ -14,68 +23,228 @@ const SafeCrackAudio = (function() {
     return ctx;
   }
 
+  /* Generate small-room impulse response (synthetic convolution reverb) */
+  function _createRoomIR() {
+    var sr = ctx.sampleRate;
+    var duration = 0.6; // small room: short tail
+    var len = Math.floor(sr * duration);
+    var buf = ctx.createBuffer(2, len, sr);
+    for (var ch = 0; ch < 2; ch++) {
+      var data = buf.getChannelData(ch);
+      for (var i = 0; i < len; i++) {
+        // Exponential decay with early reflections
+        var t = i / sr;
+        var decay = Math.exp(-t * 8); // fast decay = small room
+        // Early reflections: a few discrete taps
+        var early = 0;
+        if (i === Math.floor(sr * 0.012)) early = 0.4;  // ~12ms first reflection
+        if (i === Math.floor(sr * 0.025)) early = 0.25;  // ~25ms
+        if (i === Math.floor(sr * 0.041)) early = 0.15;  // ~41ms
+        if (i === Math.floor(sr * 0.058)) early = 0.1;   // ~58ms wall bounce
+        data[i] = ((Math.random() * 2 - 1) * decay + early) * (ch === 0 ? 1 : 0.95);
+      }
+    }
+    return buf;
+  }
+
   function init() {
     ensureCtx();
     if (ctx.state === 'suspended') {
       ctx.resume();
     }
+
+    // --- Master volume (3x boost) ---
+    masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(3.0, ctx.currentTime);
+    masterGain.connect(ctx.destination);
+
+    // --- Dry path ---
+    dryGain = ctx.createGain();
+    dryGain.gain.setValueAtTime(0.85, ctx.currentTime);
+    dryGain.connect(masterGain);
+
+    // --- Convolution reverb (small room) ---
+    reverbNode = ctx.createConvolver();
+    reverbNode.buffer = _createRoomIR();
+    reverbGain = ctx.createGain();
+    reverbGain.gain.setValueAtTime(0.3, ctx.currentTime); // reverb wet level
+    // High-cut on reverb to simulate room absorption
+    var reverbCut = ctx.createBiquadFilter();
+    reverbCut.type = 'lowpass';
+    reverbCut.frequency.setValueAtTime(4000, ctx.currentTime);
+    reverbNode.connect(reverbCut);
+    reverbCut.connect(reverbGain);
+    reverbGain.connect(masterGain);
+
+    // --- Feedback delay (subtle slapback echo) ---
+    delayNode = ctx.createDelay(1.0);
+    delayNode.delayTime.setValueAtTime(0.08, ctx.currentTime); // 80ms = close wall reflection
+    feedbackGain = ctx.createGain();
+    feedbackGain.gain.setValueAtTime(0.25, ctx.currentTime); // feedback amount
+    delayFilter = ctx.createBiquadFilter();
+    delayFilter.type = 'lowpass';
+    delayFilter.frequency.setValueAtTime(3000, ctx.currentTime); // each repeat gets darker
+    delayGain = ctx.createGain();
+    delayGain.gain.setValueAtTime(0.2, ctx.currentTime); // delay wet level
+    // Delay feedback loop
+    delayNode.connect(delayFilter);
+    delayFilter.connect(feedbackGain);
+    feedbackGain.connect(delayNode); // feedback loop
+    delayNode.connect(delayGain);
+    delayGain.connect(masterGain);
+
     initialized = true;
-    console.log('🔊 SafeCrackAudio initialized');
+    console.log('🔊 SafeCrackAudio initialized (room reverb + delay)');
   }
 
-  /* Short metallic tick — square wave with fast decay */
+  /* Get the effects bus input — all sounds route through this */
+  function _getDest() {
+    // Return a fan-out: dry + reverb + delay
+    if (!dryGain) return ctx.destination;
+    return dryGain;
+  }
+
+  /* Helper: filtered noise burst routed through effects */
+  function _noise(startTime, duration, filterFreq, filterQ, volume, hpFreq) {
+    if (!ctx) return;
+    var sr = ctx.sampleRate;
+    var len = Math.floor(sr * duration);
+    var buf = ctx.createBuffer(1, len, sr);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(filterFreq, startTime);
+    bp.Q.setValueAtTime(filterQ, startTime);
+    var hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(hpFreq || 600, startTime);
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    src.connect(bp);
+    bp.connect(hp);
+    hp.connect(gain);
+    // Fan out to dry + reverb + delay
+    gain.connect(_getDest());
+    if (reverbNode) gain.connect(reverbNode);
+    if (delayNode) gain.connect(delayNode);
+    src.start(startTime);
+    src.stop(startTime + duration);
+  }
+
+  /* --- DIAL TICK: precision safe-dial friction --- */
   function playTick(freq) {
     if (!initialized || !ctx) return;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(freq, now);
-    gain.gain.setValueAtTime(0.15, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.04);
+    var now = ctx.currentTime;
+    var t = Math.max(0, Math.min(1, (freq - 800) / 1600));
+
+    // Primary: dry metallic friction (low Q = broadband, no pitch)
+    var scrapeDur = 0.03 + t * 0.025;
+    _noise(now, scrapeDur, 1800 + t * 1500, 1.2 + t * 1.0, 0.18 + t * 0.12, 500);
+
+    // Secondary: higher band grit layer (adds texture, not pitch)
+    _noise(now + 0.003, scrapeDur * 0.6, 4000 + t * 2000, 1.5, 0.06 + t * 0.05, 2000);
   }
 
-  /* Checkpoint unlock chord — 3 frequencies simultaneous */
+  /* --- CHECKPOINT UNLOCK: "咔擦" click-latch sound --- */
   function playUnlockChord() {
     if (!initialized || !ctx) return;
-    const now = ctx.currentTime;
-    const freqs = [523.25, 659.25, 783.99]; // C5, E5, G5
-    freqs.forEach(function(f) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(f, now);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.55);
-    });
+    var now = ctx.currentTime;
+
+    // "咔" — sharp dry click (wide bandwidth, low Q = no pitch)
+    _noise(now, 0.012, 3000, 1.5, 0.6, 800);
+    // Secondary transient layer for attack bite
+    _noise(now + 0.003, 0.008, 6000, 2, 0.3, 3000);
+
+    // "擦" — latch bolt sliding (wider band, gritty friction)
+    var sr = ctx.sampleRate;
+    var len = Math.floor(sr * 0.06);
+    var buf = ctx.createBuffer(1, len, sr);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(2500, now + 0.02);
+    bp.frequency.exponentialRampToValueAtTime(1200, now + 0.08);
+    bp.Q.setValueAtTime(2, now + 0.02);
+    var hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(600, now + 0.02);
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.4, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+    src.connect(bp);
+    bp.connect(hp);
+    hp.connect(gain);
+    gain.connect(_getDest());
+    if (reverbNode) gain.connect(reverbNode);
+    if (delayNode) gain.connect(delayNode);
+    src.start(now + 0.02);
+    src.stop(now + 0.1);
   }
 
-  /* Final unlock — ascending arpeggio */
+  /* --- FINAL UNLOCK: heavy "咔擦" + bolt mechanism --- */
   function playFinalUnlock() {
     if (!initialized || !ctx) return;
-    const now = ctx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
-    notes.forEach(function(f, i) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(f, now + i * 0.12);
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.15, now + i * 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.6);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + i * 0.12);
-      osc.stop(now + i * 0.12 + 0.65);
-    });
+    var now = ctx.currentTime;
+
+    // Heavy "咔" — louder, deeper initial click
+    _noise(now, 0.035, 3200, 10, 0.55, 1500);
+
+    // Heavy "擦" — heavier latch engagement
+    _noise(now + 0.04, 0.1, 2800, 6, 0.45, 800);
+
+    // Second mechanical "咔擦" (double-action lock)
+    _noise(now + 0.18, 0.03, 4000, 12, 0.45, 2000);
+    _noise(now + 0.22, 0.08, 2500, 7, 0.35, 1000);
+
+    // Heavy bolt sliding (low frequency metallic scrape)
+    var sr = ctx.sampleRate;
+    var len = Math.floor(sr * 0.35);
+    var buf = ctx.createBuffer(1, len, sr);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1800, now + 0.35);
+    bp.frequency.linearRampToValueAtTime(900, now + 0.7);
+    bp.Q.setValueAtTime(3, now + 0.35);
+    var hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(400, now + 0.35);
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now + 0.35);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    src.connect(bp);
+    bp.connect(hp);
+    hp.connect(gain);
+    gain.connect(_getDest());
+    if (reverbNode) gain.connect(reverbNode);
+    if (delayNode) gain.connect(delayNode);
+    src.start(now + 0.35);
+    src.stop(now + 0.72);
+
+    // Deep resonant thud at the end (bolt hitting stop)
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, now + 0.68);
+    g.gain.setValueAtTime(0.25, now + 0.68);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+    osc.connect(g);
+    g.connect(_getDest());
+    if (reverbNode) g.connect(reverbNode);
+    if (delayNode) g.connect(delayNode);
+    osc.start(now + 0.68);
+    osc.stop(now + 0.88);
   }
 
   return { init: init, playTick: playTick, playUnlockChord: playUnlockChord, playFinalUnlock: playFinalUnlock };
@@ -97,8 +266,10 @@ function triggerFlash(gold, duration) {
 }
 
 /* ============================================================
-   Vibration helper (Android only, feature-detect)
+   Vibration helper (Android only — iOS not supported)
    ============================================================ */
+var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
 function triggerVibration(pattern) {
   if (navigator.vibrate) {
     try { navigator.vibrate(pattern); } catch(e) {}
@@ -205,10 +376,10 @@ function updateRingGlow(distance, feedbackRange, cfg) {
   const a = +(base.a + (bright.a - base.a) * t).toFixed(3);
   el.style.borderColor = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
 
-  if (t > 0.3) {
-    const glowSize = Math.round((t - 0.3) / 0.7 * 25);
-    const glowAlpha = (0.7 * t).toFixed(2);
-    el.style.boxShadow = '0 0 ' + glowSize + 'px rgba(208, 188, 255, ' + glowAlpha + '), inset 0 0 ' + Math.round(glowSize * 0.6) + 'px rgba(208, 188, 255, ' + (0.3 * t).toFixed(2) + ')';
+  if (t > 0.15) {
+    const glowSize = Math.round((t - 0.15) / 0.85 * 40);
+    const glowAlpha = (0.9 * t).toFixed(2);
+    el.style.boxShadow = '0 0 ' + glowSize + 'px rgba(147, 51, 234, ' + glowAlpha + '), 0 0 ' + Math.round(glowSize * 1.5) + 'px rgba(126, 87, 194, ' + (0.4 * t).toFixed(2) + '), inset 0 0 ' + Math.round(glowSize * 0.7) + 'px rgba(147, 51, 234, ' + (0.5 * t).toFixed(2) + ')';
   } else {
     el.style.boxShadow = 'none';
   }
@@ -234,10 +405,11 @@ console.log("✅ RotateItem AR Interaction loaded (Safecracking mode)");
    Test mode config
    ============================================================ */
 var testConfig = {
-  enabled: false,
-  realGlb: '#realModelAsset',
-  fictionalGlb: '#fictionalModelAsset',
-  itemName: 'Test Fictional Item'
+  enabled: true,
+  realGlb: 'assets/realmodel.glb',
+  fictionalGlb: 'assets/fictionalmodel.glb',
+  itemName: 'Test Fictional Item',
+  realName: 'Test Real Item'
 };
 
 /* ============================================================
@@ -245,8 +417,8 @@ var testConfig = {
    ============================================================ */
 var CONFIG = (function() {
   var defaults = {
-    checkpoint: { minAngle: 30, totalChecks: 3, messages: [null, null, null], resetDelay: 300, tolerances: [15, 10, 5] },
-    ringColor: { base: 'rgba(255, 255, 255, 0.15)', active: 'rgba(208, 188, 255, 0.9)', reached: 'rgba(126, 87, 194, 1.0)' },
+    checkpoint: { minAngle: 120, maxAngle: 300, totalChecks: 3, messages: [null, null, null], resetDelay: 300, tolerances: [15, 10, 5] },
+    ringColor: { base: 'rgba(255, 255, 255, 0.15)', active: 'rgba(147, 51, 234, 1.0)', reached: 'rgba(126, 87, 194, 1.0)' },
     bounce: {
       initialHeight: 0.3, damping: 0.4, bounceDuration: 350, bounceCount: 3,
       squashStretch: [
@@ -323,12 +495,14 @@ var state = {
    ============================================================ */
 function generateCheckpoint() {
   var minAngle = CONFIG.checkpoint.minAngle;
+  var maxAngle = CONFIG.checkpoint.maxAngle || 300;
   var currentAngle = normalizeAngle(ringDrag.currentRotation);
   var angle = 0, tries = 0;
   do {
     angle = Math.round(Math.random() * 360);
     tries++;
-  } while (angleDist(currentAngle, angle) < minAngle && tries < 100);
+    var d = angleDist(currentAngle, angle);
+  } while ((d < minAngle || d > maxAngle) && tries < 200);
 
   state.currentCheckpointAngle = angle;
   state.startCheckpointDistance = angleDist(currentAngle, angle);
@@ -462,6 +636,44 @@ function resetRingGlow() {
 var ringDrag = { isActive: false, lastAngle: 0, currentRotation: 0 };
 
 /* ============================================================
+   Progressive vibration — intensifies as ring nears checkpoint
+   ============================================================ */
+var ProximityVibrator = (function() {
+  var timer = null;
+  var active = false;
+
+  function start(dist, feedbackRange) {
+    if (!active) return;
+    clearTimeout(timer);
+    // t: 0 = at edge of range, 1 = at target
+    var t = Math.max(0, Math.min(1, 1 - dist / feedbackRange));
+    if (t < 0.15) {
+      return;
+    }
+    // Android: pulsed vibration
+    var vibDur = Math.round(10 + t * 40);
+    var pause = Math.round(500 - t * 440);
+    triggerVibration(vibDur);
+    timer = setTimeout(function() {
+      start(dist, feedbackRange);
+    }, vibDur + pause);
+  }
+
+  function activate() { active = true; }
+  function deactivate() {
+    active = false;
+    clearTimeout(timer);
+  }
+  function update(dist, feedbackRange) {
+    if (!active) return;
+    clearTimeout(timer);
+    start(dist, feedbackRange);
+  }
+
+  return { activate: activate, deactivate: deactivate, update: update };
+})();
+
+/* ============================================================
    Process rotation — core safecracking logic
    ============================================================ */
 function processRotation(angle) {
@@ -491,18 +703,21 @@ function processRotation(angle) {
   // Update ring glow
   updateRingGlow(dist, feedbackRange, CONFIG);
 
-  // Tick scheduling
+  // Tick scheduling + progressive vibration
   if (dist <= feedbackRange) {
     if (!state.lastFeedbackActive) {
       state.lastFeedbackActive = true;
       TickScheduler.activate();
+      ProximityVibrator.activate();
     }
     TickScheduler.update(dist, feedbackRange, CONFIG);
+    ProximityVibrator.update(dist, feedbackRange);
     HintSystem.resetInactivity(CONFIG.feedback);
   } else {
     if (state.lastFeedbackActive) {
       state.lastFeedbackActive = false;
       TickScheduler.deactivate();
+      ProximityVibrator.deactivate();
     }
   }
 
@@ -520,24 +735,17 @@ function reachCheckpoint() {
   state.checkpointLocked = true;
 
   TickScheduler.deactivate();
+  ProximityVibrator.deactivate();
   state.lastFeedbackActive = false;
 
   var idx = state.currentCheck;
   var isFinal = (idx === 2);
   console.log('🎯 Checkpoint ' + (idx + 1) + '/3 reached!');
 
-  // Audio feedback
+  // Audio feedback — always play 咔擦 click, final also plays bolt mechanism
+  SafeCrackAudio.playUnlockChord();
   if (isFinal) {
     SafeCrackAudio.playFinalUnlock();
-  } else {
-    SafeCrackAudio.playUnlockChord();
-  }
-
-  // Flash
-  if (isFinal) {
-    triggerFlash(true, CONFIG.feedback.flash.finalDuration || 300);
-  } else {
-    triggerFlash(false, CONFIG.feedback.flash.duration || 150);
   }
 
   // Vibration
@@ -551,7 +759,7 @@ function reachCheckpoint() {
   var ringEl = document.getElementById('ring-track');
   if (ringEl) {
     ringEl.style.borderColor = CONFIG.ringColor.reached;
-    ringEl.style.boxShadow = '0 0 30px rgba(126, 87, 194, 0.8), inset 0 0 15px rgba(126, 87, 194, 0.4)';
+    ringEl.style.boxShadow = '0 0 30px rgba(147, 51, 234, 0.8), inset 0 0 15px rgba(147, 51, 234, 0.4)';
   }
 
   // Star burst

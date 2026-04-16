@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animation Lab - Imaginary World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ===== Design Tokens (matching main app MD3 purple theme) ===== */
+        :root {
+            --primary: #6750A4;
+            --primary-dark: #381E72;
+            --primary-light: #D0BCFF;
+            --primary-container: #EADDFF;
+            --surface: #FFFBFE;
+            --surface-container: #F3EDF7;
+            --text-primary: #1D1B20;
+            --text-secondary: #49454F;
+            --text-light: #79747E;
+            --error: #B3261E;
+            --success: #2E7D32;
+            --radius-sm: 12px;
+            --radius-md: 16px;
+            --radius-lg: 28px;
+            --radius-full: 50px;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, .12), 0 1px 2px rgba(0, 0, 0, .08);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, .1), 0 2px 4px rgba(0, 0, 0, .06);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, .15), 0 5px 10px rgba(0, 0, 0, .05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(180deg, #1D1135 0%, #4A2D7A 20%, #7E57C2 45%, #B39DDB 70%, #EDE7F6 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            padding: 0 16px 32px;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px 0;
+            position: relative;
+        }
+
+        .back-btn {
+            position: absolute;
+            left: 0;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, .2);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-full);
+            font-size: .9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .2s;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, .3);
+        }
+
+        .header h1 {
+            color: #fff;
+            font-size: 1.4rem;
+            font-weight: 700;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, .2);
+        }
+
+        /* ===== Content Container ===== */
+        .content {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* ===== Cards ===== */
+        .card {
+            background: #fff;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: .85rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid #f0ecf4;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ===== 3D Viewer ===== */
+        #viewer-container {
+            position: relative;
+            height: 55vh;
+            min-height: 300px;
+            max-height: 500px;
+            background: #1a1a2e;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+
+        #viewer-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+
+        .viewer-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, .6);
+            font-size: .9rem;
+            pointer-events: none;
+            transition: opacity .3s;
+        }
+
+        .viewer-overlay.hidden {
+            opacity: 0;
+        }
+
+        .viewer-overlay .icon {
+            font-size: 2.5rem;
+            margin-bottom: 8px;
+        }
+
+        .joint-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, .6);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: var(--radius-full);
+            font-size: .75rem;
+            font-weight: 600;
+            backdrop-filter: blur(8px);
+            display: none;
+        }
+
+        .joint-badge.visible {
+            display: block;
+        }
+
+        .anim-badge {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(46, 125, 50, .8);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: var(--radius-full);
+            font-size: .75rem;
+            font-weight: 600;
+            backdrop-filter: blur(8px);
+            display: none;
+        }
+
+        .anim-badge.visible {
+            display: block;
+        }
+
+        /* ===== Playback Controls ===== */
+        .playback-bar {
+            display: none;
+            align-items: center;
+            gap: 4px;
+            padding: 10px 16px;
+            background: var(--surface-container);
+            border-bottom: 1px solid #e8e0f0;
+        }
+
+        .playback-bar.visible {
+            display: flex;
+        }
+
+        .play-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: var(--primary);
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform .15s;
+        }
+
+        .play-btn:active {
+            transform: scale(.92);
+        }
+
+        .play-btn.secondary {
+            background: var(--surface-container);
+            color: var(--text-secondary);
+            border: 1px solid #ddd;
+        }
+
+        .timeline {
+            flex: 1;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #ddd;
+            border-radius: 2px;
+            outline: none;
+            margin: 0 8px;
+        }
+
+        .timeline::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+        }
+
+        .speed-group {
+            display: flex;
+            gap: 2px;
+            background: #e8e0f0;
+            border-radius: var(--radius-full);
+            padding: 2px;
+        }
+
+        .speed-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: var(--radius-full);
+            background: transparent;
+            color: var(--text-light);
+            font-size: .7rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .2s;
+        }
+
+        .speed-btn.active {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .loop-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 1px solid #ddd;
+            background: transparent;
+            font-size: .85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loop-btn.active {
+            background: var(--primary-container);
+            border-color: var(--primary);
+        }
+
+        /* ===== Input Section ===== */
+        .input-section {
+            padding: 16px;
+        }
+
+        .input-section label {
+            display: block;
+            font-size: .8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .file-upload-area {
+            border: 2px dashed #d0c4e8;
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color .2s, background .2s;
+            margin-bottom: 12px;
+            color: var(--text-light);
+            font-size: .85rem;
+        }
+
+        .file-upload-area:hover {
+            border-color: var(--primary);
+            background: #faf7ff;
+        }
+
+        .file-upload-area.dragover {
+            border-color: var(--primary);
+            background: var(--primary-container);
+        }
+
+        .file-upload-area .icon {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .file-upload-area .filename {
+            color: var(--primary);
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .url-input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .url-input-row input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #d0c4e8;
+            border-radius: var(--radius-sm);
+            font-size: .85rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        .url-input-row input:focus {
+            border-color: var(--primary);
+        }
+
+        .url-input-row button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            background: var(--primary);
+            color: #fff;
+            font-weight: 600;
+            font-size: .8rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .source-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .source-toggle button {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #d0c4e8;
+            border-radius: var(--radius-sm);
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: .8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .2s;
+        }
+
+        .source-toggle button.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .prompt-area {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px 14px;
+            border: 1px solid #d0c4e8;
+            border-radius: var(--radius-sm);
+            font-size: .85rem;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+            transition: border-color .2s;
+            margin-bottom: 12px;
+        }
+
+        .prompt-area:focus {
+            border-color: var(--primary);
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: var(--radius-full);
+            background: var(--primary);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .15s, opacity .2s;
+        }
+
+        .generate-btn:active {
+            transform: scale(.97);
+        }
+
+        .generate-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .generate-btn.loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .6
+            }
+        }
+
+        .error-msg {
+            margin-top: 8px;
+            padding: 10px 14px;
+            background: #ffeef0;
+            color: var(--error);
+            border-radius: var(--radius-sm);
+            font-size: .8rem;
+            display: none;
+        }
+
+        .error-msg.visible {
+            display: block;
+        }
+
+        /* ===== Preset Pills ===== */
+        .preset-row {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 12px 16px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .preset-row::-webkit-scrollbar {
+            display: none;
+        }
+
+        .preset-pill {
+            flex-shrink: 0;
+            padding: 8px 16px;
+            border: 1px solid var(--primary-light);
+            border-radius: var(--radius-full);
+            background: transparent;
+            color: var(--primary);
+            font-size: .8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .2s;
+            white-space: nowrap;
+        }
+
+        .preset-pill:hover {
+            background: var(--primary-container);
+        }
+
+        .preset-pill:active {
+            transform: scale(.95);
+        }
+
+        .preset-pill.active {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        /* ===== Accordion Panels ===== */
+        .accordion-header {
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: .85rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+            border-top: 1px solid #f0ecf4;
+        }
+
+        .accordion-header:hover {
+            background: #faf7ff;
+        }
+
+        .accordion-chevron {
+            margin-left: auto;
+            transition: transform .2s;
+            font-size: .7rem;
+        }
+
+        .accordion-header.open .accordion-chevron {
+            transform: rotate(90deg);
+        }
+
+        .accordion-body {
+            display: none;
+            padding: 0 16px 16px;
+        }
+
+        .accordion-body.open {
+            display: block;
+        }
+
+        .accordion-body pre {
+            background: #f5f2fa;
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            font-size: .75rem;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+            color: var(--text-secondary);
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 10px;
+            border: none;
+            border-radius: var(--radius-sm);
+            background: var(--primary);
+            color: #fff;
+            font-size: .7rem;
+            font-weight: 600;
+            cursor: pointer;
+            opacity: .7;
+            transition: opacity .2s;
+        }
+
+        .copy-btn:hover {
+            opacity: 1;
+        }
+
+        /* ===== Animations ===== */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            animation: fadeInUp .5s ease-out both;
+        }
+
+        .card:nth-child(2) {
+            animation-delay: .1s;
+        }
+
+        .card:nth-child(3) {
+            animation-delay: .2s;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <a href="/" class="back-btn">← Back</a>
+        <h1>🎬 Animation Lab</h1>
+    </header>
+
+    <div class="content">
+
+        <!-- 3D Viewer Card -->
+        <div class="card">
+            <div id="viewer-container">
+                <canvas id="viewer-canvas"></canvas>
+                <div id="viewer-overlay" class="viewer-overlay">
+                    <div class="icon">📦</div>
+                    <div>Drop a GLB file or load via URL</div>
+                </div>
+                <div id="joint-badge" class="joint-badge">🦴 0 joints</div>
+                <div id="anim-badge" class="anim-badge">▶ animated</div>
+            </div>
+
+            <!-- Playback Controls -->
+            <div id="playback-bar" class="playback-bar">
+                <button id="btn-play" class="play-btn" title="Play/Pause">▶</button>
+                <button id="btn-stop" class="play-btn secondary" title="Stop">⏹</button>
+                <input id="timeline" class="timeline" type="range" min="0" max="100" value="0" step="0.1">
+                <div class="speed-group">
+                    <button class="speed-btn" data-speed="0.5">0.5x</button>
+                    <button class="speed-btn active" data-speed="1">1x</button>
+                    <button class="speed-btn" data-speed="2">2x</button>
+                </div>
+                <button id="btn-loop" class="loop-btn active" title="Loop">🔁</button>
+            </div>
+        </div>
+
+        <!-- Input Card -->
+        <div class="card">
+            <div class="input-section">
+                <label>GLB Source</label>
+                <div class="source-toggle">
+                    <button id="toggle-file" class="active" onclick="setSource('file')">📂 File Upload</button>
+                    <button id="toggle-url" onclick="setSource('url')">🔗 URL</button>
+                </div>
+
+                <div id="source-file">
+                    <div id="drop-area" class="file-upload-area">
+                        <span class="icon">📂</span>
+                        <span id="file-label">Click or drag GLB file here</span>
+                        <input type="file" id="file-input" accept=".glb" style="display:none">
+                    </div>
+                </div>
+
+                <div id="source-url" style="display:none">
+                    <div class="url-input-row">
+                        <input id="url-input" type="text" placeholder="/user/niko/Historical/.../real_3d/event_1.glb">
+                        <button onclick="loadFromUrl()">Load</button>
+                    </div>
+                </div>
+
+                <label>Action Prompt</label>
+                <textarea id="prompt-input" class="prompt-area"
+                    placeholder="e.g. turn the chair and lift the seat edge to reveal the stitched crest"></textarea>
+
+                <button id="generate-btn" class="generate-btn" onclick="generateAnimation()" disabled>
+                    ✨ Generate Animation
+                </button>
+                <div id="error-msg" class="error-msg"></div>
+            </div>
+
+            <!-- Preset Pills -->
+            <div class="preset-row">
+                <button class="preset-pill" data-preset="rotate">🔄 Rotate 360</button>
+                <button class="preset-pill" data-preset="bounce">🏀 Bounce</button>
+                <button class="preset-pill" data-preset="wobble">🫨 Wobble</button>
+                <button class="preset-pill" data-preset="flip">🔃 Flip</button>
+                <button class="preset-pill" data-preset="float">🎈 Float</button>
+            </div>
+        </div>
+
+        <!-- Skeleton Info Accordion -->
+        <div class="card">
+            <div class="accordion-header" onclick="toggleAccordion(this)">
+                🦴 Skeleton Info
+                <span class="accordion-chevron">▶</span>
+            </div>
+            <div class="accordion-body">
+                <div style="position:relative">
+                    <pre id="skeleton-info">Load a model to see skeleton info...</pre>
+                    <button class="copy-btn" onclick="copyText('skeleton-info')">Copy</button>
+                </div>
+            </div>
+
+            <div class="accordion-header" onclick="toggleAccordion(this)">
+                📋 Generation Log
+                <span class="accordion-chevron">▶</span>
+            </div>
+            <div class="accordion-body">
+                <div style="position:relative">
+                    <pre id="generation-log">Generate an animation to see the log...</pre>
+                    <button class="copy-btn" onclick="copyText('generation-log')">Copy</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Three.js -->
+    <script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // ===== Three.js Scene =====
+        const canvas = document.getElementById('viewer-canvas');
+        const container = document.getElementById('viewer-container');
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+        camera.position.set(0, 2, 5);
+
+        const controls = new OrbitControls(camera, canvas);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.target.set(0, 0.5, 0);
+
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+        dirLight.position.set(5, 8, 5);
+        scene.add(dirLight);
+        const fillLight = new THREE.DirectionalLight(0xe6f0ff, 0.6);
+        fillLight.position.set(-5, 3, 3);
+        scene.add(fillLight);
+
+        // Grid floor
+        const grid = new THREE.GridHelper(10, 20, 0x444466, 0x333355);
+        grid.material.opacity = 0.3;
+        grid.material.transparent = true;
+        scene.add(grid);
+
+        // ===== State =====
+        let currentModel = null;
+        let mixer = null;
+        let currentAction = null;
+        let clock = new THREE.Clock();
+        let animationSpeed = 1.0;
+        let isLooping = true;
+        let isPlaying = false;
+        let loadedGlbPath = null;  // server path for API calls
+        let loadedGlbFile = null;  // local File object
+
+        // ===== Resize =====
+        function resize() {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            renderer.setSize(w, h);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+        resize();
+        window.addEventListener('resize', resize);
+        new ResizeObserver(resize).observe(container);
+
+        // ===== Animation Loop =====
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            if (mixer && isPlaying) {
+                mixer.update(delta * animationSpeed);
+                // Update timeline slider
+                if (currentAction) {
+                    const t = currentAction.time;
+                    const dur = currentAction.getClip().duration;
+                    document.getElementById('timeline').value = dur > 0 ? (t / dur) * 100 : 0;
+                }
+            }
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // ===== Load Model =====
+        function loadGLB(source) {
+            // Clean up previous
+            if (currentModel) {
+                scene.remove(currentModel);
+                currentModel = null;
+            }
+            if (mixer) {
+                mixer.stopAllAction();
+                mixer = null;
+                currentAction = null;
+            }
+
+            const loader = new GLTFLoader();
+            const overlay = document.getElementById('viewer-overlay');
+            overlay.classList.remove('hidden');
+            overlay.querySelector('.icon').textContent = '⏳';
+            overlay.querySelector('div:last-child').textContent = 'Loading model...';
+
+            const onLoad = (gltf) => {
+                overlay.classList.add('hidden');
+                currentModel = gltf.scene;
+                scene.add(currentModel);
+
+                // Auto-fit camera
+                const box = new THREE.Box3().setFromObject(currentModel);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                camera.position.set(center.x, center.y + maxDim * 0.5, center.z + maxDim * 2);
+                controls.target.copy(center);
+                controls.update();
+
+                // Check for existing animations
+                if (gltf.animations && gltf.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(currentModel);
+                    const clip = gltf.animations[0];
+                    currentAction = mixer.clipAction(clip);
+                    currentAction.setLoop(isLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+                    currentAction.clampWhenFinished = true;
+                    currentAction.play();
+                    isPlaying = true;
+                    showPlayback(true);
+                    document.getElementById('anim-badge').classList.add('visible');
+                    document.getElementById('btn-play').textContent = '⏸';
+                } else {
+                    showPlayback(false);
+                    document.getElementById('anim-badge').classList.remove('visible');
+                }
+
+                // Update skeleton info via API if we have a server path
+                updateSkeletonInfo();
+                updateGenerateBtn();
+            };
+
+            const onError = (err) => {
+                overlay.querySelector('.icon').textContent = '❌';
+                overlay.querySelector('div:last-child').textContent = 'Failed to load model';
+                showError('Failed to load GLB: ' + (err.message || err));
+            };
+
+            if (typeof source === 'string') {
+                loader.load(source, onLoad, undefined, onError);
+            } else {
+                // File object
+                const url = URL.createObjectURL(source);
+                loader.load(url, (gltf) => {
+                    URL.revokeObjectURL(url);
+                    onLoad(gltf);
+                }, undefined, (err) => {
+                    URL.revokeObjectURL(url);
+                    onError(err);
+                });
+            }
+        }
+
+        // ===== Skeleton Info =====
+        async function updateSkeletonInfo() {
+            const el = document.getElementById('skeleton-info');
+            const badge = document.getElementById('joint-badge');
+
+            if (loadedGlbPath) {
+                try {
+                    const res = await fetch('/api/skeleton', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ glb_path: loadedGlbPath })
+                    });
+                    const data = await res.json();
+                    if (data.has_skeleton) {
+                        badge.textContent = `🦴 ${data.joint_count} joints`;
+                        badge.classList.add('visible');
+                        el.textContent = data.hierarchy_text || JSON.stringify(data.joints, null, 2);
+                    } else {
+                        badge.textContent = '🦴 no skeleton';
+                        badge.classList.add('visible');
+                        el.textContent = data.error || 'No skeleton found in this model.';
+                    }
+                } catch (e) {
+                    el.textContent = 'Failed to fetch skeleton info: ' + e.message;
+                }
+            } else if (loadedGlbFile) {
+                // Can't call server skeleton API for uploaded files without a server path
+                // Parse locally with minimal info
+                el.textContent = 'File uploaded locally. Skeleton analysis requires server path.\nUse URL mode or upload the file to the server first.';
+                badge.textContent = '🦴 ?';
+                badge.classList.add('visible');
+            }
+        }
+
+        // ===== Upload file to server temp for analysis =====
+        async function uploadGlbFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/animate/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.path) {
+                    loadedGlbPath = data.path;
+                    return data.path;
+                }
+            } catch (e) {
+                // Fall back: no server path available
+                console.warn('Upload failed:', e);
+            }
+            return null;
+        }
+
+        // ===== Playback Controls =====
+        function showPlayback(visible) {
+            document.getElementById('playback-bar').classList.toggle('visible', visible);
+        }
+
+        // Expose to global scope
+        window.loadGLB = loadGLB;
+        window.loadedGlbPath = null;
+
+        // ===== Generate Animation (calls backend) =====
+        window.generateAnimation = async function () {
+            const prompt = document.getElementById('prompt-input').value.trim();
+            if (!prompt) { showError('Please enter an action prompt'); return; }
+            if (!loadedGlbPath && !loadedGlbFile) { showError('Please load a GLB model first'); return; }
+
+            const btn = document.getElementById('generate-btn');
+            const logEl = document.getElementById('generation-log');
+            btn.disabled = true;
+            btn.textContent = '⏳ Generating...';
+            btn.classList.add('loading');
+            hideError();
+            logEl.textContent = 'Calling GPT to generate animation...';
+
+            // If we only have a local file, try to upload it first
+            if (!loadedGlbPath && loadedGlbFile) {
+                logEl.textContent += '\nUploading file to server...';
+                const path = await uploadGlbFile(loadedGlbFile);
+                if (!path) {
+                    showError('Cannot upload file to server. Try using URL mode instead.');
+                    btn.disabled = false;
+                    btn.textContent = '✨ Generate Animation';
+                    btn.classList.remove('loading');
+                    return;
+                }
+            }
+
+            try {
+                const res = await fetch('/api/animate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        glb_path: loadedGlbPath,
+                        prompt: prompt,
+                        item_name: ''
+                    })
+                });
+                const data = await res.json();
+
+                // Build log
+                let log = '';
+                if (data.prompt_sent) log += '=== PROMPT SENT ===\n' + data.prompt_sent + '\n\n';
+                if (data.gpt_response) log += '=== GPT RESPONSE ===\n' + data.gpt_response + '\n\n';
+                if (data.keyframe_data) log += '=== KEYFRAME DATA ===\n' + JSON.stringify(data.keyframe_data, null, 2) + '\n\n';
+                if (data.error) log += '=== ERROR ===\n' + data.error + '\n';
+                logEl.textContent = log || 'No log data returned.';
+
+                if (data.success && data.animated_glb_url) {
+                    // Load the animated GLB
+                    loadGLB(data.animated_glb_url);
+                } else {
+                    showError(data.error || 'Animation generation failed');
+                }
+            } catch (e) {
+                showError('API call failed: ' + e.message);
+                logEl.textContent = 'Error: ' + e.message;
+            }
+
+            btn.disabled = false;
+            btn.textContent = '✨ Generate Animation';
+            btn.classList.remove('loading');
+        };
+
+        // ===== Preset Animations (client-side only, no GPT) =====
+        const PRESETS = {
+            rotate: (model) => {
+                const times = [0, 0.5, 1, 1.5, 2];
+                const values = [0, 0, 0, 1, 0, 0.707, 0, 0.707, 0, 1, 0, 0, 0, 0.707, 0, -0.707, 0, 0, 0, 1];
+                const track = new THREE.QuaternionKeyframeTrack('.quaternion', times, values);
+                return new THREE.AnimationClip('rotate_360', 2, [track]);
+            },
+            bounce: (model) => {
+                const box = new THREE.Box3().setFromObject(model);
+                const h = (box.max.y - box.min.y) * 0.3;
+                const py = model.position.y;
+                const times = [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5];
+                const values = [0, py, 0, 0, py + h, 0, 0, py, 0, 0, py + h * 0.6, 0, 0, py, 0, 0, py + h * 0.3, 0, 0, py, 0];
+                const track = new THREE.VectorKeyframeTrack('.position', times, values);
+                return new THREE.AnimationClip('bounce', 1.5, [track]);
+            },
+            wobble: (model) => {
+                const r = 0.15;
+                const times = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+                const values = [];
+                for (let i = 0; i < times.length; i++) {
+                    const a = (i % 2 === 0 ? 0 : (i % 4 === 1 ? r : -r));
+                    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, a));
+                    values.push(q.x, q.y, q.z, q.w);
+                }
+                const track = new THREE.QuaternionKeyframeTrack('.quaternion', times, values);
+                return new THREE.AnimationClip('wobble', 1.0, [track]);
+            },
+            flip: (model) => {
+                const times = [0, 0.5, 1.0];
+                const values = [];
+                for (const angle of [0, Math.PI, Math.PI * 2]) {
+                    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(angle, 0, 0));
+                    values.push(q.x, q.y, q.z, q.w);
+                }
+                const track = new THREE.QuaternionKeyframeTrack('.quaternion', times, values);
+                return new THREE.AnimationClip('flip', 1.0, [track]);
+            },
+            float: (model) => {
+                const py = model.position.y;
+                const times = [0, 1, 2, 3, 4];
+                const values = [0, py, 0, 0, py + 0.15, 0, 0, py, 0, 0, py + 0.15, 0, 0, py, 0];
+                const track = new THREE.VectorKeyframeTrack('.position', times, values);
+                return new THREE.AnimationClip('float', 4.0, [track]);
+            }
+        };
+
+        function playPreset(name) {
+            if (!currentModel) { showError('Load a model first'); return; }
+            const clipFn = PRESETS[name];
+            if (!clipFn) return;
+
+            if (mixer) { mixer.stopAllAction(); }
+            mixer = new THREE.AnimationMixer(currentModel);
+            const clip = clipFn(currentModel);
+            currentAction = mixer.clipAction(clip);
+            currentAction.setLoop(isLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+            currentAction.clampWhenFinished = true;
+            currentAction.play();
+            isPlaying = true;
+            showPlayback(true);
+            document.getElementById('btn-play').textContent = '⏸';
+            document.getElementById('anim-badge').classList.add('visible');
+
+            // Highlight active preset
+            document.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
+            document.querySelector(`.preset-pill[data-preset="${name}"]`)?.classList.add('active');
+        }
+
+        // ===== Error display =====
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            el.textContent = msg;
+            el.classList.add('visible');
+        }
+        function hideError() {
+            document.getElementById('error-msg').classList.remove('visible');
+        }
+
+        // ===== Update generate button state =====
+        function updateGenerateBtn() {
+            const btn = document.getElementById('generate-btn');
+            btn.disabled = !(loadedGlbPath || loadedGlbFile);
+        }
+
+        // ===== Source toggle =====
+        window.setSource = function (type) {
+            document.getElementById('source-file').style.display = type === 'file' ? 'block' : 'none';
+            document.getElementById('source-url').style.display = type === 'url' ? 'block' : 'none';
+            document.getElementById('toggle-file').classList.toggle('active', type === 'file');
+            document.getElementById('toggle-url').classList.toggle('active', type === 'url');
+        };
+
+        // ===== File Upload =====
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+
+        dropArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) handleFile(e.target.files[0]);
+        });
+        dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('dragover'); });
+        dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('dragover');
+            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.name.toLowerCase().endsWith('.glb')) {
+                showError('Please select a .glb file');
+                return;
+            }
+            hideError();
+            document.getElementById('file-label').innerHTML = `<span class="filename">${file.name}</span>`;
+            loadedGlbFile = file;
+            loadedGlbPath = null;
+            loadGLB(file);
+
+            // Try to upload for server-side analysis
+            uploadGlbFile(file).then(path => {
+                if (path) {
+                    loadedGlbPath = path;
+                    updateSkeletonInfo();
+                }
+            });
+        }
+
+        // ===== URL Load =====
+        window.loadFromUrl = function () {
+            const url = document.getElementById('url-input').value.trim();
+            if (!url) { showError('Please enter a URL'); return; }
+            hideError();
+            loadedGlbPath = url;
+            loadedGlbFile = null;
+            loadGLB(url);
+        };
+
+        // ===== Playback button handlers =====
+        document.getElementById('btn-play').addEventListener('click', () => {
+            if (!mixer || !currentAction) return;
+            if (isPlaying) {
+                currentAction.paused = true;
+                isPlaying = false;
+                document.getElementById('btn-play').textContent = '▶';
+            } else {
+                currentAction.paused = false;
+                isPlaying = true;
+                document.getElementById('btn-play').textContent = '⏸';
+            }
+        });
+
+        document.getElementById('btn-stop').addEventListener('click', () => {
+            if (!mixer || !currentAction) return;
+            currentAction.stop();
+            currentAction.reset();
+            isPlaying = false;
+            document.getElementById('btn-play').textContent = '▶';
+            document.getElementById('timeline').value = 0;
+        });
+
+        document.getElementById('timeline').addEventListener('input', (e) => {
+            if (!mixer || !currentAction) return;
+            const dur = currentAction.getClip().duration;
+            currentAction.time = (parseFloat(e.target.value) / 100) * dur;
+            if (!isPlaying) {
+                mixer.update(0);
+            }
+        });
+
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                animationSpeed = parseFloat(btn.dataset.speed);
+            });
+        });
+
+        document.getElementById('btn-loop').addEventListener('click', () => {
+            const btn = document.getElementById('btn-loop');
+            isLooping = !isLooping;
+            btn.classList.toggle('active', isLooping);
+            if (currentAction) {
+                currentAction.setLoop(isLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+            }
+        });
+
+        // Preset pill handlers
+        document.querySelectorAll('.preset-pill').forEach(pill => {
+            pill.addEventListener('click', () => playPreset(pill.dataset.preset));
+        });
+
+        // ===== Accordion =====
+        window.toggleAccordion = function (header) {
+            header.classList.toggle('open');
+            const body = header.nextElementSibling;
+            body.classList.toggle('open');
+        };
+
+        // ===== Copy =====
+        window.copyText = function (id) {
+            const text = document.getElementById(id).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById(id).parentElement.querySelector('.copy-btn');
+                const orig = btn.textContent;
+                btn.textContent = '✓ Copied';
+                setTimeout(() => btn.textContent = orig, 1500);
+            });
+        };
+
+        // ===== URL params for quick loading =====
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('glb')) {
+            const glbUrl = params.get('glb');
+            document.getElementById('url-input').value = glbUrl;
+            window.setSource('url');
+            loadedGlbPath = glbUrl;
+            loadGLB(glbUrl);
+        }
+        if (params.get('prompt')) {
+            document.getElementById('prompt-input').value = params.get('prompt');
+        }
+
+    </script>
+</body>
+
+</html>

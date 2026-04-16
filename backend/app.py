@@ -859,6 +859,46 @@ def serve_ar_track():
 def serve_ar_track_static(filename):
     return _ar_response(FRONTEND_FOLDER / 'ar' / 'track', filename)
 
+@app.route('/ar/track/materialism/')
+def serve_ar_track_materialism():
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'track' / 'materialism', 'index.html')
+
+@app.route('/ar/track/materialism/<path:filename>')
+def serve_ar_track_materialism_static(filename):
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'track' / 'materialism', filename)
+
+@app.route('/ar/track/animism/')
+def serve_ar_track_animism():
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'track' / 'animism', 'index.html')
+
+@app.route('/ar/track/animism/<path:filename>')
+def serve_ar_track_animism_static(filename):
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'track' / 'animism', filename)
+
+@app.route('/ar/blow/materialism/')
+def serve_ar_blow_materialism():
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'blow' / 'materialism', 'index.html')
+
+@app.route('/ar/blow/materialism/<path:filename>')
+def serve_ar_blow_materialism_static(filename):
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'blow' / 'materialism', filename)
+
+@app.route('/ar/blow/animism/')
+def serve_ar_blow_animism():
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'blow' / 'animism', 'index.html')
+
+@app.route('/ar/blow/animism/<path:filename>')
+def serve_ar_blow_animism_static(filename):
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'blow' / 'animism', filename)
+
+@app.route('/ar/rub/')
+def serve_ar_rub():
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'rub', 'index.html')
+
+@app.route('/ar/rub/<path:filename>')
+def serve_ar_rub_static(filename):
+    return _ar_response(FRONTEND_FOLDER / 'ar' / 'rub', filename)
+
 @app.route('/ar/viewer/')
 def serve_ar_viewer():
     return _ar_response(FRONTEND_FOLDER / 'ar' / 'viewer', 'index.html')
@@ -1563,6 +1603,124 @@ def api_download(job_id):
     if not glb_path or not Path(glb_path).exists():
         return jsonify(error="GLB file not found"), 404
     return send_file(glb_path, mimetype='model/gltf-binary', as_attachment=True, download_name=f"{job_id}.glb")
+
+
+# ==========================================
+# Animation API
+# ==========================================
+@app.post("/api/animate")
+def api_animate():
+    """Generate animation for a rigged GLB model using GPT."""
+    from animation_service import generate_animation
+    from skeleton_parser import parse_glb_skeleton
+
+    data = request.get_json(silent=True) or {}
+    glb_path = data.get("glb_path", "").strip()
+    prompt = data.get("prompt", "").strip()
+    item_name = data.get("item_name", "").strip()
+
+    if not glb_path:
+        return jsonify(error="glb_path is required"), 400
+    if not prompt:
+        return jsonify(error="prompt is required"), 400
+
+    # Resolve relative paths under DATA_FOLDER
+    glb_full = Path(glb_path)
+    if not glb_full.is_absolute():
+        glb_full = DATA_FOLDER / glb_path
+    if not glb_full.exists():
+        return jsonify(error=f"GLB file not found: {glb_path}"), 404
+
+    result = generate_animation(str(glb_full), prompt, item_name)
+
+    if result["success"]:
+        # Build URL path for animated GLB
+        animated_path = Path(result["animated_glb_path"])
+        try:
+            rel = animated_path.relative_to(DATA_FOLDER)
+            url = f"/user/{rel}"
+        except ValueError:
+            url = f"/api/animate/download?path={animated_path}"
+
+        return jsonify(
+            success=True,
+            animated_glb_url=str(url),
+            skeleton_info=result["skeleton_info"],
+            keyframe_data=result["keyframe_data"],
+            prompt_sent=result["prompt_sent"],
+            gpt_response=result["gpt_response"],
+        )
+    else:
+        return jsonify(
+            success=False,
+            error=result["error"],
+            skeleton_info=result["skeleton_info"],
+            prompt_sent=result["prompt_sent"],
+            gpt_response=result["gpt_response"],
+        ), 500
+
+
+@app.post("/api/skeleton")
+def api_skeleton():
+    """Parse and return skeleton info for a GLB file."""
+    from skeleton_parser import parse_glb_skeleton
+
+    data = request.get_json(silent=True) or {}
+    glb_path = data.get("glb_path", "").strip()
+
+    if not glb_path:
+        return jsonify(error="glb_path is required"), 400
+
+    glb_full = Path(glb_path)
+    if not glb_full.is_absolute():
+        glb_full = DATA_FOLDER / glb_path
+    if not glb_full.exists():
+        return jsonify(error=f"GLB file not found: {glb_path}"), 404
+
+    skeleton = parse_glb_skeleton(str(glb_full))
+    return jsonify(skeleton)
+
+
+@app.get("/api/animate/download")
+def api_animate_download():
+    """Download an animated GLB by path."""
+    file_path = request.args.get("path", "")
+    if not file_path:
+        return jsonify(error="path parameter required"), 400
+
+    p = Path(file_path)
+    if not p.exists() or not p.suffix.lower() == ".glb":
+        return jsonify(error="File not found"), 404
+
+    # Security: ensure path is under DATA_FOLDER
+    try:
+        p.resolve().relative_to(DATA_FOLDER.resolve())
+    except ValueError:
+        return jsonify(error="Access denied"), 403
+
+    return send_file(str(p), mimetype='model/gltf-binary', as_attachment=True,
+                     download_name=p.name)
+
+
+@app.post("/api/animate/upload")
+def api_animate_upload():
+    """Upload a GLB file to temp folder for animation processing."""
+    if 'file' not in request.files:
+        return jsonify(error="No file provided"), 400
+
+    f = request.files['file']
+    if not f.filename or not f.filename.lower().endswith('.glb'):
+        return jsonify(error="Only .glb files allowed"), 400
+
+    # Save to temp folder with unique name
+    import uuid as _uuid
+    temp_dir = DATA_FOLDER / "temp" / "animation"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = secure_filename(f.filename)
+    dest = temp_dir / f"{_uuid.uuid4().hex[:8]}_{safe_name}"
+    f.save(str(dest))
+
+    return jsonify(path=str(dest))
 
 
 # ==========================================

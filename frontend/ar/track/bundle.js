@@ -1,1 +1,876 @@
-(()=>{"use strict";function e(t){return e="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(e){return typeof e}:function(e){return e&&"function"==typeof Symbol&&e.constructor===Symbol&&e!==Symbol.prototype?"symbol":typeof e},e(t)}function t(t,i,o){return(i=function(t){var i=function(t){if("object"!=e(t)||!t)return t;var i=t[Symbol.toPrimitive];if(void 0!==i){var o=i.call(t,"string");if("object"!=e(o))return o;throw new TypeError("@@toPrimitive must return a primitive value.")}return String(t)}(t);return"symbol"==e(i)?i:i+""}(i))in t?Object.defineProperty(t,i,{value:o,enumerable:!0,configurable:!0,writable:!0}):t[i]=o,t}function i(e,t){var i=Object.keys(e);if(Object.getOwnPropertySymbols){var o=Object.getOwnPropertySymbols(e);t&&(o=o.filter(function(t){return Object.getOwnPropertyDescriptor(e,t).enumerable})),i.push.apply(i,o)}return i}function o(e){for(var o=1;o<arguments.length;o++){var a=null!=arguments[o]?arguments[o]:{};o%2?i(Object(a),!0).forEach(function(i){t(e,i,a[i])}):Object.getOwnPropertyDescriptors?Object.defineProperties(e,Object.getOwnPropertyDescriptors(a)):i(Object(a)).forEach(function(t){Object.defineProperty(e,t,Object.getOwnPropertyDescriptor(a,t))})}return e}console.log("✅ Track AR Interaction loaded");var a=function(){var t={debug:!1,targetSize:.6,roam:{speed:1,radius:4,minY:1,maxY:5},track:{duration:5e3,hitboxPadding:.5},dissolve:{duration:600},material:{metalness:.15,roughness:.85}},i=window.TRACK_CONFIG;if(!i||"object"!==e(i))return t;for(var a={},s=0,r=Object.keys(t);s<r.length;s++){var n=r[s];t[n]&&"object"===e(t[n])&&!Array.isArray(t[n])&&i[n]&&"object"===e(i[n])&&!Array.isArray(i[n])?a[n]=o(o({},t[n]),i[n]):a[n]=n in i?i[n]:t[n]}return console.log("⚙️ TRACK_CONFIG merged from ar-config.js",a),a}(),s={enabled:!1,realGlb:"#realModelAsset",fictionalGlb:"#fictionalModelAsset",itemName:"Test Fictional Item"},r={realGlbUrl:null,fictionalGlbUrl:null,itemName:null,realName:null,shellLoaded:!1,coreLoaded:!1,showingFictional:!1,trackTimer:0},n={init:function(){this.hint=document.getElementById("ar-hint"),this.status=document.getElementById("ar-status"),this.aimIcon=document.getElementById("aim-icon"),this.trackProgress=document.getElementById("track-progress"),this.progressFill=document.querySelector("#track-progress .progress-fill"),this.trackingText=document.getElementById("tracking-text"),this.itemNameDisplay=document.getElementById("item-name-display")},showHint:function(){this.hint&&this.hint.classList.remove("ar-ui-hidden")},hideHint:function(){this.hint&&this.hint.classList.add("ar-ui-hidden")},setStatus:function(e){var t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:"";if(this.status){var i;null===(i=this.status.querySelector(".status-text"))||void 0===i||i.remove();var o=document.createElement("span");o.className="status-text",o.textContent=e,this.status.appendChild(o),this.status.className="ar-status ".concat(t)}},setTargeting:function(e){this.aimIcon&&(e?this.aimIcon.classList.add("targeting"):this.aimIcon.classList.remove("targeting"))},updateProgress:function(e){if(this.progressFill){var t=283*(1-e);this.progressFill.style.strokeDashoffset=t}},showTrackingText:function(e,t){this.trackingText&&(this.trackingText.textContent="Tracking... ".concat(e.toFixed(1),"s / ").concat(t.toFixed(1),"s"),this.trackingText.classList.add("visible"))},hideTrackingText:function(){this.trackingText&&this.trackingText.classList.remove("visible")},hideAimUI:function(){this.aimIcon&&(this.aimIcon.style.display="none"),this.trackProgress&&(this.trackProgress.style.display="none"),this.hideTrackingText()},showItemName:function(e){this.itemNameDisplay&&e&&(this.itemNameDisplay.textContent="✨ ".concat(e),this.itemNameDisplay.classList.add("visible"))},hideItemName:function(){this.itemNameDisplay&&this.itemNameDisplay.classList.remove("visible")}};function l(e){var t=0;e.traverse(function(e){if(e.isMesh){var i=Array.isArray(e.material)?e.material:[e.material];i.length&&i[0]?i.forEach(function(e){e&&(e.transparent=!0,e.opacity=1,e.depthWrite=!0,e.side=THREE.DoubleSide,e.needsUpdate=!0)}):(e.material=new THREE.MeshStandardMaterial({color:14540253,metalness:a.material.metalness,roughness:a.material.roughness,transparent:!0,opacity:1,depthWrite:!0,side:THREE.DoubleSide}),t++),e.frustumCulled=!1,e.castShadow=!0,e.receiveShadow=!0}}),t>0&&console.log("🔧 Fixed ".concat(t," mesh material(s)"))}function c(e,t,i,o,a){if(e&&0!==e.length){var s=performance.now(),r=function(){var n=performance.now()-s,l=Math.min(n/o,1),c=THREE.MathUtils.lerp(t,i,l);e.forEach(function(e){e&&e.material&&(e.material.opacity=c,e.material.transparent=!0,e.material.depthWrite=c>.5,e.material.needsUpdate=!0,e.visible=c>.01)}),l<1?requestAnimationFrame(r):a&&a()};r()}else a&&a()}AFRAME.registerComponent("sky-roam",{schema:{speed:{type:"number",default:a.roam.speed},radius:{type:"number",default:a.roam.radius},minY:{type:"number",default:a.roam.minY},maxY:{type:"number",default:a.roam.maxY}},init:function(){console.log("[sky-roam] Initializing..."),this.nextTarget=this.getRandomTarget(),this.active=!0},tick:function(e,t){if(this.active){var i=this.el.object3D.position,o=this.nextTarget;if(i.distanceTo(o)<.15)this.nextTarget=this.getRandomTarget();else{var a=(new THREE.Vector3).subVectors(o,i).normalize(),s=this.data.speed*t/1e3;this.el.object3D.position.addScaledVector(a,s)}}},getRandomTarget:function(){var e=Math.random()*Math.PI*2,t=this.data.radius*(.6+.4*Math.random()),i=Math.cos(e)*t,o=Math.sin(e)*t,a=THREE.MathUtils.lerp(this.data.minY,this.data.maxY,Math.random());return new THREE.Vector3(i,a,-Math.abs(o))},stop:function(){this.active=!1},resume:function(){this.active=!0,this.nextTarget=this.getRandomTarget()}}),AFRAME.registerComponent("sky-shell-core",{schema:{trackDuration:{type:"number",default:a.track.duration}},init:function(){var e=this;console.log("[sky-shell-core] Initializing..."),this.shellEl=this.el,this.coreEl=null,this.timer=0,this.missGrace=0,this.showingFictional=!1,this.transitioning=!1,this.toggleCount=0,this.readyForRaycast=!1,this.stabilizationFrames=0,this.camera=null,this.raycaster=new THREE.Raycaster,this.raycaster.far=100,this.shellMeshes=[],this.coreMeshes=[],this.hitboxMesh=null,this.setupCamera(),this.shellEl.addEventListener("model-loaded",function(){var t=e.shellEl.getObject3D("mesh");t&&(l(t),t.traverse(function(t){t.isMesh&&e.shellMeshes.push(t)}),e.createHitbox(),console.log("[sky-shell-core] ✅ Shell ready: ".concat(e.shellMeshes.length," meshes")))},{once:!0})},setupCamera:function(){this.camera=document.getElementById("camera"),this.camera||(this.camera=document.querySelector("[camera]")),this.camera||(this.camera=document.querySelector("a-camera")),this.camera?console.log("[sky-shell-core] ✅ Camera found:",this.camera.id||"unnamed"):console.warn("[sky-shell-core] ⚠️ Camera not found, will retry in tick")},createHitbox:function(){var e=this.shellEl.getObject3D("mesh");if(e){this.shellEl.object3D.updateMatrixWorld(!0),e.updateMatrixWorld(!0);var t=(new THREE.Box3).setFromObject(e),i=new THREE.Vector3,o=new THREE.Vector3;if(t.getSize(i),t.getCenter(o),0!==i.x&&0!==i.y&&0!==i.z){var s=a.track.hitboxPadding,r=i.clone().multiplyScalar(1+s),n=new THREE.BoxGeometry(r.x,r.y,r.z),l=a.debug,c=new THREE.MeshBasicMaterial({color:l?65280:16777215,transparent:!0,opacity:l?.4:0,wireframe:l,depthWrite:!1,depthTest:!0,side:THREE.DoubleSide});this.hitboxMesh=new THREE.Mesh(n,c),this.hitboxMesh.name="shell_hitbox",this.shellEl.object3D.worldToLocal(o),this.hitboxMesh.position.copy(o),this.hitboxMesh.raycast=THREE.Mesh.prototype.raycast,this.shellEl.object3D.add(this.hitboxMesh),console.log("[sky-shell-core] ✅ Hitbox created",{size:r,center:o,padding:s,worldPosition:this.shellEl.object3D.position.clone()}),this.hitboxCreated=!0,this.checkReadyForRaycast()}else console.error("[sky-shell-core] ❌ Invalid bounding box size:",i)}else console.warn("[sky-shell-core] ⚠️ No mesh found for hitbox")},checkReadyForRaycast:function(){if(!this.readyForRaycast&&this.hitboxCreated&&this.hitboxMesh)if(this.camera&&this.camera.components&&this.camera.components.camera){if(this.stabilizationFrames++,!(this.stabilizationFrames<10)){this.el.sceneEl.object3D.updateMatrixWorld(!0),this.shellEl.object3D.updateMatrixWorld(!0),this.readyForRaycast=!0,console.log("[sky-shell-core] ✅ Raycast ENABLED - all conditions met");var e=new THREE.Vector3;this.hitboxMesh.getWorldPosition(e),console.log("[sky-shell-core] Hitbox world position:",e.toArray().map(function(e){return e.toFixed(2)}))}}else this.setupCamera()},tick:function(e,t){if(!this.transitioning)if(this.readyForRaycast){if(this.hitboxMesh){this.shellEl.object3D.updateMatrixWorld(!0);var i=this.camera.components.camera.camera,o=new THREE.Vector3,a=new THREE.Vector3;i.getWorldPosition(o),i.getWorldDirection(a),this.raycaster.set(o,a);var s=this.raycaster.intersectObject(this.hitboxMesh,!1);if(this._debugCounter||(this._debugCounter=0),this._debugCounter++,this._debugCounter%120==0){var r=new THREE.Vector3;this.hitboxMesh.getWorldPosition(r);var l=new THREE.Vector3;i.getWorldPosition(l),console.log("[sky-shell-core] Raycast debug:",{hitboxWorldPos:r.toArray().map(function(e){return e.toFixed(2)}),shellPos:this.shellEl.object3D.position.toArray().map(function(e){return e.toFixed(2)}),cameraWorldPos:l.toArray().map(function(e){return e.toFixed(2)}),rayOrigin:this.raycaster.ray.origin.toArray().map(function(e){return e.toFixed(2)}),rayDirection:this.raycaster.ray.direction.toArray().map(function(e){return e.toFixed(2)}),hits:s.length})}if(s.length>0){this.timer+=t,this.missGrace=0;var c=this.timer/this.data.trackDuration,h=this.timer/1e3,d=this.data.trackDuration/1e3;n.setTargeting(!0),n.updateProgress(c),n.showTrackingText(h,d),this.timer>=this.data.trackDuration&&this.toggleModels()}else this.missGrace+=t,this.missGrace>300&&(this.timer=0,this.missGrace=0,n.setTargeting(!1),n.updateProgress(0),n.hideTrackingText())}}else this.checkReadyForRaycast()},setCoreEntity:function(e){this.coreEl=e},toggleModels:function(){var e=this;if(!this.transitioning){this.transitioning=!0,this.timer=0,this.missGrace=0,console.log("🔄 Toggle! Current:",this.showingFictional?"Fictional":"Real");var t=this.shellEl.components["sky-roam"];t&&t.stop(),n.setTargeting(!1),n.updateProgress(0),n.hideTrackingText();var i=a.dissolve.duration;this.showingFictional?(n.showItemName(r.realName||"Real Item"),c(this.coreMeshes,1,0,i,function(){e.coreEl&&e.coreEl.setAttribute("visible",!1),c(e.shellMeshes,0,1,i,function(){e.showingFictional=!1,r.showingFictional=!1,console.log("🔙 Now showing Real Item"),setTimeout(function(){t&&t.resume(),e.transitioning=!1,e.toggleCount++,console.log("🛫 Resume flying (Real visible) — toggle #".concat(e.toggleCount)),e.toggleCount>=3&&e.showBackButton()},3e3)})})):c(this.shellMeshes,1,0,i,function(){if(e.coreEl){if(e.coreEl.setAttribute("visible",!0),0===e.coreMeshes.length){var o=e.coreEl.getObject3D("mesh");o&&o.traverse(function(t){t.isMesh&&(t.material.transparent=!0,t.material.opacity=0,t.visible=!0,e.coreMeshes.push(t))})}c(e.coreMeshes,0,1,i,function(){e.showingFictional=!0,r.showingFictional=!0,console.log("✨ Now showing Fictional Item"),r.itemName&&n.showItemName(r.itemName),setTimeout(function(){t&&t.resume(),e.transitioning=!1,e.toggleCount++,console.log("🛫 Resume flying (Fictional visible) — toggle #".concat(e.toggleCount)),e.toggleCount>=3&&e.showBackButton()},3e3)})}})}},showBackButton:function(){var e=document.getElementById("back-to-main");e&&!e.classList.contains("visible")&&(e.classList.add("visible"),console.log("🏠 Back button shown after",this.toggleCount,"toggles"))}});var h={_safetyTimer:null,setStatus:function(e){var t=document.getElementById("pre-ar-status");t&&(t.textContent=e)},enableStart:function(){var e=document.getElementById("enter-ar-button");e&&(e.textContent="Start AR",e.disabled=!1),this.setStatus("Model ready — tap to enter AR")},dismissOverlay:function(){if(!this._dismissed){this._dismissed=!0,this._safetyTimer&&(clearTimeout(this._safetyTimer),this._safetyTimer=null);var e=document.getElementById("pre-ar-overlay");e&&e.classList.add("is-hidden")}},_showOverlay:function(){var e=document.getElementById("pre-ar-overlay");e&&e.classList.remove("is-hidden"),this._dismissed=!1},bind:function(e){var t=this;this._dismissed=!1;var i=document.getElementById("enter-ar-button");i&&(i.addEventListener("click",function(){i.disabled||(i.disabled=!0,i.textContent="Starting AR…",e.emit("runreality"),t._safetyTimer&&clearTimeout(t._safetyTimer),t._safetyTimer=setTimeout(function(){return t.dismissOverlay()},5e3))}),e.addEventListener("realityready",function(){t.dismissOverlay()}),e.addEventListener("realityerror",function(){t._safetyTimer&&(clearTimeout(t._safetyTimer),t._safetyTimer=null),t._showOverlay(),i.textContent="AR Failed — Retry",i.disabled=!1,t.setStatus("AR failed to start.\nPlease check camera permissions.")}))}};AFRAME.registerComponent("track-ar-interaction",{init:function(){console.log("🎮 Track AR Interaction initializing..."),h.bind(this.el),n.init();var e=function(){var e=new URLSearchParams(window.location.search);return s.enabled?(console.log("🧪 TEST MODE: Using local assets"),{realGlb:s.realGlb,fictionalGlb:s.fictionalGlb,interaction:"Track",itemName:s.itemName,realName:s.realName||"Real Item"}):{realGlb:e.get("real_glb"),fictionalGlb:e.get("fictional_glb"),interaction:e.get("interaction")||"Track",itemName:e.get("item_name"),realName:e.get("real_name")||"Real Item"}}();if(r.realGlbUrl=e.realGlb,r.fictionalGlbUrl=e.fictionalGlb,r.itemName=e.itemName,r.realName=e.realName,console.log("📋 URL Parameters:",e),!r.realGlbUrl)return console.error("❌ Missing required parameter: real_glb"),void n.setStatus("Error: Missing real_glb parameter","error");n.showHint(),n.setStatus("Loading models...","waiting"),this.loadModels()},loadModels:function(){var e=this;console.log("📥 Loading models..."),this.loadShellModel(),r.fictionalGlbUrl&&setTimeout(function(){e.loadCoreModel()},100)},loadShellModel:function(){var e=this,t=document.getElementById("shellEntity");t?(console.log("🐚 Loading Shell (Real Item):",r.realGlbUrl),t.setAttribute("gltf-model",r.realGlbUrl),t.addEventListener("model-loaded",function(){console.log("✅ Shell model loaded"),r.shellLoaded=!0;var i=t.getObject3D("mesh");i&&l(i),e.checkAllLoaded()},{once:!0}),t.addEventListener("model-error",function(e){console.error("❌ Shell model failed:",e),n.setStatus("Failed to load shell","error")},{once:!0})):console.error("❌ #shellEntity not found")},loadCoreModel:function(){var e=this,t=document.getElementById("shellEntity");if(t){console.log("💎 Loading Core (Fictional Item):",r.fictionalGlbUrl);var i=document.createElement("a-entity");i.id="coreEntity",i.setAttribute("gltf-model",r.fictionalGlbUrl),i.setAttribute("position","0 0 0"),i.setAttribute("scale","1 1 1"),i.setAttribute("visible",!1),i.setAttribute("shadow","cast: true; receive: false"),i.addEventListener("model-loaded",function(){console.log("✅ Core model loaded"),r.coreLoaded=!0;var o=i.getObject3D("mesh");o&&(l(o),o.traverse(function(e){e.isMesh&&(e.material.transparent=!0,e.material.opacity=0,e.visible=!1)}));var a=t.components["sky-shell-core"];a&&a.setCoreEntity(i),e.checkAllLoaded()},{once:!0}),i.addEventListener("model-error",function(e){console.error("❌ Core model failed:",e)},{once:!0}),t.appendChild(i)}else console.error("❌ #shellEntity not found for core")},checkAllLoaded:function(){var e=r.shellLoaded,t=!r.fictionalGlbUrl||r.coreLoaded;e&&t?(console.log("✅ All models loaded - Ready for tracking"),n.setStatus("Aim at the flying object!","complete"),h.enableStart()):e&&(n.setStatus("Shell ready, loading core...","waiting"),h.enableStart())}}),document.addEventListener("DOMContentLoaded",function(){console.log("📱 DOM ready for Track AR Interaction")})})();
+(() => {
+  "use strict";
+
+  // ─── Helpers: typeof polyfill ───
+  function _typeof(obj) {
+    return (_typeof =
+      "function" == typeof Symbol && "symbol" == typeof Symbol.iterator
+        ? function (o) { return typeof o; }
+        : function (o) {
+            return o && "function" == typeof Symbol &&
+              o.constructor === Symbol && o !== Symbol.prototype
+              ? "symbol"
+              : typeof o;
+          }),
+    _typeof(obj);
+  }
+
+  // ─── Helpers: defineProperty wrapper ───
+  function _defineProperty(target, key, value) {
+    key = (function (arg) {
+      var prim = (function (input) {
+        if ("object" != _typeof(input) || !input) return input;
+        var fn = input[Symbol.toPrimitive];
+        if (void 0 !== fn) {
+          var out = fn.call(input, "string");
+          if ("object" != _typeof(out)) return out;
+          throw new TypeError("@@toPrimitive must return a primitive value.");
+        }
+        return String(input);
+      })(arg);
+      return "symbol" == _typeof(prim) ? prim : prim + "";
+    })(key);
+
+    return key in target
+      ? Object.defineProperty(target, key, {
+          value: value,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        })
+      : (target[key] = value),
+    target;
+  }
+
+  // ─── Helpers: own keys ───
+  function _ownKeys(obj, enumerableOnly) {
+    var keys = Object.keys(obj);
+    if (Object.getOwnPropertySymbols) {
+      var syms = Object.getOwnPropertySymbols(obj);
+      if (enumerableOnly) {
+        syms = syms.filter(function (s) {
+          return Object.getOwnPropertyDescriptor(obj, s).enumerable;
+        });
+      }
+      keys.push.apply(keys, syms);
+    }
+    return keys;
+  }
+
+  // ─── Helpers: object spread ───
+  function _objectSpread(target) {
+    for (var i = 1; i < arguments.length; i++) {
+      var source = null != arguments[i] ? arguments[i] : {};
+      i % 2
+        ? _ownKeys(Object(source), true).forEach(function (key) {
+            _defineProperty(target, key, source[key]);
+          })
+        : Object.getOwnPropertyDescriptors
+          ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source))
+          : _ownKeys(Object(source)).forEach(function (key) {
+              Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
+            });
+    }
+    return target;
+  }
+
+  console.log("✅ Track AR Interaction loaded");
+
+  // ═══════════════════════════════════════════
+  //  CONFIG — merge defaults with ar-config.js
+  // ═══════════════════════════════════════════
+  var CONFIG = (function () {
+    var defaults = {
+      debug: false,
+      targetSize: 0.6,
+      roam:     { speed: 1, radius: 4, minY: 1, maxY: 5 },
+      track:    { duration: 5000, hitboxPadding: 0.5 },
+      dissolve: { duration: 600 },
+      material: { metalness: 0.15, roughness: 0.85 },
+    };
+
+    var ext = window.TRACK_CONFIG;
+    if (!ext || "object" !== _typeof(ext)) return defaults;
+
+    var merged = {};
+    for (var idx = 0, keys = Object.keys(defaults); idx < keys.length; idx++) {
+      var key = keys[idx];
+      if (
+        defaults[key] && "object" === _typeof(defaults[key]) && !Array.isArray(defaults[key]) &&
+        ext[key]      && "object" === _typeof(ext[key])      && !Array.isArray(ext[key])
+      ) {
+        merged[key] = _objectSpread(_objectSpread({}, defaults[key]), ext[key]);
+      } else {
+        merged[key] = key in ext ? ext[key] : defaults[key];
+      }
+    }
+    console.log("⚙️ TRACK_CONFIG merged from ar-config.js", merged);
+    return merged;
+  })();
+
+  // ═══════════════════════════════════
+  //  TEST MODE flags (local dev only)
+  // ═══════════════════════════════════
+  var TEST_MODE = {
+    enabled: true,
+    realGlb: "assets/realmodel.glb",
+    fictionalGlb: "assets/fictionalmodel.glb",
+    itemName: "Test Fictional Item",
+    realName: "Test Real Item",
+  };
+
+  // ═══════════════════════════════════
+  //  APP STATE
+  // ═══════════════════════════════════
+  var appState = {
+    realGlbUrl: null,
+    fictionalGlbUrl: null,
+    itemName: null,
+    realName: null,
+    shellLoaded: false,
+    coreLoaded: false,
+    showingFictional: false,
+    trackTimer: 0,
+  };
+
+  // ═══════════════════════════════════
+  //  UI HELPERS
+  // ═══════════════════════════════════
+  var ui = {
+    init: function () {
+      this.hint           = document.getElementById("ar-hint");
+      this.status         = document.getElementById("ar-status");
+      this.aimIcon        = document.getElementById("aim-icon");
+      this.trackProgress  = document.getElementById("track-progress");
+      this.progressFill   = document.querySelector("#track-progress .progress-fill");
+      this.trackingText   = document.getElementById("tracking-text");
+      this.itemNameDisplay = document.getElementById("item-name-display");
+    },
+
+    showHint: function () {
+      this.hint && this.hint.classList.remove("ar-ui-hidden");
+    },
+    hideHint: function () {
+      this.hint && this.hint.classList.add("ar-ui-hidden");
+    },
+
+    setStatus: function (text) {
+      var cls = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : "";
+      if (this.status) {
+        var old;
+        null === (old = this.status.querySelector(".status-text")) || void 0 === old || old.remove();
+        var span = document.createElement("span");
+        span.className = "status-text";
+        span.textContent = text;
+        this.status.appendChild(span);
+        this.status.className = "ar-status ".concat(cls);
+      }
+    },
+
+    setTargeting: function (active) {
+      this.aimIcon &&
+        (active
+          ? this.aimIcon.classList.add("targeting")
+          : this.aimIcon.classList.remove("targeting"));
+    },
+
+    updateProgress: function (pct) {
+      if (this.progressFill) {
+        var offset = 283 * (1 - pct);
+        this.progressFill.style.strokeDashoffset = offset;
+      }
+    },
+
+    showTrackingText: function (elapsed, total) {
+      this.trackingText &&
+        ((this.trackingText.textContent =
+          "Tracking... ".concat(elapsed.toFixed(1), "s / ").concat(total.toFixed(1), "s")),
+        this.trackingText.classList.add("visible"));
+    },
+    hideTrackingText: function () {
+      this.trackingText && this.trackingText.classList.remove("visible");
+    },
+
+    hideAimUI: function () {
+      this.aimIcon && (this.aimIcon.style.display = "none");
+      this.trackProgress && (this.trackProgress.style.display = "none");
+      this.hideTrackingText();
+    },
+
+    showItemName: function (name) {
+      this.itemNameDisplay &&
+        name &&
+        ((this.itemNameDisplay.textContent = "✨ ".concat(name)),
+        this.itemNameDisplay.classList.add("visible"));
+    },
+    hideItemName: function () {
+      this.itemNameDisplay && this.itemNameDisplay.classList.remove("visible");
+    },
+  };
+
+  // ═══════════════════════════════════
+  //  fixMaterials — ensure every mesh
+  //  has a valid transparent material
+  // ═══════════════════════════════════
+  function fixMaterials(root) {
+    var fixCount = 0;
+    root.traverse(function (node) {
+      if (node.isMesh) {
+        var mats = Array.isArray(node.material) ? node.material : [node.material];
+        if (mats.length && mats[0]) {
+          mats.forEach(function (m) {
+            if (m) {
+              m.transparent = true;
+              m.opacity = 1;
+              m.depthWrite = true;
+              m.side = THREE.DoubleSide;
+              m.needsUpdate = true;
+            }
+          });
+        } else {
+          node.material = new THREE.MeshStandardMaterial({
+            color: 14540253,
+            metalness: CONFIG.material.metalness,
+            roughness: CONFIG.material.roughness,
+            transparent: true,
+            opacity: 1,
+            depthWrite: true,
+            side: THREE.DoubleSide,
+          });
+          fixCount++;
+        }
+        node.frustumCulled = false;
+        node.castShadow = true;
+        node.receiveShadow = true;
+      }
+    });
+    if (fixCount > 0) {
+      console.log("🔧 Fixed ".concat(fixCount, " mesh material(s)"));
+    }
+  }
+
+  // ═══════════════════════════════════
+  //  animateOpacity — lerp meshes
+  //  from → to over duration ms
+  // ═══════════════════════════════════
+  function animateOpacity(meshes, from, to, duration, onComplete) {
+    if (!meshes || 0 === meshes.length) {
+      onComplete && onComplete();
+      return;
+    }
+    var start = performance.now();
+    var step = function () {
+      var elapsed = performance.now() - start;
+      var t = Math.min(elapsed / duration, 1);
+      var opacity = THREE.MathUtils.lerp(from, to, t);
+
+      meshes.forEach(function (m) {
+        if (m && m.material) {
+          m.material.opacity = opacity;
+          m.material.transparent = true;
+          m.material.depthWrite = opacity > 0.5;
+          m.material.needsUpdate = true;
+          m.visible = opacity > 0.01;
+        }
+      });
+
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else if (onComplete) {
+        onComplete();
+      }
+    };
+    step();
+  }
+
+  // ═══════════════════════════════════
+  //  COMPONENT: sky-roam
+  //  Moves entity randomly in the sky
+  // ═══════════════════════════════════
+  AFRAME.registerComponent("sky-roam", {
+    schema: {
+      speed:  { type: "number", default: CONFIG.roam.speed },
+      radius: { type: "number", default: CONFIG.roam.radius },
+      minY:   { type: "number", default: CONFIG.roam.minY },
+      maxY:   { type: "number", default: CONFIG.roam.maxY },
+    },
+
+    init: function () {
+      console.log("[sky-roam] Initializing...");
+      this.nextTarget = this.getRandomTarget();
+      this.active = true;
+    },
+
+    tick: function (time, delta) {
+      if (!this.active) return;
+
+      var pos = this.el.object3D.position;
+      var target = this.nextTarget;
+
+      if (pos.distanceTo(target) < 0.15) {
+        this.nextTarget = this.getRandomTarget();
+      } else {
+        var dir = new THREE.Vector3().subVectors(target, pos).normalize();
+        var step = (this.data.speed * delta) / 1000;
+        this.el.object3D.position.addScaledVector(dir, step);
+      }
+    },
+
+    getRandomTarget: function () {
+      var angle = Math.random() * Math.PI * 2;
+      var dist = this.data.radius * (0.6 + 0.4 * Math.random());
+      var x = Math.cos(angle) * dist;
+      var z = Math.sin(angle) * dist;
+      var y = THREE.MathUtils.lerp(this.data.minY, this.data.maxY, Math.random());
+      return new THREE.Vector3(x, y, -Math.abs(z));
+    },
+
+    stop: function () {
+      this.active = false;
+    },
+    resume: function () {
+      this.active = true;
+      this.nextTarget = this.getRandomTarget();
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  //  COMPONENT: sky-shell-core
+  //  Manages shell ↔ core toggle via raycasting
+  // ═══════════════════════════════════════════════
+  AFRAME.registerComponent("sky-shell-core", {
+    schema: {
+      trackDuration: { type: "number", default: CONFIG.track.duration },
+    },
+
+    init: function () {
+      var self = this;
+      console.log("[sky-shell-core] Initializing...");
+
+      this.shellEl = this.el;
+      this.coreEl = null;
+      this.timer = 0;
+      this.missGrace = 0;
+      this.showingFictional = false;
+      this.transitioning = false;
+      this.toggleCount = 0;
+      this.readyForRaycast = false;
+      this.stabilizationFrames = 0;
+
+      this.camera = null;
+      this.raycaster = new THREE.Raycaster();
+      this.raycaster.far = 100;
+
+      this.shellMeshes = [];
+      this.coreMeshes = [];
+      this.hitboxMesh = null;
+
+      this.setupCamera();
+
+      this.shellEl.addEventListener(
+        "model-loaded",
+        function () {
+          var mesh = self.shellEl.getObject3D("mesh");
+          if (mesh) {
+            fixMaterials(mesh);
+            mesh.traverse(function (child) {
+              if (child.isMesh) self.shellMeshes.push(child);
+            });
+            self.createHitbox();
+            console.log(
+              "[sky-shell-core] ✅ Shell ready: ".concat(self.shellMeshes.length, " meshes")
+            );
+          }
+        },
+        { once: true }
+      );
+    },
+
+    setupCamera: function () {
+      this.camera = document.getElementById("camera");
+      if (!this.camera) this.camera = document.querySelector("[camera]");
+      if (!this.camera) this.camera = document.querySelector("a-camera");
+
+      this.camera
+        ? console.log("[sky-shell-core] ✅ Camera found:", this.camera.id || "unnamed")
+        : console.warn("[sky-shell-core] ⚠️ Camera not found, will retry in tick");
+    },
+
+    createHitbox: function () {
+      var mesh = this.shellEl.getObject3D("mesh");
+      if (!mesh) {
+        console.warn("[sky-shell-core] ⚠️ No mesh found for hitbox");
+        return;
+      }
+
+      this.shellEl.object3D.updateMatrixWorld(true);
+      mesh.updateMatrixWorld(true);
+
+      var box = new THREE.Box3().setFromObject(mesh);
+      var size = new THREE.Vector3();
+      var center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+
+      if (0 === size.x || 0 === size.y || 0 === size.z) {
+        console.error("[sky-shell-core] ❌ Invalid bounding box size:", size);
+        return;
+      }
+
+      var padding = CONFIG.track.hitboxPadding;
+      var paddedSize = size.clone().multiplyScalar(1 + padding);
+      var geo = new THREE.BoxGeometry(paddedSize.x, paddedSize.y, paddedSize.z);
+
+      var isDebug = CONFIG.debug;
+      var mat = new THREE.MeshBasicMaterial({
+        color: isDebug ? 65280 : 16777215,
+        transparent: true,
+        opacity: isDebug ? 0.4 : 0,
+        wireframe: isDebug,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.DoubleSide,
+      });
+
+      this.hitboxMesh = new THREE.Mesh(geo, mat);
+      this.hitboxMesh.name = "shell_hitbox";
+      this.shellEl.object3D.worldToLocal(center);
+      this.hitboxMesh.position.copy(center);
+      this.hitboxMesh.raycast = THREE.Mesh.prototype.raycast;
+      this.shellEl.object3D.add(this.hitboxMesh);
+
+      console.log("[sky-shell-core] ✅ Hitbox created", {
+        size: paddedSize,
+        center: center,
+        padding: padding,
+        worldPosition: this.shellEl.object3D.position.clone(),
+      });
+
+      this.hitboxCreated = true;
+      this.checkReadyForRaycast();
+    },
+
+    checkReadyForRaycast: function () {
+      if (this.readyForRaycast || !this.hitboxCreated || !this.hitboxMesh) return;
+
+      if (!this.camera || !this.camera.components || !this.camera.components.camera) {
+        this.setupCamera();
+        return;
+      }
+
+      this.stabilizationFrames++;
+      if (this.stabilizationFrames < 10) return;
+
+      this.el.sceneEl.object3D.updateMatrixWorld(true);
+      this.shellEl.object3D.updateMatrixWorld(true);
+      this.readyForRaycast = true;
+      console.log("[sky-shell-core] ✅ Raycast ENABLED - all conditions met");
+
+      var pos = new THREE.Vector3();
+      this.hitboxMesh.getWorldPosition(pos);
+      console.log(
+        "[sky-shell-core] Hitbox world position:",
+        pos.toArray().map(function (v) { return v.toFixed(2); })
+      );
+    },
+
+    tick: function (time, delta) {
+      if (this.transitioning) return;
+
+      if (!this.readyForRaycast) {
+        this.checkReadyForRaycast();
+        return;
+      }
+
+      if (!this.hitboxMesh) return;
+
+      this.shellEl.object3D.updateMatrixWorld(true);
+
+      var cam = this.camera.components.camera.camera;
+      var origin = new THREE.Vector3();
+      var direction = new THREE.Vector3();
+      cam.getWorldPosition(origin);
+      cam.getWorldDirection(direction);
+      this.raycaster.set(origin, direction);
+
+      var hits = this.raycaster.intersectObject(this.hitboxMesh, false);
+
+      // Debug logging every 120 frames
+      if (!this._debugCounter) this._debugCounter = 0;
+      this._debugCounter++;
+      if (this._debugCounter % 120 === 0) {
+        var hbPos = new THREE.Vector3();
+        this.hitboxMesh.getWorldPosition(hbPos);
+        var camPos = new THREE.Vector3();
+        cam.getWorldPosition(camPos);
+        console.log("[sky-shell-core] Raycast debug:", {
+          hitboxWorldPos: hbPos.toArray().map(function (v) { return v.toFixed(2); }),
+          shellPos: this.shellEl.object3D.position.toArray().map(function (v) { return v.toFixed(2); }),
+          cameraWorldPos: camPos.toArray().map(function (v) { return v.toFixed(2); }),
+          rayOrigin: this.raycaster.ray.origin.toArray().map(function (v) { return v.toFixed(2); }),
+          rayDirection: this.raycaster.ray.direction.toArray().map(function (v) { return v.toFixed(2); }),
+          hits: hits.length,
+        });
+      }
+
+      if (hits.length > 0) {
+        // Aiming at the object
+        this.timer += delta;
+        this.missGrace = 0;
+
+        var progress = this.timer / this.data.trackDuration;
+        var elapsedSec = this.timer / 1000;
+        var totalSec = this.data.trackDuration / 1000;
+
+        ui.setTargeting(true);
+        ui.updateProgress(progress);
+        ui.showTrackingText(elapsedSec, totalSec);
+
+        if (this.timer >= this.data.trackDuration) {
+          this.toggleModels();
+        }
+      } else {
+        // Not aiming — grace period then reset
+        this.missGrace += delta;
+        if (this.missGrace > 300) {
+          this.timer = 0;
+          this.missGrace = 0;
+          ui.setTargeting(false);
+          ui.updateProgress(0);
+          ui.hideTrackingText();
+        }
+      }
+    },
+
+    setCoreEntity: function (entity) {
+      this.coreEl = entity;
+    },
+
+    toggleModels: function () {
+      var self = this;
+      if (this.transitioning) return;
+
+      this.transitioning = true;
+      this.timer = 0;
+      this.missGrace = 0;
+      console.log("🔄 Toggle! Current:", this.showingFictional ? "Fictional" : "Real");
+
+      var roamComp = this.shellEl.components["sky-roam"];
+      if (roamComp) roamComp.stop();
+
+      ui.setTargeting(false);
+      ui.updateProgress(0);
+      ui.hideTrackingText();
+
+      var dur = CONFIG.dissolve.duration;
+
+      if (this.showingFictional) {
+        // ── Fictional → Real ──
+        ui.showItemName(appState.realName || "Real Item");
+        animateOpacity(this.coreMeshes, 1, 0, dur, function () {
+          if (self.coreEl) self.coreEl.setAttribute("visible", false);
+          animateOpacity(self.shellMeshes, 0, 1, dur, function () {
+            self.showingFictional = false;
+            appState.showingFictional = false;
+            console.log("🔙 Now showing Real Item");
+            setTimeout(function () {
+              if (roamComp) roamComp.resume();
+              self.transitioning = false;
+              self.toggleCount++;
+              console.log(
+                "🛫 Resume flying (Real visible) — toggle #".concat(self.toggleCount)
+              );
+              if (self.toggleCount >= 3) self.showBackButton();
+            }, 3000);
+          });
+        });
+      } else {
+        // ── Real → Fictional ──
+        animateOpacity(this.shellMeshes, 1, 0, dur, function () {
+          if (!self.coreEl) return;
+
+          self.coreEl.setAttribute("visible", true);
+
+          if (0 === self.coreMeshes.length) {
+            var coreMesh = self.coreEl.getObject3D("mesh");
+            if (coreMesh) {
+              coreMesh.traverse(function (child) {
+                if (child.isMesh) {
+                  child.material.transparent = true;
+                  child.material.opacity = 0;
+                  child.visible = true;
+                  self.coreMeshes.push(child);
+                }
+              });
+            }
+          }
+
+          animateOpacity(self.coreMeshes, 0, 1, dur, function () {
+            self.showingFictional = true;
+            appState.showingFictional = true;
+            console.log("✨ Now showing Fictional Item");
+            if (appState.itemName) ui.showItemName(appState.itemName);
+            setTimeout(function () {
+              if (roamComp) roamComp.resume();
+              self.transitioning = false;
+              self.toggleCount++;
+              console.log(
+                "🛫 Resume flying (Fictional visible) — toggle #".concat(self.toggleCount)
+              );
+              if (self.toggleCount >= 3) self.showBackButton();
+            }, 3000);
+          });
+        });
+      }
+    },
+
+    showBackButton: function () {
+      var btn = document.getElementById("back-to-main");
+      if (btn && !btn.classList.contains("visible")) {
+        btn.classList.add("visible");
+        console.log("🏠 Back button shown after", this.toggleCount, "toggles");
+      }
+    },
+  });
+
+  // ═══════════════════════════════════
+  //  PRE-AR OVERLAY controller
+  // ═══════════════════════════════════
+  var preArOverlay = {
+    _safetyTimer: null,
+
+    setStatus: function (text) {
+      var el = document.getElementById("pre-ar-status");
+      if (el) el.textContent = text;
+    },
+
+    enableStart: function () {
+      var btn = document.getElementById("enter-ar-button");
+      if (btn) {
+        btn.textContent = "Start AR";
+        btn.disabled = false;
+      }
+      this.setStatus("Model ready — tap to enter AR");
+    },
+
+    dismissOverlay: function () {
+      if (this._dismissed) return;
+      this._dismissed = true;
+      if (this._safetyTimer) {
+        clearTimeout(this._safetyTimer);
+        this._safetyTimer = null;
+      }
+      var overlay = document.getElementById("pre-ar-overlay");
+      if (overlay) overlay.classList.add("is-hidden");
+    },
+
+    _showOverlay: function () {
+      var overlay = document.getElementById("pre-ar-overlay");
+      if (overlay) overlay.classList.remove("is-hidden");
+      this._dismissed = false;
+    },
+
+    bind: function (sceneEl) {
+      var self = this;
+      this._dismissed = false;
+
+      var btn = document.getElementById("enter-ar-button");
+      if (!btn) return;
+
+      btn.addEventListener("click", function () {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = "Starting AR…";
+        sceneEl.emit("runreality");
+
+        if (self._safetyTimer) clearTimeout(self._safetyTimer);
+        self._safetyTimer = setTimeout(function () {
+          return self.dismissOverlay();
+        }, 5000);
+      });
+
+      sceneEl.addEventListener("realityready", function () {
+        self.dismissOverlay();
+      });
+
+      sceneEl.addEventListener("realityerror", function () {
+        if (self._safetyTimer) {
+          clearTimeout(self._safetyTimer);
+          self._safetyTimer = null;
+        }
+        self._showOverlay();
+        btn.textContent = "AR Failed — Retry";
+        btn.disabled = false;
+        self.setStatus("AR failed to start.\nPlease check camera permissions.");
+      });
+    },
+  };
+
+  // ═══════════════════════════════════════════════
+  //  COMPONENT: track-ar-interaction (main entry)
+  // ═══════════════════════════════════════════════
+  AFRAME.registerComponent("track-ar-interaction", {
+    init: function () {
+      console.log("🎮 Track AR Interaction initializing...");
+      preArOverlay.bind(this.el);
+      ui.init();
+
+      // Parse URL parameters (or use test-mode overrides)
+      var params = (function () {
+        var urlParams = new URLSearchParams(window.location.search);
+
+        if (TEST_MODE.enabled) {
+          console.log("🧪 TEST MODE: Using local assets");
+          return {
+            realGlb: TEST_MODE.realGlb,
+            fictionalGlb: TEST_MODE.fictionalGlb,
+            interaction: "Track",
+            itemName: TEST_MODE.itemName,
+            realName: TEST_MODE.realName || "Real Item",
+          };
+        }
+
+        return {
+          realGlb: urlParams.get("real_glb"),
+          fictionalGlb: urlParams.get("fictional_glb"),
+          interaction: urlParams.get("interaction") || "Track",
+          itemName: urlParams.get("item_name"),
+          realName: urlParams.get("real_name") || "Real Item",
+        };
+      })();
+
+      appState.realGlbUrl = params.realGlb;
+      appState.fictionalGlbUrl = params.fictionalGlb;
+      appState.itemName = params.itemName;
+      appState.realName = params.realName;
+      console.log("📋 URL Parameters:", params);
+
+      if (!appState.realGlbUrl) {
+        console.error("❌ Missing required parameter: real_glb");
+        ui.setStatus("Error: Missing real_glb parameter", "error");
+        return;
+      }
+
+      ui.showHint();
+      ui.setStatus("Loading models...", "waiting");
+      this.loadModels();
+    },
+
+    loadModels: function () {
+      var self = this;
+      console.log("📥 Loading models...");
+      this.loadShellModel();
+      if (appState.fictionalGlbUrl) {
+        setTimeout(function () {
+          self.loadCoreModel();
+        }, 100);
+      }
+    },
+
+    loadShellModel: function () {
+      var self = this;
+      var shellEl = document.getElementById("shellEntity");
+      if (!shellEl) {
+        console.error("❌ #shellEntity not found");
+        return;
+      }
+
+      console.log("🐚 Loading Shell (Real Item):", appState.realGlbUrl);
+      shellEl.setAttribute("gltf-model", appState.realGlbUrl);
+
+      shellEl.addEventListener(
+        "model-loaded",
+        function () {
+          console.log("✅ Shell model loaded");
+          appState.shellLoaded = true;
+          var mesh = shellEl.getObject3D("mesh");
+          if (mesh) fixMaterials(mesh);
+          self.checkAllLoaded();
+        },
+        { once: true }
+      );
+
+      shellEl.addEventListener(
+        "model-error",
+        function (evt) {
+          console.error("❌ Shell model failed:", evt);
+          ui.setStatus("Failed to load shell", "error");
+        },
+        { once: true }
+      );
+    },
+
+    loadCoreModel: function () {
+      var self = this;
+      var shellEl = document.getElementById("shellEntity");
+      if (!shellEl) {
+        console.error("❌ #shellEntity not found for core");
+        return;
+      }
+
+      console.log("💎 Loading Core (Fictional Item):", appState.fictionalGlbUrl);
+
+      var coreEl = document.createElement("a-entity");
+      coreEl.id = "coreEntity";
+      coreEl.setAttribute("gltf-model", appState.fictionalGlbUrl);
+      coreEl.setAttribute("position", "0 0 0");
+      coreEl.setAttribute("scale", "1 1 1");
+      coreEl.setAttribute("visible", false);
+      coreEl.setAttribute("shadow", "cast: true; receive: false");
+
+      coreEl.addEventListener(
+        "model-loaded",
+        function () {
+          console.log("✅ Core model loaded");
+          appState.coreLoaded = true;
+
+          var mesh = coreEl.getObject3D("mesh");
+          if (mesh) {
+            fixMaterials(mesh);
+            mesh.traverse(function (child) {
+              if (child.isMesh) {
+                child.material.transparent = true;
+                child.material.opacity = 0;
+                child.visible = false;
+              }
+            });
+          }
+
+          var shellCoreComp = shellEl.components["sky-shell-core"];
+          if (shellCoreComp) shellCoreComp.setCoreEntity(coreEl);
+          self.checkAllLoaded();
+        },
+        { once: true }
+      );
+
+      coreEl.addEventListener(
+        "model-error",
+        function (evt) {
+          console.error("❌ Core model failed:", evt);
+        },
+        { once: true }
+      );
+
+      shellEl.appendChild(coreEl);
+    },
+
+    checkAllLoaded: function () {
+      var shellReady = appState.shellLoaded;
+      var coreReady = !appState.fictionalGlbUrl || appState.coreLoaded;
+
+      if (shellReady && coreReady) {
+        console.log("✅ All models loaded - Ready for tracking");
+        ui.setStatus("Aim at the flying object!", "complete");
+        preArOverlay.enableStart();
+      } else if (shellReady) {
+        ui.setStatus("Shell ready, loading core...", "waiting");
+        preArOverlay.enableStart();
+      }
+    },
+  });
+
+  // ─── DOM Ready ───
+  document.addEventListener("DOMContentLoaded", function () {
+    console.log("📱 DOM ready for Track AR Interaction");
+  });
+})();

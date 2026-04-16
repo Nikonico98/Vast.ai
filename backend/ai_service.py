@@ -153,7 +153,7 @@ def reload_system_prompt():
 
     # Try to extract AR_INTERACTIONS from template
     # Look for patterns like "Tap": "description"
-    ar_pattern = r'["\']?(Tap|Rotate|Track)["\']?\s*[:=]\s*["\']([^"\']+)["\']'
+    ar_pattern = r'["\']?(Tap|Rotate|Track|Wall)["\']?\s*[:=]\s*["\']([^"\']+)["\']'
     matches = re.findall(ar_pattern, template_text, re.IGNORECASE)
     if matches:
         for ar_type, description in matches:

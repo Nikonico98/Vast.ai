@@ -79,9 +79,12 @@ function launchAR(modelType) {
 // Self-hosted AR: always use local Flask routes
 // (Migrated from 8th Wall cloud - all AR now served locally)
 const AR_INTERACTION_URLS = {
+  Rub: "/ar/rub/",
   Tap: "/ar/tap/",
   Rotate: "/ar/rotate/",
-  Track: "/ar/track/"
+  Track: "/ar/track/",
+  Blow: "/ar/blow/materialism/",
+  Wall: "/ar/wall/"
 };
 
 // ==========================================

@@ -295,15 +295,23 @@ WORLD_DISPLAY_NAMES = {
 }
 
 ACTION_TO_AR = {
-    "Touch": "Tap",
+    "Touch": "Rub",
+    "Rubbing": "Rub",
     "Turning": "Rotate",
-    "Following": "Track"
+    "Rotating": "Rotate",
+    "Following": "Track",
+    "Tracking": "Track",
+    "Blowing": "Blow",
+    "Placing": "Wall"
 }
 
 AR_INTERACTIONS_FALLBACK = {
+    "Rub": "Rub to find the hidden mark.",
     "Tap": "Tap to reveal the item.",
     "Rotate": "Rotate item to reveal.",
-    "Track": "Track to unlock."
+    "Track": "Track to unlock.",
+    "Blow": "Blow to transform.",
+    "Wall": "Place on wall to reveal."
 }
 
 # ==========================================

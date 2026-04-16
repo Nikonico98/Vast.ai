@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IW_Rub</title>
+    <meta itemprop="name" content="IW_Rub" />
+    <script crossorigin="anonymous" src="./external/scripts/8frame-1.4.1.min.js"></script>
+    <script crossorigin="anonymous" src="./external/xrextras/xrextras.js"></script>
+    <script crossorigin="anonymous" src="./external/landing-page/landing-page.js"></script>
+    <script crossorigin="anonymous" src="./external/xr/xr.js" async="true" data-preload-chunks="face, slam"></script>
+    <meta name="8thwall:renderer" content="aframe:1.4.1" />
+    <meta name="8thwall:package" content="@8thwall.xrextras" />
+    <meta name="8thwall:package" content="@8thwall.landing-page" />
+
+    <style>
+        /* ── AR Hint ── */
+        #ar-hint {
+            position: fixed;
+            top: env(safe-area-inset-top, 20px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            animation: fadeIn 0.5s ease 1s forwards;
+        }
+
+        #ar-hint .hint-icon {
+            font-size: 18px;
+        }
+
+        #ar-hint .hint-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        #ar-hint .hint-title {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        #ar-hint .hint-subtitle {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        /* ── XP Counter ── */
+        #xp-counter {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 80px);
+            left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        #xp-icon {
+            width: 36px;
+            height: 36px;
+            background: radial-gradient(circle, #FFD740 30%, #FF9100 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 0 12px rgba(255, 193, 7, 0.5);
+        }
+
+        #xp-value {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: #FFD740;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+        }
+
+        /* ── XP Progress Bar ── */
+        #xp-bar-container {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
+            left: 20px;
+            right: 20px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+            z-index: 1000;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        #xp-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #FFD740 0%, #FF9100 100%);
+            border-radius: 3px;
+            transition: width 0.2s ease;
+            box-shadow: 0 0 6px rgba(255, 193, 7, 0.4);
+        }
+
+        /* ── Touch Ripple (screen overlay) ── */
+        #touch-ripple {
+            position: fixed;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+            z-index: 999;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.5);
+            transition: opacity 0.15s, transform 0.15s;
+        }
+
+        #touch-ripple.active {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* ── Proximity Ring (arc indicator around ripple) ── */
+        #proximity-ring {
+            position: fixed;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 998;
+            opacity: 0;
+            transform: translate(-50%, -50%);
+            transition: opacity 0.2s;
+            -webkit-mask-image: radial-gradient(transparent 42%, black 43%, black 50%, transparent 51%);
+            mask-image: radial-gradient(transparent 42%, black 43%, black 50%, transparent 51%);
+        }
+
+        #proximity-ring.active {
+            opacity: 0.85;
+        }
+
+        /* ── Zone Transition Pop ── */
+        #zone-pop {
+            position: fixed;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            pointer-events: none;
+            z-index: 1001;
+            opacity: 0;
+            text-shadow: 0 0 20px currentColor, 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        #zone-pop.pop {
+            animation: zonePop 0.8s ease-out forwards;
+        }
+
+        @keyframes zonePop {
+            0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            40%  { transform: translate(-50%, -50%) scale(0.95); }
+            60%  { transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        /* ── Item Name Display ── */
+        #item-name-display {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 20px) + 100px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+        }
+
+        #item-name-display.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ── Pre-AR Overlay ── */
+        #pre-ar-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: linear-gradient(180deg, #1d1135 0, #4a2d7a 25%, #7e57c2 50%, #b39ddb 75%, #ede7f6 100%);
+            z-index: 1500;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        #pre-ar-overlay.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .pre-ar-panel {
+            width: min(100%, 320px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        #pre-ar-title {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #fff;
+        }
+
+        #pre-ar-status {
+            margin: 12px 0 0 0;
+            color: rgba(255, 255, 255, 0.85);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
+
+        #enter-ar-button {
+            width: 100%;
+            max-width: 320px;
+            margin-top: 22px;
+            padding: 14px 18px;
+            border: 0;
+            border-radius: 12px;
+            background: #fff;
+            color: #4a2d7a;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        #enter-ar-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #enter-ar-button:not(:disabled):active {
+            transform: translateY(1px);
+        }
+
+        /* ── Back to Main Button ── */
+        #back-to-main {
+            position: fixed;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 16px);
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: linear-gradient(135deg, #667eea 0, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1100;
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease;
+        }
+
+        #back-to-main.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #back-to-main:active {
+            transform: translateX(-50%) translateY(0) scale(0.95);
+        }
+
+        /* ── Keyframes ── */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .ar-ui-hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="ar-config.js"></script>
+    <script src="bundle.js"></script>
+
+    <!-- Pre-AR Overlay -->
+    <div id="pre-ar-overlay">
+        <div class="pre-ar-panel">
+            <h1 id="pre-ar-title">Preparing AR</h1>
+            <p id="pre-ar-status">Loading 3D model...</p>
+            <button id="enter-ar-button" type="button" disabled="disabled">Loading...</button>
+        </div>
+    </div>
+
+    <!-- Hint banner -->
+    <div id="ar-hint" class="ar-ui-hidden">
+        <span class="hint-icon">👆</span>
+        <div class="hint-text">
+            <span class="hint-title">
+                AR Interaction: <span id="interaction-type">Rub</span>
+            </span>
+            <span class="hint-subtitle" id="interaction-hint">
+                Rub different parts to find the hidden mark!
+            </span>
+        </div>
+    </div>
+
+    <!-- Touch ripple -->
+    <div id="touch-ripple"></div>
+    <div id="proximity-ring"></div>
+
+    <!-- Zone transition pop -->
+    <div id="zone-pop"></div>
+
+    <!-- XP counter -->
+    <div id="xp-counter">
+        <div id="xp-icon">&#11088;</div>
+        <span id="xp-value">0</span>
+    </div>
+
+    <!-- XP progress bar -->
+    <div id="xp-bar-container">
+        <div id="xp-bar-fill"></div>
+    </div>
+
+    <!-- Item name popup -->
+    <div id="item-name-display"></div>
+
+    <!-- A-Frame Scene -->
+    <a-scene rub-ar-interaction xrextras-gesture-detector landing-page xrextras-runtime-error
+        renderer="colorManagement: true" xrweb="allowedDevices: any; delayRun: true">
+        <a-assets timeout="30000"></a-assets>
+        <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap, .can-tap"
+            cursor="fuse: false; rayOrigin: mouse;"></a-camera>
+
+        <!-- Lights -->
+        <a-entity id="key-light" position="5 8 5"
+            light="type: directional; intensity: 1.2; color: #FFF5E6; castShadow: true; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraTop: 10; shadowRadius: 8">
+        </a-entity>
+        <a-entity id="fill-light" position="-5 5 3"
+            light="type: directional; intensity: 0.8; color: #E6F0FF; castShadow: false"></a-entity>
+        <a-entity id="back-light" position="0 5 -8"
+            light="type: directional; intensity: 0.6; color: #FFFFFF; castShadow: false"></a-entity>
+        <a-entity id="bottom-fill" position="0 -5 0"
+            light="type: directional; intensity: 0.3; color: #FFFFFF; castShadow: false"></a-entity>
+        <a-light type="ambient" intensity="0.5" color="#FFFFFF"></a-light>
+        <a-light type="hemisphere" intensity="0.4" color="#87CEEB" groundcolor="#8B7355"></a-light>
+
+        <!-- Model holder (supports drag/pinch) -->
+        <a-entity id="model-holder" position="0 0 -2" xrextras-two-finger-rotate xrextras-pinch-scale
+            scale="1 1 1">
+            <a-entity id="realModel" class="cantap" position="0 0 0" shadow="cast: true; receive: false"></a-entity>
+        </a-entity>
+
+        <a-plane id="ground" rotation="-90 0 0" width="1000" height="1000" material="shader: shadow" shadow></a-plane>
+    </a-scene>
+
+    <!-- Back button -->
+    <button id="back-to-main">&#127968; Back to Main Page</button>
+    <script>
+        (function () {
+            var btn = document.getElementById("back-to-main");
+            if (!btn) return;
+            btn.addEventListener("click", function () {
+                try {
+                    localStorage.setItem("iw_ar_completed",
+                        JSON.stringify({ timestamp: Date.now(), interaction: "Rub" }));
+                } catch (e) { }
+                var returnUrl = new URLSearchParams(window.location.search).get("return_url");
+                window.close();
+                setTimeout(function () { if (returnUrl) window.location.href = returnUrl; }, 500);
+            });
+        })();
+    </script>
+</body>
+
+</html>

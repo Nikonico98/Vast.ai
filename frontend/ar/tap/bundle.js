@@ -15,7 +15,7 @@
     star: {
       count: 3, color: "#ffd54a", emissive: "#ff9900", emissiveIntensity: 0.7,
       sizeRatio: 0.11, minSize: 0.07, maxSize: 0.15,
-      pulseScale: 1.35, pulseMin: 0.92, pulseDuration: 650, spinSpeed: 0, flySpeed: 1600,
+      pulseScale: 1.35, pulseMin: 0.92, pulseDuration: 650, spinSpeed: 0, flySpeed: 700,
       haloColor: "#ffffff", haloDuration: 600, fadeDuration: 800
     },
     spawn: { duration: 360, easing: "easeOutBack", staggerDelay: 300 },
@@ -41,8 +41,8 @@
 
   var CFG = mergeConfig();
 
-  /* ── Test mode (disabled by default) ── */
-  var TEST = { enabled: false, realGlb: "#real-model-asset", fictionalGlb: "#fictional-model-asset",
+  /* ── Test mode ── */
+  var TEST = { enabled: true, realGlb: "assets/realmodel.glb", fictionalGlb: "assets/fictionalmodel.glb",
                itemName: "Test Fictional Item", realName: "Test Real Item" };
 
   /* ── Global State ── */
@@ -127,39 +127,88 @@
     }
   });
 
-  /* ── Random-Fly Component ── */
+  /* ── Random-Fly Component (Erratic / Hard Mode) ── */
   AFRAME.registerComponent("random-fly", {
     schema: {
       rangeX: { type: "number", default: 0.3 },
       rangeY: { type: "number", default: 0.3 },
       rangeZ: { type: "number", default: 0.3 },
       baseHeight: { type: "number", default: 0.2 },
-      speed: { type: "number", default: 1200 }
+      speed: { type: "number", default: 700 }
     },
     init: function () {
       var self = this;
       this._stopped = false;
-      setTimeout(function () { self._flyToNext(); }, 100 + Math.random() * 400);
+      this._easings = [
+        "easeInOutSine", "easeInQuad", "easeOutQuad", "easeInOutQuart",
+        "easeInCubic", "easeOutCubic", "linear", "easeInOutBack"
+      ];
+      this._moveCount = 0;
+      setTimeout(function () { self._flyToNext(); }, 50 + Math.random() * 200);
     },
     _getRandomTarget: function () {
+      // Erratic: sometimes overshoot range, sometimes cluster near center
+      var spread = 0.4 + Math.random() * 0.8; // 0.4x to 1.2x range
+      var jitterX = (Math.random() - 0.5) * 0.15 * this.data.rangeX;
+      var jitterZ = (Math.random() - 0.5) * 0.15 * this.data.rangeZ;
       return {
-        x: 2 * (Math.random() - 0.5) * this.data.rangeX,
-        y: this.data.baseHeight + Math.random() * this.data.rangeY,
-        z: 2 * (Math.random() - 0.5) * this.data.rangeZ
+        x: 2 * (Math.random() - 0.5) * this.data.rangeX * spread + jitterX,
+        y: this.data.baseHeight + Math.random() * this.data.rangeY * (0.5 + Math.random()),
+        z: 2 * (Math.random() - 0.5) * this.data.rangeZ * spread + jitterZ
       };
+    },
+    _pickEasing: function () {
+      return this._easings[Math.floor(Math.random() * this._easings.length)];
     },
     _flyToNext: function () {
       var self = this;
       if (this._stopped) return;
+      this._moveCount++;
+
+      // Every few moves, do a quick feint (very short fast move then redirect)
+      var isFeint = this._moveCount % 3 === 0 && Math.random() > 0.3;
       var t = this._getRandomTarget();
-      var dur = this.data.speed * (0.7 + 0.6 * Math.random());
-      this.el.removeAttribute("animation__fly");
-      this.el.setAttribute("animation__fly", {
-        property: "position",
-        to: t.x.toFixed(3) + " " + t.y.toFixed(3) + " " + t.z.toFixed(3),
-        dur: dur, easing: "easeInOutSine"
-      });
-      this.el.addEventListener("animationcomplete__fly", function () { self._flyToNext(); }, { once: true });
+      // Speed varies wildly: sometimes very fast burst, sometimes moderate
+      var speedMult = isFeint ? (0.2 + 0.2 * Math.random()) : (0.5 + 0.7 * Math.random());
+      var dur = this.data.speed * speedMult;
+      // Minimum 150ms, max around speed * 1.2
+      dur = Math.max(150, Math.min(dur, this.data.speed * 1.2));
+
+      if (isFeint) {
+        // Feint: move partway toward a fake target, then immediately redirect
+        var curPos = this.el.object3D.position;
+        var fakeT = {
+          x: curPos.x + (t.x - curPos.x) * 0.3 + (Math.random() - 0.5) * this.data.rangeX * 0.5,
+          y: curPos.y + (t.y - curPos.y) * 0.3 + (Math.random() - 0.5) * this.data.rangeY * 0.3,
+          z: curPos.z + (t.z - curPos.z) * 0.3 + (Math.random() - 0.5) * this.data.rangeZ * 0.5
+        };
+        this.el.removeAttribute("animation__fly");
+        this.el.setAttribute("animation__fly", {
+          property: "position",
+          to: fakeT.x.toFixed(3) + " " + fakeT.y.toFixed(3) + " " + fakeT.z.toFixed(3),
+          dur: dur * 0.5, easing: "easeInQuad"
+        });
+        this.el.addEventListener("animationcomplete__fly", function () {
+          if (self._stopped) return;
+          var t2 = self._getRandomTarget();
+          var dur2 = self.data.speed * (0.4 + 0.5 * Math.random());
+          self.el.removeAttribute("animation__fly");
+          self.el.setAttribute("animation__fly", {
+            property: "position",
+            to: t2.x.toFixed(3) + " " + t2.y.toFixed(3) + " " + t2.z.toFixed(3),
+            dur: dur2, easing: self._pickEasing()
+          });
+          self.el.addEventListener("animationcomplete__fly", function () { self._flyToNext(); }, { once: true });
+        }, { once: true });
+      } else {
+        this.el.removeAttribute("animation__fly");
+        this.el.setAttribute("animation__fly", {
+          property: "position",
+          to: t.x.toFixed(3) + " " + t.y.toFixed(3) + " " + t.z.toFixed(3),
+          dur: dur, easing: this._pickEasing()
+        });
+        this.el.addEventListener("animationcomplete__fly", function () { self._flyToNext(); }, { once: true });
+      }
     },
     remove: function () {
       this._stopped = true;
@@ -601,8 +650,8 @@
         dur: (cfg.pulseDuration || 650) + index * 50, easing: "linear", loop: true
       });
 
-      // Random fly (varied speed per star)
-      var speed = (cfg.flySpeed || 1600) + index * 200;
+      // Random fly (fast erratic speed per star, slight variation)
+      var speed = (cfg.flySpeed || 700) + index * 80;
       plane.setAttribute("random-fly",
         "rangeX: " + state.flyRangeX.toFixed(3) + "; rangeY: " + state.flyRangeY.toFixed(3) +
         "; rangeZ: " + state.flyRangeZ.toFixed(3) + "; baseHeight: " + state.baseHeight.toFixed(3) +
