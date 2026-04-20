@@ -19,7 +19,7 @@ from config import (
 )
 from export_glb import export_from_modified_data
 
-app = Flask(__name__, static_folder="static_simple", static_url_path="/static")
+app = Flask(__name__, static_folder="static_simple", static_url_path="")
 CORS(app)
 
 # In-memory sessions: session_id -> { mesh_path, npz_data, output_dir }
@@ -156,16 +156,31 @@ def run_rig(session_id):
 def _run_inference(mesh_path: str, output_dir: str) -> str:
     """Run the RigAnything inference script"""
     script = str(RIGANYTHING_DIR / "scripts" / "inference.sh")
-    cmd = ["bash", script, mesh_path, "1", "80000"]
+    cmd = ["bash", script, mesh_path, "1", "4000"]
     env = os.environ.copy()
+    # Ensure CONDA_PREFIX points to main env (Python 3.12) so blender_run.py
+    # adds the correct site-packages to sys.path
+    env["CONDA_PREFIX"] = "/venv/main"
+    # Use GPU 0 (slightly more free memory than GPU 1)
+    env["CUDA_VISIBLE_DEVICES"] = "0"
+    env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
     result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=300,
+        cmd, capture_output=True, text=True, timeout=600,
         cwd=str(RIGANYTHING_DIR), env=env,
     )
 
+    # Log stdout/stderr for debugging
+    basename = os.path.splitext(os.path.basename(mesh_path))[0]
+    log_dir = os.path.join(str(RIGANYTHING_DIR), "outputs", basename)
+    os.makedirs(log_dir, exist_ok=True)
+    with open(os.path.join(log_dir, "inference_debug.log"), "w") as f:
+        f.write(f"=== CMD: {cmd}\n=== RETURNCODE: {result.returncode}\n")
+        f.write(f"=== STDOUT:\n{result.stdout}\n")
+        f.write(f"=== STDERR:\n{result.stderr}\n")
+
     if result.returncode != 0:
-        raise RuntimeError(f"RigAnything inference failed:\n{result.stderr[-1000:]}")
+        raise RuntimeError(f"RigAnything inference failed (rc={result.returncode}):\n{result.stderr[-1000:]}")
 
     basename = os.path.splitext(os.path.basename(mesh_path))[0]
     npz_candidates = [

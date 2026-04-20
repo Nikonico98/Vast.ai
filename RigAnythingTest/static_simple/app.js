@@ -3,6 +3,10 @@
  * State machine: UPLOAD → PREVIEW → RIGGING → RIGGED
  */
 
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
 // ==========================================
 // Configuration
 // ==========================================
@@ -65,7 +69,7 @@ function initThreeJS() {
     state.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     // Orbit Controls
-    state.controls = new THREE.OrbitControls(state.camera, canvas);
+    state.controls = new OrbitControls(state.camera, canvas);
     state.controls.enableDamping = true;
     state.controls.dampingFactor = 0.1;
 
@@ -287,7 +291,7 @@ async function loadExamples() {
 // 3D Mesh Loading
 // ==========================================
 function loadMesh(url, onDone) {
-    const loader = new THREE.GLTFLoader();
+    const loader = new GLTFLoader();
     loader.load(url, (gltf) => {
         // Remove old mesh
         if (state.meshGroup) state.scene.remove(state.meshGroup);

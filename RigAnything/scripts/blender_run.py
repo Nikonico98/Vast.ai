@@ -7,24 +7,34 @@ Usage: blender --background --python blender_run.py -- <script.py> [args...]
 import sys
 import os
 
-# Fix sys.path: completely remove venv paths to avoid ABI conflicts
-# between Blender's Python 3.12.3 and venv's Python 3.12.13
-# Keep blender's own paths, add system lib-dynload and dist-packages
+# Fix sys.path: remove ALL venv paths (stdlib, lib-dynload, site-packages)
+# to avoid ABI conflicts between conda Python and Blender's bundled Python.
+# We'll manually add back only the conda site-packages.
 clean_path = []
 for p in sys.path:
     if 'venv' not in p:
         clean_path.append(p)
 
-# Insert system paths at the beginning (before blender's own paths)
-sys.path = [
-    '/usr/lib/python3.12/lib-dynload',
-    '/usr/local/lib/python3.12/dist-packages',
-    '/usr/lib/python3/dist-packages',
-] + clean_path
+# Detect active conda env site-packages (must be Python 3.12 compatible)
+conda_prefix = os.environ.get('CONDA_PREFIX', '')
+if not conda_prefix:
+    conda_prefix = '/venv/main'
 
-# Also fix the prefix to avoid venv contamination  
-sys.prefix = '/usr'
-sys.exec_prefix = '/usr'
+conda_site = os.path.join(conda_prefix, 'lib', 'python3.12', 'site-packages')
+
+# Add system stdlib FIRST (compatible with Blender's Python 3.12.3),
+# then conda site-packages for third-party packages (torch, open3d, etc.)
+extra_paths = []
+for p in ['/usr/lib/python3.12',
+          '/usr/lib/python3.12/lib-dynload',
+          '/usr/local/lib/python3.12/dist-packages',
+          '/usr/lib/python3/dist-packages']:
+    if os.path.isdir(p) and p not in clean_path:
+        extra_paths.append(p)
+if os.path.isdir(conda_site) and conda_site not in clean_path:
+    extra_paths.append(conda_site)
+
+sys.path = extra_paths + clean_path
 
 # Parse args after '--'
 argv = sys.argv

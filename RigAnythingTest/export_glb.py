@@ -31,21 +31,22 @@ def export_rigged_glb(npz_path: str, mesh_glb_path: str, output_glb_path: str) -
     # Get site-packages path for current env
     import site
     site_packages = site.getsitepackages()[0]
-
     project_root = os.path.dirname(os.path.abspath(__file__))
 
-    cmd = [
-        blender_bin, "--background", "--python-expr",
-        f"""
+    # Create a wrapper script that sets up sys.path before running the export
+    wrapper_path = os.path.join(tempfile.gettempdir(), "_blender_wrapper.py")
+    with open(wrapper_path, "w") as wf:
+        wf.write(f"""
 import sys, os
 sys.path.insert(0, '/usr/lib/python3.12/lib-dynload')
 sys.path.append('{site_packages}')
 sys.path.insert(0, '{project_root}')
-sys.argv = sys.argv[sys.argv.index('--')+1:]
-exec(open(sys.argv[0]).read())
-""",
+exec(open('{BLENDER_EXPORT_SCRIPT}').read())
+""")
+
+    cmd = [
+        blender_bin, "--background", "--python", wrapper_path,
         "--",
-        BLENDER_EXPORT_SCRIPT,
         "--npz_path", npz_path,
         "--mesh_path", mesh_glb_path,
         "--output_path", output_glb_path,

@@ -9,7 +9,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BLENDER_RUN="$SCRIPT_DIR/blender_run.py"
 
 # Python command: use blender for bpy support (must run outside venv)
-PYCMD="env -u VIRTUAL_ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin blender --background --python $BLENDER_RUN --"
+# Preserve CUDA_VISIBLE_DEVICES if set, default to GPU 0
+CUDA_DEV="${CUDA_VISIBLE_DEVICES:-0}"
+PYCMD="env -u VIRTUAL_ENV CUDA_VISIBLE_DEVICES=$CUDA_DEV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin blender --background --python $BLENDER_RUN --"
 
 # Check if an argument is provided
 if [ $# -lt 3 ]; then

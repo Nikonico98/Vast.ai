@@ -105,7 +105,8 @@ def assign_weights(armature_obj, skinning_weights, mesh_obj_name_list):
 
         mesh_obj_list.append(obj)
         n_verts = len(obj.data.vertices)
-        weights_cur = skinning_weights[cur_idx: cur_idx + n_verts]
+        available = min(n_verts, skinning_weights.shape[0] - cur_idx)
+        weights_cur = skinning_weights[cur_idx: cur_idx + available]
 
         # 加 Armature modifier
         modifier = obj.modifiers.new(name="Armature", type="ARMATURE")
@@ -114,8 +115,10 @@ def assign_weights(armature_obj, skinning_weights, mesh_obj_name_list):
         # 建立 vertex groups 並分配 weights
         for bone in armature_obj.data.bones:
             bone_idx = int(bone.name.split("_")[-1])
+            if bone_idx >= weights_cur.shape[1]:
+                continue
             group = obj.vertex_groups.new(name=bone.name)
-            for j in range(n_verts):
+            for j in range(available):
                 w = float(weights_cur[j, bone_idx])
                 if w > 1e-6:
                     group.add([j], w, "REPLACE")
@@ -130,7 +133,10 @@ def main():
     parser.add_argument("--npz_path", type=str, required=True)
     parser.add_argument("--mesh_path", type=str, required=True)
     parser.add_argument("--output_path", type=str, required=True)
-    args = parser.parse_args()
+
+    # Blender passes everything after '--' as script args
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
+    args = parser.parse_args(argv)
 
     # 讀取 NPZ
     data = np.load(args.npz_path, allow_pickle=True)
