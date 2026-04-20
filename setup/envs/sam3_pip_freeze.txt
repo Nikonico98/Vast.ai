@@ -139,7 +139,7 @@ rfc3987-syntax==1.1.0
 rich==14.3.3
 rpds-py==0.30.0
 safetensors==0.7.0
--e git+https://github.com/facebookresearch/sam3.git@bfbed072a07a6a52c8d5fdc75a7a186251a835b1#egg=sam3
+-e git+https://github.com/facebookresearch/sam3.git@44ef224799e7b32e017855823883909d38ffb30f#egg=sam3
 scikit-image==0.26.0
 scikit-learn==1.8.0
 scipy==1.17.1

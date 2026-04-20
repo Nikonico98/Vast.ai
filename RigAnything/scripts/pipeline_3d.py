@@ -403,7 +403,6 @@ def _run_riganything(job_id, glb_path, gpu_id):
 
     cmd = f"""export CUDA_VISIBLE_DEVICES={gpu_id}
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-export PATH=/venv/main/bin:$PATH
 cd {RIGANYTHING_REPO}
 bash scripts/inference.sh "{glb_path}" 0 8192
 """
@@ -424,26 +423,11 @@ bash scripts/inference.sh "{glb_path}" 0 8192
             # Replace original GLB with rigged version
             shutil.copy2(rig_glb, glb_path)
             log(job_id, f"   ✅ RigAnything completed in {elapsed:.1f}s, rigged GLB: {os.path.getsize(glb_path):,} bytes")
-            # Cleanup on success
-            if os.path.isdir(rig_output_dir):
-                try:
-                    shutil.rmtree(rig_output_dir)
-                except Exception:
-                    pass
             return elapsed, True
         else:
             if os.path.isdir(rig_output_dir):
                 contents = os.listdir(rig_output_dir)
                 log(job_id, f"   📂 RigAnything output dir contents: {contents}")
-                # Dump inference.log for debugging
-                inf_log = os.path.join(rig_output_dir, "inference.log")
-                if os.path.exists(inf_log):
-                    try:
-                        with open(inf_log) as f:
-                            log_tail = f.read()[-2000:]
-                        log(job_id, f"   📋 inference.log tail:\n{log_tail}")
-                    except Exception:
-                        pass
             log(job_id, f"   ⚠️ RigAnything failed (rc={result.returncode}), keeping original GLB")
             return elapsed, False
     except subprocess.TimeoutExpired:
@@ -455,6 +439,12 @@ bash scripts/inference.sh "{glb_path}" 0 8192
         log(job_id, f"   ⚠️ RigAnything error: {e}, keeping original GLB")
         return elapsed, False
     finally:
+        # Cleanup RigAnything temp outputs
+        if os.path.isdir(rig_output_dir):
+            try:
+                shutil.rmtree(rig_output_dir)
+            except Exception:
+                pass
         # Always restart SAM3D server (even if rigging failed)
         _restart_sam3d()
 

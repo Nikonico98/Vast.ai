@@ -45,9 +45,17 @@ backend/env
 # Jupyter
 .ipynb_checkpoints/
 
+# Temp/debug files
+status_output.txt
+tmp_check.py
+test_colors/
+
 # System
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*.bak
 *.swp
 *.swo
 *.bak

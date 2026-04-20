@@ -1,0 +1,330 @@
+/* RigAnything Simple — Dark Theme */
+
+:root {
+    --color-bg: #0d1117;
+    --color-bg-secondary: #161b22;
+    --color-bg-tertiary: #21262d;
+    --color-border: #30363d;
+    --color-text: #e6edf3;
+    --color-text-muted: #8b949e;
+    --color-accent: #58a6ff;
+    --color-accent-hover: #79c0ff;
+    --color-primary: #238636;
+    --color-primary-hover: #2ea043;
+    --color-orange: #f0883e;
+    --color-red: #f85149;
+    --color-header: #010409;
+    --radius: 8px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    height: 100vh;
+    overflow: hidden;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* ==========================================
+   Header
+   ========================================== */
+
+#header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 48px;
+    background: var(--color-header);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-left h1 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.badge {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+
+/* ==========================================
+   Buttons
+   ========================================== */
+
+.btn {
+    padding: 6px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+}
+
+.btn:hover {
+    background: var(--color-bg-tertiary);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: var(--color-primary-hover);
+}
+
+.btn-accent {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #000;
+    font-weight: 600;
+}
+
+.btn-accent:hover {
+    background: var(--color-accent-hover);
+}
+
+.btn-secondary {
+    background: var(--color-bg-tertiary);
+    border-color: var(--color-border);
+}
+
+/* ==========================================
+   Viewer
+   ========================================== */
+
+#viewer-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+#three-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* ==========================================
+   Upload Overlay
+   ========================================== */
+
+#upload-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(13, 17, 23, 0.85);
+    z-index: 10;
+}
+
+.upload-box {
+    text-align: center;
+    padding: 40px 48px;
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg-secondary);
+    max-width: 400px;
+    transition: border-color 0.2s;
+}
+
+.upload-box.drag-over {
+    border-color: var(--color-accent);
+    background: rgba(88, 166, 255, 0.05);
+}
+
+.upload-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.upload-box p {
+    color: var(--color-text-muted);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.divider {
+    margin: 16px 0;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    position: relative;
+}
+
+.divider::before,
+.divider::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 30%;
+    height: 1px;
+    background: var(--color-border);
+}
+
+.divider::before { left: 0; }
+.divider::after { right: 0; }
+
+.examples-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 8px;
+}
+
+.example-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.example-btn:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+/* ==========================================
+   Loading Overlay
+   ========================================== */
+
+#loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(13, 17, 23, 0.8);
+    z-index: 20;
+}
+
+.loading-box {
+    text-align: center;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-box p {
+    color: var(--color-text-muted);
+    font-size: 14px;
+}
+
+/* ==========================================
+   Controls Bar
+   ========================================== */
+
+#controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    background: var(--color-bg-secondary);
+    border-top: 1px solid var(--color-border);
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+#controls-bar label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    user-select: none;
+}
+
+#controls-bar label:hover {
+    color: var(--color-text);
+}
+
+#controls-bar input[type="checkbox"] {
+    accent-color: var(--color-accent);
+}
+
+.joint-select-label select {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    margin-left: 4px;
+}
+
+/* ==========================================
+   Status Bar
+   ========================================== */
+
+#status-bar {
+    padding: 6px 16px;
+    background: var(--color-header);
+    border-top: 1px solid var(--color-border);
+    font-size: 12px;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+/* ==========================================
+   Utilities
+   ========================================== */
+
+.hidden {
+    display: none !important;
+}

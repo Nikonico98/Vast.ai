@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RigAnything Test</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header id="header">
+            <h1>RigAnything Test</h1>
+            <div class="header-actions">
+                <span id="session-badge" class="badge hidden"></span>
+                <button id="btn-reset" class="btn btn-secondary hidden" title="重置骨骼">↺ 重置</button>
+                <button id="btn-export" class="btn btn-primary hidden" title="匯出 GLB">⬇ 匯出 GLB</button>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <div id="main">
+            <!-- Left: 3D Viewer -->
+            <div id="viewer-panel">
+                <div id="viewer-container">
+                    <canvas id="three-canvas"></canvas>
+                    <div id="viewer-overlay">
+                        <div id="upload-area" class="upload-area">
+                            <div class="upload-icon">📦</div>
+                            <p>拖拽 GLB 檔案到此處<br>或點擊上傳</p>
+                            <input type="file" id="file-input" accept=".glb,.gltf,.obj" hidden>
+                            <button id="btn-upload" class="btn btn-primary">選擇檔案</button>
+                            <div class="divider">或選擇範例</div>
+                            <div id="examples-list" class="examples-list"></div>
+                        </div>
+                        <div id="loading-indicator" class="hidden">
+                            <div class="spinner"></div>
+                            <p id="loading-text">正在執行 RigAnything 推論...</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Viewer Controls -->
+                <div id="viewer-controls" class="hidden">
+                    <label><input type="checkbox" id="show-mesh" checked> Mesh</label>
+                    <label><input type="checkbox" id="show-skeleton" checked> 骨骼</label>
+                    <label><input type="checkbox" id="show-weights"> Weight Paint</label>
+                    <label>Joint: <select id="weight-joint-select"></select></label>
+                    <label><input type="checkbox" id="show-wireframe"> Wireframe</label>
+                </div>
+            </div>
+
+            <!-- Right: Chat + Info Panel -->
+            <div id="side-panel" class="hidden">
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" data-tab="chat">💬 Chat</button>
+                    <button class="tab" data-tab="skeleton">🦴 骨骼</button>
+                    <button class="tab" data-tab="instructions">📋 指令</button>
+                </div>
+
+                <!-- Chat Tab -->
+                <div id="tab-chat" class="tab-content active">
+                    <div id="chat-messages"></div>
+                    <div id="chat-input-area">
+                        <textarea id="chat-input" placeholder="描述你想要的骨骼調整...&#10;例如：合併過近的關節、減少到20個骨骼"
+                            rows="2"></textarea>
+                        <div class="chat-actions">
+                            <label><input type="checkbox" id="auto-apply"> 自動套用</label>
+                            <button id="btn-auto-analyze" class="btn btn-secondary btn-sm">🔍 自動分析</button>
+                            <button id="btn-send" class="btn btn-primary btn-sm">發送</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Skeleton Tab -->
+                <div id="tab-skeleton" class="tab-content">
+                    <div id="skeleton-info"></div>
+                </div>
+
+                <!-- Instructions Tab -->
+                <div id="tab-instructions" class="tab-content">
+                    <div id="instructions-editor">
+                        <textarea id="instructions-json" rows="20" placeholder="在此貼上或編輯 JSON 指令..."></textarea>
+                        <button id="btn-apply-instructions" class="btn btn-primary">套用指令</button>
+                    </div>
+                    <div id="instructions-log"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
