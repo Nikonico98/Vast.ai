@@ -14,12 +14,12 @@
 
   /* ── Merged Config ── */
   var defaultCfg = {
-    debug: true,
+    debug: false,
     mark: {
-      radius: 0.04, color: "#FFD700", glowColor: "#FFA500",
-      opacity: 0.0, revealOpacity: 0.85, pulseSpeed: 1.5
+      radius: 0.8, color: "#FF0000", glowColor: "#FFA500",
+      opacity: 1.0, revealOpacity: 0.85, pulseSpeed: 1.5
     },
-    rub: { minMoveSpeed: 30, sampleInterval: 50, touchRadius: 0.35 },
+    rub: { minMoveSpeed: 30, sampleInterval: 16, touchRadius: 0.55 },
     feedback: {
       zones: [
         { maxDist: 0.08, label: "Burning!",  color: "#FF1744", haptic: 80, xpMult: 3.0 },
@@ -30,8 +30,8 @@
       ]
     },
     xp: { threshold: 100, perRub: 5, decayRate: 0, counterPosition: "left" },
-    particles: { count: 5, size: 0.015, speed: 1.5, color: "#FFD54F", trailLength: 3, lifetime: 800 },
-    sparkle: { count: 3, size: 0.008, lifetime: 500, color: "#FFD54F", driftDistance: 0.05 },
+    particles: { count: 5, size: 0.015, speed: 1.5, color: "#9C27B0", trailLength: 3, lifetime: 800 },
+    sparkle: { count: 3, size: 0.008, lifetime: 500, color: "#CE93D8", driftDistance: 0.05 },
     swap: { delay: 500, flashDuration: 400 },
     material: { metalness: 0.15, roughness: 0.85 }
   };
@@ -57,7 +57,7 @@
   var TEST = {
     enabled: true,
     realGlb: "assets/realmodel.glb",
-    fictionalGlb: "assets/fictionalmodel.glb",
+    fictionalGlb: "assets/fictionalmodel.glb?v=2",
     itemName: "Test Fictional Item",
     realName: "Test Real Item"
   };
@@ -74,6 +74,8 @@
     realModel: null,
     showingFictional: false,
     transformed: false,
+    currentModel: "real",     // "real" | "fictional" — which model is active
+    roundCount: 0,            // Number of completed transformations
     // Hidden mark
     markWorldPos: null,       // THREE.Vector3 — hidden mark center on model surface
     markNormal: null,         // THREE.Vector3 — surface normal at mark
@@ -88,6 +90,10 @@
     lastRubPoint: null,       // THREE.Vector3 — last raycasted point on model
     lastSparkleTime: 0,       // Throttle for mark sparkle particles
     lastZoneIndex: -1,        // For zone transition detection
+    // Genie lamp effects
+    isRubbingMark: false,     // Whether actively rubbing inside mark area
+    rubStartTime: 0,          // When rubbing started (for shake animation)
+    currentEmissive: 0,       // Current emissive intensity (for smooth transitions)
     // Model info
     modelBBox: null,
     modelMaxDim: 0.2
@@ -182,8 +188,18 @@
   function updateXPDisplay(xp, threshold) {
     var valEl = document.getElementById("xp-value");
     var barEl = document.getElementById("xp-bar-fill");
-    if (valEl) valEl.textContent = Math.floor(xp);
-    if (barEl) barEl.style.width = Math.min(100, (xp / threshold) * 100) + "%";
+    var pct = xp / threshold;
+    if (valEl) {
+      valEl.textContent = Math.floor(xp);
+      var textGlow = Math.round(4 + pct * 12);
+      valEl.style.textShadow = "0 0 " + textGlow + "px rgba(124,77,255," + (0.4 + pct * 0.6).toFixed(2) + ")";
+    }
+    if (barEl) {
+      barEl.style.width = Math.min(100, pct * 100) + "%";
+      var glowSize = Math.round(4 + pct * 16);
+      var glowOpacity = (0.4 + pct * 0.6).toFixed(2);
+      barEl.style.boxShadow = "0 0 " + glowSize + "px rgba(124,77,255," + glowOpacity + ")";
+    }
   }
 
   function showItemName(name) {
@@ -198,8 +214,7 @@
     var el = document.getElementById("touch-ripple");
     if (!el) return;
     if (active) {
-      el.style.left = x + "px";
-      el.style.top = y + "px";
+      el.style.transform = "translate(calc(" + x + "px - 50%), calc(" + y + "px - 50%))";
       el.style.borderColor = color || "rgba(255,255,255,0.5)";
       el.classList.add("active");
     } else {
@@ -433,69 +448,537 @@
   }
 
   /* ══════════════════════════════════════════════
-     Mark Sparkle Particles (golden shimmer at mark)
+     Purple Smoke Effect (mystical fog)
      ══════════════════════════════════════════════ */
 
-  function spawnMarkSparkle(sceneEl, markPos, markNormal) {
-    var cfg = CFG.sparkle;
-    var count = cfg.count;
+  var _smokeTexture = null;
+  function getSmokeTexture() {
+    if (_smokeTexture) return _smokeTexture;
+    var size = 64;
+    var canvas = document.createElement("canvas");
+    canvas.width = size; canvas.height = size;
+    var ctx = canvas.getContext("2d");
+    var gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0, "rgba(255,255,255,1)");
+    gradient.addColorStop(0.4, "rgba(255,255,255,0.6)");
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    _smokeTexture = new THREE.CanvasTexture(canvas);
+    return _smokeTexture;
+  }
 
-    for (var i = 0; i < count; i++) {
+  function spawnGenieSmoke(sceneEl, markPos, markNormal, intensity) {
+    // Layer 1: Dense purple fog puffs (large, expanding, slow rise)
+    var smokeCount = 2 + Math.floor(intensity * 2); // 2-4
+    for (var s = 0; s < smokeCount; s++) {
       (function (delay) {
         setTimeout(function () {
-          var geo = new THREE.SphereGeometry(cfg.size, 4, 4);
+          var size = 0.02 + intensity * 0.03;
+          var geo = new THREE.SphereGeometry(size, 8, 8);
           var mat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(cfg.color),
-            transparent: true, opacity: 0.8,
-            blending: THREE.AdditiveBlending, depthWrite: false
+            color: new THREE.Color("#4A148C"),
+            transparent: true, opacity: 0.5,
+            blending: THREE.NormalBlending, depthWrite: false
           });
           var p = new THREE.Mesh(geo, mat);
 
-          // Start at mark position with random spread within mark radius
           p.position.copy(markPos);
-          var spread = CFG.mark.radius * 0.8;
+          var spread = 0.02;
           p.position.x += (Math.random() - 0.5) * spread;
           p.position.y += (Math.random() - 0.5) * spread;
           p.position.z += (Math.random() - 0.5) * spread;
 
           sceneEl.object3D.add(p);
 
-          // Drift along surface normal
           var startPos = p.position.clone();
-          var drift = cfg.driftDistance * (0.6 + Math.random() * 0.4);
+          var drift = (0.1 + Math.random() * 0.1) * (1 + intensity);
           var target = startPos.clone().addScaledVector(markNormal, drift);
-          // Slight lateral wobble
-          var lateral = new THREE.Vector3(
-            (Math.random() - 0.5) * 0.02,
-            (Math.random() - 0.5) * 0.02,
-            (Math.random() - 0.5) * 0.02
-          );
-          target.add(lateral);
+          target.x += (Math.random() - 0.5) * 0.04;
+          target.z += (Math.random() - 0.5) * 0.04;
 
           var t0 = Date.now();
-          var dur = cfg.lifetime * (0.8 + Math.random() * 0.4);
+          var dur = 800 + Math.random() * 400;
 
-          function animateSparkle() {
-            var elapsed = Date.now() - t0;
-            var t = Math.min(elapsed / dur, 1);
-
+          function animateSmoke() {
+            var t = Math.min((Date.now() - t0) / dur, 1);
             p.position.lerpVectors(startPos, target, t);
-            // Pop-and-fade: scale up then shrink
-            var scale = t < 0.3 ? 1 + t * 1.5 : 1.45 * (1 - (t - 0.3) / 0.7);
-            p.scale.setScalar(Math.max(scale, 0.01));
-            p.material.opacity = 0.8 * (1 - t * t);
-
-            if (t < 1) {
-              requestAnimationFrame(animateSparkle);
-            } else {
-              sceneEl.object3D.remove(p);
-              geo.dispose(); mat.dispose();
-            }
+            var sc = 1 + t * 2.0;
+            p.scale.setScalar(sc);
+            p.material.opacity = 0.5 * (1 - t);
+            if (t < 1) { requestAnimationFrame(animateSmoke); }
+            else { sceneEl.object3D.remove(p); geo.dispose(); mat.dispose(); }
           }
-          requestAnimationFrame(animateSparkle);
+          requestAnimationFrame(animateSmoke);
+        }, delay * 25);
+      })(s);
+    }
+
+    // Layer 2: Purple smoke wisps (soft fog tendrils with turbulence)
+    var smokeColors = ["#7B1FA2", "#9C27B0", "#CE93D8"];
+    var wispsCount = 4 + Math.floor(intensity * 3); // 4-7
+    for (var d = 0; d < wispsCount; d++) {
+      (function (delay) {
+        setTimeout(function () {
+          var planeSize = 0.03 + intensity * 0.04;
+          var geo = new THREE.PlaneGeometry(planeSize, planeSize);
+          var color = smokeColors[Math.floor(Math.random() * smokeColors.length)];
+          var startOpacity = 0.45 + Math.random() * 0.15;
+          var mat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(color),
+            map: getSmokeTexture(),
+            transparent: true, opacity: startOpacity,
+            blending: THREE.NormalBlending, depthWrite: false,
+            side: THREE.DoubleSide
+          });
+          var p = new THREE.Mesh(geo, mat);
+
+          p.position.copy(markPos);
+          var spread = 0.025;
+          p.position.x += (Math.random() - 0.5) * spread;
+          p.position.y += (Math.random() - 0.5) * spread;
+          p.position.z += (Math.random() - 0.5) * spread;
+
+          var initRotZ = Math.random() * Math.PI * 2;
+
+          sceneEl.object3D.add(p);
+
+          var startPos = p.position.clone();
+          var driftSpeed = (0.06 + Math.random() * 0.08) * (1 + intensity * 0.5);
+
+          // Tangent/bitangent for turbulence axes
+          var up = Math.abs(markNormal.y) < 0.9
+            ? new THREE.Vector3(0, 1, 0)
+            : new THREE.Vector3(1, 0, 0);
+          var tangent = new THREE.Vector3().crossVectors(markNormal, up).normalize();
+          var bitangent = new THREE.Vector3().crossVectors(markNormal, tangent).normalize();
+
+          var wanderX = 0, wanderZ = 0;
+          var wanderStrength = 0.003 + Math.random() * 0.003;
+          var swayPhase = Math.random() * Math.PI * 2;
+          var swayFreq = 2 + Math.random() * 2;
+          var swayAmp = 0.008 + Math.random() * 0.008;
+
+          var t0 = Date.now();
+          var dur = 1000 + Math.random() * 800;
+          var maxScale = 2.5 + Math.random() * 1.0;
+
+          function animateWisp() {
+            var t = Math.min((Date.now() - t0) / dur, 1);
+
+            // Drift along normal
+            var driftDist = driftSpeed * t;
+            p.position.copy(startPos).addScaledVector(markNormal, driftDist);
+
+            // Random walk turbulence
+            wanderX += (Math.random() - 0.5) * wanderStrength;
+            wanderZ += (Math.random() - 0.5) * wanderStrength;
+            p.position.addScaledVector(tangent, wanderX);
+            p.position.addScaledVector(bitangent, wanderZ);
+
+            // Sinusoidal sway
+            var sway = Math.sin(swayPhase + t * swayFreq * Math.PI) * swayAmp;
+            p.position.addScaledVector(tangent, sway);
+
+            // Billboard: face camera
+            var cam = sceneEl.camera;
+            if (cam) p.quaternion.copy(cam.quaternion);
+
+            // Apply initial Z rotation on top of billboard
+            var zRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), initRotZ + t * 0.5);
+            p.quaternion.multiply(zRot);
+
+            // Ease-out expansion
+            var easeT = 1 - Math.pow(1 - t, 2);
+            var sc = 1 + easeT * (maxScale - 1);
+            p.scale.setScalar(sc);
+
+            // Opacity: hold 30%, then fade
+            if (t < 0.3) {
+              mat.opacity = startOpacity;
+            } else {
+              mat.opacity = startOpacity * (1 - ((t - 0.3) / 0.7));
+            }
+
+            if (t < 1) { requestAnimationFrame(animateWisp); }
+            else { sceneEl.object3D.remove(p); geo.dispose(); mat.dispose(); }
+          }
+          requestAnimationFrame(animateWisp);
         }, delay * 30);
+      })(d);
+    }
+  }
+
+  /* ══════════════════════════════════════════════
+     Burst Particles (transformation climax)
+     ══════════════════════════════════════════════ */
+
+  function burstParticles(sceneEl, markPos, markNormal) {
+    var count = 20;
+    var colors = ["#1A237E", "#311B92", "#4A148C", "#283593", "#7C4DFF", "#B388FF"];
+
+    for (var i = 0; i < count; i++) {
+      (function (idx) {
+        var size = 0.015 + Math.random() * 0.025;
+        var geo = new THREE.SphereGeometry(size, 6, 6);
+        var col = colors[Math.floor(Math.random() * colors.length)];
+        var mat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(col),
+          transparent: true, opacity: 1,
+          blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        var p = new THREE.Mesh(geo, mat);
+        p.position.copy(markPos);
+
+        sceneEl.object3D.add(p);
+
+        var startPos = p.position.clone();
+        // Radial burst direction with some upward bias along normal
+        var dir = new THREE.Vector3(
+          (Math.random() - 0.5) * 2,
+          (Math.random() - 0.5) * 2,
+          (Math.random() - 0.5) * 2
+        ).normalize();
+        dir.addScaledVector(markNormal, 0.5).normalize();
+        var dist = 0.15 + Math.random() * 0.25;
+        var target = startPos.clone().addScaledVector(dir, dist);
+
+        var t0 = Date.now();
+        var dur = 600 + Math.random() * 600;
+
+        function animateBurst() {
+          var t = Math.min((Date.now() - t0) / dur, 1);
+          var ease = 1 - Math.pow(1 - t, 2); // ease-out
+          p.position.lerpVectors(startPos, target, ease);
+          p.material.opacity = 1 - t;
+          var sc = 1 + t * 0.5;
+          p.scale.setScalar(sc);
+          if (t < 1) { requestAnimationFrame(animateBurst); }
+          else { sceneEl.object3D.remove(p); geo.dispose(); mat.dispose(); }
+        }
+        requestAnimationFrame(animateBurst);
       })(i);
     }
+  }
+
+  /* ══════════════════════════════════════════════
+     Lightning Bolt Effect (purple-blue electric arcs)
+     ══════════════════════════════════════════════ */
+
+  function spawnLightningBolt(sceneEl, origin, direction, length) {
+    var segments = 8 + Math.floor(Math.random() * 6);
+    var points = [];
+    var pos = origin.clone();
+    var segLen = length / segments;
+    var jitter = length * 0.15;
+
+    points.push(pos.clone());
+    for (var i = 0; i < segments; i++) {
+      pos = pos.clone().addScaledVector(direction, segLen);
+      // Add lateral jitter perpendicular to direction
+      var perp1 = new THREE.Vector3(direction.y, -direction.x, direction.z).normalize();
+      var perp2 = new THREE.Vector3().crossVectors(direction, perp1).normalize();
+      pos.addScaledVector(perp1, (Math.random() - 0.5) * jitter);
+      pos.addScaledVector(perp2, (Math.random() - 0.5) * jitter);
+      points.push(pos.clone());
+    }
+
+    var geo = new THREE.BufferGeometry().setFromPoints(points);
+    var colors = ["#8080FF", "#A0A0FF", "#C0C0FF", "#6060DD"];
+    var col = colors[Math.floor(Math.random() * colors.length)];
+    var mat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(col),
+      transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+      linewidth: 2
+    });
+    var line = new THREE.Line(geo, mat);
+    line.renderOrder = 300;
+    sceneEl.object3D.add(line);
+
+    // Flicker + fade
+    var t0 = Date.now();
+    var dur = 150 + Math.random() * 200;
+    function animateBolt() {
+      var t = (Date.now() - t0) / dur;
+      if (t >= 1) {
+        sceneEl.object3D.remove(line);
+        geo.dispose(); mat.dispose();
+        return;
+      }
+      // Flicker effect
+      mat.opacity = (1 - t) * (Math.random() > 0.3 ? 1 : 0.3);
+      requestAnimationFrame(animateBolt);
+    }
+    requestAnimationFrame(animateBolt);
+
+    // Spawn a small branch occasionally
+    if (Math.random() > 0.5 && points.length > 3) {
+      var branchIdx = 2 + Math.floor(Math.random() * (points.length - 3));
+      var branchDir = new THREE.Vector3(
+        (Math.random() - 0.5),
+        (Math.random() - 0.5),
+        (Math.random() - 0.5)
+      ).normalize();
+      spawnLightningBranch(sceneEl, points[branchIdx], branchDir, length * 0.3);
+    }
+  }
+
+  function spawnLightningBranch(sceneEl, origin, direction, length) {
+    var segments = 4;
+    var points = [];
+    var pos = origin.clone();
+    var segLen = length / segments;
+    var jitter = length * 0.2;
+
+    points.push(pos.clone());
+    for (var i = 0; i < segments; i++) {
+      pos = pos.clone().addScaledVector(direction, segLen);
+      pos.x += (Math.random() - 0.5) * jitter;
+      pos.y += (Math.random() - 0.5) * jitter;
+      pos.z += (Math.random() - 0.5) * jitter;
+      points.push(pos.clone());
+    }
+
+    var geo = new THREE.BufferGeometry().setFromPoints(points);
+    var mat = new THREE.LineBasicMaterial({
+      color: new THREE.Color("#9090FF"),
+      transparent: true, opacity: 0.7,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    var line = new THREE.Line(geo, mat);
+    line.renderOrder = 300;
+    sceneEl.object3D.add(line);
+
+    var t0 = Date.now();
+    var dur = 100 + Math.random() * 100;
+    function animateBranch() {
+      var t = (Date.now() - t0) / dur;
+      if (t >= 1) {
+        sceneEl.object3D.remove(line);
+        geo.dispose(); mat.dispose();
+        return;
+      }
+      mat.opacity = 0.7 * (1 - t) * (Math.random() > 0.4 ? 1 : 0.2);
+      requestAnimationFrame(animateBranch);
+    }
+    requestAnimationFrame(animateBranch);
+  }
+
+  /* ══════════════════════════════════════════════
+     Massive Smoke Eruption (transformation climax)
+     ══════════════════════════════════════════════ */
+
+  function smokeEruption(sceneEl, centerPos) {
+    var smokeColors = ["#1A0A4A", "#2D1B69", "#4A148C", "#311B92", "#1A237E", "#283593"];
+    var count = 30;
+
+    for (var i = 0; i < count; i++) {
+      (function (idx) {
+        setTimeout(function () {
+          var size = 0.04 + Math.random() * 0.08;
+          var geo = new THREE.PlaneGeometry(size, size);
+          var col = smokeColors[Math.floor(Math.random() * smokeColors.length)];
+          var mat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(col),
+            map: getSmokeTexture(),
+            transparent: true, opacity: 0.7,
+            blending: THREE.NormalBlending, depthWrite: false,
+            side: THREE.DoubleSide
+          });
+          var p = new THREE.Mesh(geo, mat);
+          p.position.copy(centerPos);
+          p.position.x += (Math.random() - 0.5) * 0.05;
+          p.position.y += (Math.random() - 0.5) * 0.05;
+          p.position.z += (Math.random() - 0.5) * 0.05;
+
+          sceneEl.object3D.add(p);
+
+          var startPos = p.position.clone();
+          // Radial outward + upward drift
+          var dir = new THREE.Vector3(
+            (Math.random() - 0.5) * 2,
+            0.3 + Math.random() * 0.7,
+            (Math.random() - 0.5) * 2
+          ).normalize();
+          var dist = 0.15 + Math.random() * 0.3;
+          var target = startPos.clone().addScaledVector(dir, dist);
+
+          var initRot = Math.random() * Math.PI * 2;
+          var rotSpeed = (Math.random() - 0.5) * 2;
+          var maxScale = 3 + Math.random() * 3;
+
+          var t0 = Date.now();
+          var dur = 1200 + Math.random() * 800;
+
+          function animateEruption() {
+            var t = Math.min((Date.now() - t0) / dur, 1);
+            var ease = 1 - Math.pow(1 - t, 3);
+
+            p.position.lerpVectors(startPos, target, ease);
+
+            // Billboard
+            var cam = sceneEl.camera;
+            if (cam) p.quaternion.copy(cam.quaternion);
+            var zRot = new THREE.Quaternion().setFromAxisAngle(
+              new THREE.Vector3(0, 0, 1), initRot + t * rotSpeed
+            );
+            p.quaternion.multiply(zRot);
+
+            var sc = 1 + ease * (maxScale - 1);
+            p.scale.setScalar(sc);
+
+            // Hold opacity then fade
+            if (t < 0.4) {
+              mat.opacity = 0.7;
+            } else {
+              mat.opacity = 0.7 * (1 - ((t - 0.4) / 0.6));
+            }
+
+            if (t < 1) { requestAnimationFrame(animateEruption); }
+            else { sceneEl.object3D.remove(p); geo.dispose(); mat.dispose(); }
+          }
+          requestAnimationFrame(animateEruption);
+        }, idx * 20);
+      })(i);
+    }
+
+    // Spawn lightning bolts from center
+    for (var l = 0; l < 8; l++) {
+      (function (delay) {
+        setTimeout(function () {
+          var dir = new THREE.Vector3(
+            (Math.random() - 0.5) * 2,
+            (Math.random() - 0.5) * 2,
+            (Math.random() - 0.5) * 2
+          ).normalize();
+          spawnLightningBolt(sceneEl, centerPos.clone(), dir, 0.2 + Math.random() * 0.3);
+        }, delay * 50 + Math.random() * 100);
+      })(l);
+    }
+  }
+
+  /* ══════════════════════════════════════════════
+     Genie Smoke Reveal (model twists out of smoke like Aladdin)
+     ══════════════════════════════════════════════ */
+
+  function genieRevealModel(sceneEl, modelEl, centerPos) {
+    if (!modelEl) return;
+    var obj = modelEl.object3D;
+
+    // Start: model is invisible, scaled to 0, rotated
+    obj.scale.set(0.01, 0.01, 0.01);
+    obj.rotation.y = Math.PI * 4; // Start twisted
+    modelEl.setAttribute("visible", "true");
+
+    // Continuous smoke wisps rising from base during reveal
+    var smokeColors = ["#1A0A4A", "#2D1B69", "#4A148C", "#311B92", "#1A237E"];
+    var smokeInterval = null;
+    var smokeCount = 0;
+    var maxSmokeBursts = 15;
+
+    smokeInterval = setInterval(function () {
+      smokeCount++;
+      if (smokeCount > maxSmokeBursts) { clearInterval(smokeInterval); return; }
+
+      for (var s = 0; s < 3; s++) {
+        var size = 0.03 + Math.random() * 0.05;
+        var geo = new THREE.PlaneGeometry(size, size);
+        var col = smokeColors[Math.floor(Math.random() * smokeColors.length)];
+        var mat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(col),
+          map: getSmokeTexture(),
+          transparent: true, opacity: 0.6,
+          blending: THREE.NormalBlending, depthWrite: false,
+          side: THREE.DoubleSide
+        });
+        var smoke = new THREE.Mesh(geo, mat);
+        // Spawn around the model base
+        smoke.position.copy(centerPos);
+        smoke.position.x += (Math.random() - 0.5) * 0.1;
+        smoke.position.z += (Math.random() - 0.5) * 0.1;
+
+        sceneEl.object3D.add(smoke);
+
+        (function (sm, g, m) {
+          var sp = sm.position.clone();
+          var tgt = sp.clone();
+          tgt.y += 0.1 + Math.random() * 0.2;
+          tgt.x += (Math.random() - 0.5) * 0.08;
+          var swirl = Math.random() * Math.PI * 2;
+          var t0 = Date.now();
+          var dur = 600 + Math.random() * 400;
+
+          function animWisp() {
+            var t = Math.min((Date.now() - t0) / dur, 1);
+            sm.position.lerpVectors(sp, tgt, t);
+            // Swirling motion
+            sm.position.x += Math.sin(swirl + t * Math.PI * 3) * 0.015 * (1 - t);
+            sm.position.z += Math.cos(swirl + t * Math.PI * 3) * 0.015 * (1 - t);
+
+            var cam = sceneEl.camera;
+            if (cam) sm.quaternion.copy(cam.quaternion);
+
+            var sc = 1 + t * 2;
+            sm.scale.setScalar(sc);
+            m.opacity = 0.6 * (1 - t);
+
+            if (t < 1) { requestAnimationFrame(animWisp); }
+            else { sceneEl.object3D.remove(sm); g.dispose(); m.dispose(); }
+          }
+          requestAnimationFrame(animWisp);
+        })(smoke, geo, mat);
+      }
+
+      // Occasional lightning during reveal
+      if (Math.random() > 0.5) {
+        var dir = new THREE.Vector3(
+          (Math.random() - 0.5), Math.random() * 0.5, (Math.random() - 0.5)
+        ).normalize();
+        spawnLightningBolt(sceneEl, centerPos.clone(), dir, 0.15 + Math.random() * 0.15);
+      }
+    }, 80);
+
+    // Animate the model: untwist + scale up (genie emerging from smoke)
+    var t0 = Date.now();
+    var dur = 1200;
+    var startRotY = Math.PI * 4;
+
+    function animateGenie() {
+      var elapsed = Date.now() - t0;
+      var t = Math.min(elapsed / dur, 1);
+
+      // Ease-out elastic for scale
+      var scaleEase;
+      if (t < 0.6) {
+        // Fast grow phase
+        scaleEase = Math.pow(t / 0.6, 0.5);
+      } else {
+        // Overshoot + settle
+        var t2 = (t - 0.6) / 0.4;
+        scaleEase = 1 + Math.sin(t2 * Math.PI) * 0.08 * (1 - t2);
+      }
+      obj.scale.setScalar(Math.max(0.01, scaleEase));
+
+      // Untwist: rotate from 4*PI back to 0
+      var rotEase = 1 - Math.pow(1 - t, 2.5);
+      obj.rotation.y = startRotY * (1 - rotEase);
+
+      // Slight vertical stretch during early phase (smoke column effect)
+      if (t < 0.4) {
+        var stretch = 1 + (1 - t / 0.4) * 0.3;
+        obj.scale.y = Math.max(0.01, scaleEase) * stretch;
+      }
+
+      if (t < 1) {
+        requestAnimationFrame(animateGenie);
+      } else {
+        // Final settle
+        obj.scale.set(1, 1, 1);
+        obj.rotation.y = 0;
+      }
+    }
+    requestAnimationFrame(animateGenie);
   }
 
   /* ══════════════════════════════════════════════
@@ -539,8 +1022,7 @@
     var el = document.getElementById("proximity-ring");
     if (!el) return;
     if (active) {
-      el.style.left = x + "px";
-      el.style.top = y + "px";
+      el.style.transform = "translate(calc(" + x + "px - 50%), calc(" + y + "px - 50%))";
       var deg = Math.round(progress * 360);
       el.style.background = "conic-gradient(" + color + " " + deg + "deg, transparent " + deg + "deg)";
       el.classList.add("active");
@@ -667,33 +1149,111 @@
     },
 
     placeHiddenMark: function (mesh, modelEl) {
-      // Compute bounding box
-      var box = new THREE.Box3().setFromObject(mesh);
-      var size = new THREE.Vector3(); box.getSize(size);
-      state.modelMaxDim = Math.max(size.x, size.y, size.z, 0.2);
-      state.modelBBox = box;
+      var holder = document.getElementById("model-holder");
+      var holderObj = holder ? holder.object3D : null;
 
-      // Pick random surface point for hidden mark
-      var result = pickRandomSurfacePoint(mesh);
-      if (!result) {
-        console.warn("⚠️ Could not pick surface point, using center");
-        var center = new THREE.Vector3(); box.getCenter(center);
-        result = { point: center, normal: new THREE.Vector3(0, 0, 1) };
+      // Compute world-space bounding box, then convert to model-holder local space
+      var box = new THREE.Box3().setFromObject(mesh);
+
+      // Convert to model-holder local coordinates using all 8 bbox corners
+      var center, size;
+      if (holderObj) {
+        holderObj.updateMatrixWorld(true);
+        var invMatrix = new THREE.Matrix4().copy(holderObj.matrixWorld).invert();
+        var corners = [
+          new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+          new THREE.Vector3(box.min.x, box.min.y, box.max.z),
+          new THREE.Vector3(box.min.x, box.max.y, box.min.z),
+          new THREE.Vector3(box.min.x, box.max.y, box.max.z),
+          new THREE.Vector3(box.max.x, box.min.y, box.min.z),
+          new THREE.Vector3(box.max.x, box.min.y, box.max.z),
+          new THREE.Vector3(box.max.x, box.max.y, box.min.z),
+          new THREE.Vector3(box.max.x, box.max.y, box.max.z)
+        ];
+        var lbox = new THREE.Box3();
+        for (var ci = 0; ci < 8; ci++) {
+          corners[ci].applyMatrix4(invMatrix);
+          lbox.expandByPoint(corners[ci]);
+        }
+        center = new THREE.Vector3(); lbox.getCenter(center);
+        size = new THREE.Vector3(); lbox.getSize(size);
+        state.modelBBox = lbox;
+      } else {
+        center = new THREE.Vector3(); box.getCenter(center);
+        size = new THREE.Vector3(); box.getSize(size);
+        state.modelBBox = box;
       }
 
-      state.markWorldPos = result.point;
-      state.markNormal = result.normal;
+      state.modelMaxDim = Math.max(size.x, size.y, size.z, 0.2);
 
-      // Create the mark mesh (invisible initially)
-      state.markMesh = createMarkMesh(result.point, result.normal);
-      // Add to the model-holder so it moves with the model
-      var holder = document.getElementById("model-holder");
-      if (holder) {
-        holder.object3D.add(state.markMesh);
+      // Pick a random face (exclude bottom -Y)
+      // 0=+X, 1=-X, 2=+Y(top), 3=+Z(front), 4=-Z(back)
+      var faceOptions = [0, 1, 2, 3, 4];
+      var faceIdx = faceOptions[Math.floor(Math.random() * faceOptions.length)];
+      var markPos = center.clone();
+      var markNormal = new THREE.Vector3();
+
+      switch (faceIdx) {
+        case 0: markPos.x = center.x + size.x * 0.5; markNormal.set(1, 0, 0); break;
+        case 1: markPos.x = center.x - size.x * 0.5; markNormal.set(-1, 0, 0); break;
+        case 2: markPos.y = center.y + size.y * 0.5; markNormal.set(0, 1, 0); break;
+        case 3: markPos.z = center.z + size.z * 0.5; markNormal.set(0, 0, 1); break;
+        case 4: markPos.z = center.z - size.z * 0.5; markNormal.set(0, 0, -1); break;
+      }
+
+      // Add small random offset within the face so mark isn't always dead center
+      var offsetRange = 0.3;
+      switch (faceIdx) {
+        case 0: case 1:
+          markPos.y += (Math.random() - 0.5) * size.y * offsetRange;
+          markPos.z += (Math.random() - 0.5) * size.z * offsetRange;
+          break;
+        case 2:
+          markPos.x += (Math.random() - 0.5) * size.x * offsetRange;
+          markPos.z += (Math.random() - 0.5) * size.z * offsetRange;
+          break;
+        case 3: case 4:
+          markPos.x += (Math.random() - 0.5) * size.x * offsetRange;
+          markPos.y += (Math.random() - 0.5) * size.y * offsetRange;
+          break;
+      }
+
+      state.markWorldPos = markPos;
+      state.markNormal = markNormal;
+
+      // Create the mark mesh in local coordinates
+      state.markMesh = createMarkMesh(markPos, markNormal);
+      // Add to model-holder so it moves/rotates with the model
+      if (holderObj) {
+        holderObj.add(state.markMesh);
       }
 
       if (CFG.debug) {
-        console.log("📍 Hidden mark placed at:", result.point.toArray().map(function(v) { return v.toFixed(3); }));
+        var faceNames = ["+X", "-X", "+Y(top)", "+Z(front)", "-Z(back)"];
+        var tiltDir = markPos.clone().sub(center);
+        var tiltLen = tiltDir.length();
+        console.log("📍 Hidden mark placed on bbox face:", faceNames[faceIdx],
+          "local pos:", markPos.toArray().map(function(v) { return v.toFixed(3); }),
+          "bbox size:", size.toArray().map(function(v) { return v.toFixed(3); }),
+          "bbox center:", center.toArray().map(function(v) { return v.toFixed(3); }),
+          "tilt dir:", tiltDir.toArray().map(function(v) { return v.toFixed(3); }),
+          "tilt len:", tiltLen.toFixed(4));
+
+        // ── Debug: draw bounding box wireframe ──
+        var bboxGeo = new THREE.BoxGeometry(size.x, size.y, size.z);
+        var bboxEdges = new THREE.EdgesGeometry(bboxGeo);
+        var bboxLine = new THREE.LineSegments(bboxEdges, new THREE.LineBasicMaterial({
+          color: 0x00ff00, linewidth: 2, transparent: true, opacity: 0.8
+        }));
+        bboxLine.position.copy(center);
+        bboxLine.renderOrder = 99;
+        if (holderObj) holderObj.add(bboxLine);
+        state._debugBBox = bboxLine;
+        console.log("📦 Debug bounding box shown (green wireframe)");
+
+        // ── Debug: make mark fully visible immediately ──
+        state.markMesh.material.opacity = 1.0;
+        state.markMesh.material.color.set("#FF0000");
       }
     },
 
@@ -727,7 +1287,6 @@
     /* ── Touch Handlers ── */
 
     onTouchStart: function (e) {
-      if (state.transformed) return;
       e.preventDefault();
       var touch = e.touches[0];
       state.isTouching = true;
@@ -736,7 +1295,7 @@
     },
 
     onTouchMove: function (e) {
-      if (!state.isTouching || state.transformed) return;
+      if (!state.isTouching) return;
       e.preventDefault();
       var touch = e.touches[0];
       this.handleRubMove(touch.clientX, touch.clientY);
@@ -745,32 +1304,34 @@
     onTouchEnd: function () {
       state.isTouching = false;
       state.lastRubPoint = null;
+      state.isRubbingMark = false;
       setTouchRipple(0, 0, false);
-      setProximityRing(0, 0, false, 0, "");
     },
 
     onMouseDown: function (e) {
-      if (state.transformed) return;
       state.isTouching = true;
       state.lastTouchPos = { x: e.clientX, y: e.clientY };
       state.lastTouchTime = Date.now();
     },
 
     onMouseMove: function (e) {
-      if (!state.isTouching || state.transformed) return;
+      if (!state.isTouching) return;
       this.handleRubMove(e.clientX, e.clientY);
     },
 
     onMouseUp: function () {
       state.isTouching = false;
       state.lastRubPoint = null;
+      state.isRubbingMark = false;
       setTouchRipple(0, 0, false);
-      setProximityRing(0, 0, false, 0, "");
     },
 
     /* ── Core Rub Logic ── */
 
     handleRubMove: function (screenX, screenY) {
+      // Pause input during transformation transition
+      if (state.transformed) return;
+
       var now = Date.now();
 
       // Throttle
@@ -786,13 +1347,12 @@
       state.lastTouchPos = { x: screenX, y: screenY };
       state.lastTouchTime = now;
 
-      // Must be moving fast enough to count as rubbing
-      if (speed < CFG.rub.minMoveSpeed) return;
-
-      // Raycast to model surface
-      var realEl = state.realModel;
-      if (!realEl) return;
-      var mesh = realEl.getObject3D("mesh");
+      // Raycast to the currently active model
+      var activeEl = state.currentModel === "fictional"
+        ? document.getElementById("fictionalModel")
+        : document.getElementById("realModel");
+      if (!activeEl) return;
+      var mesh = activeEl.getObject3D("mesh");
       if (!mesh) return;
 
       var cam = this.el.camera;
@@ -802,64 +1362,111 @@
       var hit = raycastToModel(cam, screenX, screenY, mesh, canvas.clientWidth, canvas.clientHeight);
 
       if (!hit) {
+        // Even without a model hit, check screen-space proximity to mark
+        // This handles the case where mark is on the bbox face away from the model surface
+        var cam = this.el.camera;
+        if (cam && state.markWorldPos) {
+          var markWorld = state.markWorldPos.clone();
+          var holder = document.getElementById("model-holder");
+          if (holder) markWorld.applyMatrix4(holder.object3D.matrixWorld);
+          var markScreen = markWorld.clone().project(cam);
+          var canvas = this.el.canvas;
+          var markSX = (markScreen.x * 0.5 + 0.5) * canvas.clientWidth;
+          var markSY = (-markScreen.y * 0.5 + 0.5) * canvas.clientHeight;
+          var sdx = screenX - markSX;
+          var sdy = screenY - markSY;
+          var screenDist = Math.sqrt(sdx * sdx + sdy * sdy);
+          if (screenDist < 80) {
+            // Treat as near-mark touch even without model hit
+            setTouchRipple(screenX, screenY, true, "#9C27B0");
+            if (speed >= CFG.rub.minMoveSpeed) {
+              state.isRubbingMark = true;
+              if (!state.rubStartTime) state.rubStartTime = Date.now();
+              if (navigator.vibrate) navigator.vibrate(60);
+              var xpGain = CFG.xp.perRub;
+              state.xp = Math.min(state.xp + xpGain, CFG.xp.threshold);
+              updateXPDisplay(state.xp, CFG.xp.threshold);
+              if (Date.now() - state.lastSparkleTime >= 100) {
+                state.lastSparkleTime = Date.now();
+                var intensity = state.xp / CFG.xp.threshold;
+                spawnGenieSmoke(this.el, markWorld, state.markNormal || new THREE.Vector3(0, 1, 0), intensity);
+              }
+              if (!state.markRevealed) this.revealMark();
+              if (state.xp >= CFG.xp.threshold && !state.transformed) this.triggerTransformation();
+            }
+            return;
+          }
+        }
         setTouchRipple(screenX, screenY, false);
-        setProximityRing(screenX, screenY, false, 0, "");
         return;
       }
 
-      state.lastRubPoint = hit.point;
+      // Convert mark local position to world position for distance check
+      var markWorldPos = null;
+      if (state.markWorldPos) {
+        markWorldPos = state.markWorldPos.clone();
+        var holder = document.getElementById("model-holder");
+        if (holder) {
+          markWorldPos.applyMatrix4(holder.object3D.matrixWorld);
+        }
+      }
 
-      // Compute distance to hidden mark
-      if (!state.markWorldPos) return;
-      var distToMark = hit.point.distanceTo(state.markWorldPos);
-
-      // Zone-based progressive feedback
-      var result = getZone(distToMark);
-      var zone = result.zone;
-      var zoneIndex = result.index;
-
-      // Proximity progress (0 = far, 1 = on mark) — use Cold boundary as max tracking distance
-      var maxTrackDist = CFG.feedback.zones[CFG.feedback.zones.length - 1].maxDist;
-      if (!isFinite(maxTrackDist)) maxTrackDist = CFG.feedback.zones[CFG.feedback.zones.length - 2].maxDist;
-      var progress = Math.max(0, Math.min(1, 1 - distToMark / maxTrackDist));
-
-      // Touch ripple: zone color normally, purple when inside mark area
+      // Always show white ripple on model contact
       var hitRadius = CFG.mark.radius + CFG.rub.touchRadius;
+      var distToMark = markWorldPos ? hit.point.distanceTo(markWorldPos) : Infinity;
       var nearMark = distToMark <= hitRadius;
-      setTouchRipple(screenX, screenY, true, nearMark ? "#9C27B0" : zone.color);
 
-      // Proximity ring
-      setProximityRing(screenX, screenY, true, progress, zone.color);
-
-      // Zone transition pop (only when getting warmer = lower index)
-      if (zoneIndex !== state.lastZoneIndex && zoneIndex < state.lastZoneIndex) {
-        showZonePop(zone.label, zone.color);
-        if (navigator.vibrate) navigator.vibrate(zone.haptic + 30);
-      }
-      state.lastZoneIndex = zoneIndex;
-
-      // Haptic feedback from zone
-      if (navigator.vibrate && zone.haptic > 0) {
-        navigator.vibrate(zone.haptic);
+      // Fallback: screen-space proximity check when 3D distance fails
+      // (mark is on bbox face, far from model surface in 3D but close on screen)
+      if (!nearMark && markWorldPos && cam) {
+        var markScreen = markWorldPos.clone().project(cam);
+        var canvas = this.el.canvas;
+        var markSX = (markScreen.x * 0.5 + 0.5) * canvas.clientWidth;
+        var markSY = (-markScreen.y * 0.5 + 0.5) * canvas.clientHeight;
+        var sdx = screenX - markSX;
+        var sdy = screenY - markSY;
+        var screenDist = Math.sqrt(sdx * sdx + sdy * sdy);
+        nearMark = screenDist < 80;
       }
 
-      // XP: all zones give XP, scaled by zone multiplier
-      var xpGain = CFG.xp.perRub * zone.xpMult;
-      state.xp = Math.min(state.xp + xpGain, CFG.xp.threshold);
+      if (CFG.debug && markWorldPos && distToMark < 5) {
+        console.log("🎯 dist=" + distToMark.toFixed(3) + " hitR=" + hitRadius.toFixed(3) + " near=" + nearMark +
+          " hit=" + hit.point.toArray().map(function(v){return v.toFixed(3)}) +
+          " mark=" + markWorldPos.toArray().map(function(v){return v.toFixed(3)}));
+      }
+
+      // Ripple: white outside, purple inside mark area
+      setTouchRipple(screenX, screenY, true, nearMark ? "#9C27B0" : "rgba(255,255,255,0.5)");
+
+      // ── Speed gate: everything below requires actual rubbing ──
+      if (speed < CFG.rub.minMoveSpeed) return;
+
+      // ── Only Mark area triggers effects (Aladdin style) ──
+      if (!nearMark || !state.markWorldPos) return;
+
+      // Activate genie lamp rubbing state
+      state.isRubbingMark = true;
+      if (!state.rubStartTime) state.rubStartTime = now;
+
+      // Haptic feedback
+      if (navigator.vibrate) {
+        navigator.vibrate(distToMark <= CFG.mark.radius ? 80 : 40);
+      }
+
+      // XP accumulation
+      var closeness = Math.max(0, 1 - (distToMark / hitRadius));
+      var xpGain = CFG.xp.perRub;
+      state.xp = Math.max(0, Math.min(state.xp + xpGain, CFG.xp.threshold));
       updateXPDisplay(state.xp, CFG.xp.threshold);
 
-      // Particles only in Hot zone or closer (index <= 1)
-      if (zoneIndex <= 1) {
-        spawnStarDust(this.el, hit.point, null);
-      }
-
-      // Mark sparkle when inside mark area
-      if (nearMark && now - state.lastSparkleTime >= 150) {
+      // Genie smoke + stardust from mark
+      if (now - state.lastSparkleTime >= 100) {
         state.lastSparkleTime = now;
-        spawnMarkSparkle(this.el, state.markWorldPos, state.markNormal || new THREE.Vector3(0, 1, 0));
+        var intensity = state.xp / CFG.xp.threshold;
+        spawnGenieSmoke(this.el, markWorldPos, state.markNormal || new THREE.Vector3(0, 1, 0), intensity);
       }
 
-      // Reveal mark + show floating indicator
+      // Reveal mark
       if (distToMark <= CFG.mark.radius + 0.02 && !state.markRevealed) {
         this.revealMark();
       }
@@ -986,54 +1593,344 @@
     triggerTransformation: function () {
       state.transformed = true;
       state.isTouching = false;
+      state.isRubbingMark = false;
       setTouchRipple(0, 0, false);
-      setProximityRing(0, 0, false, 0, "");
       console.log("🔮 Transformation triggered!");
 
       var self = this;
-      var swapDelay = CFG.swap.delay;
+      var holder = document.getElementById("model-holder");
 
-      // Flash effect
-      var flashDur = CFG.swap.flashDuration;
+      // Get model center for effects
+      var effectCenter = new THREE.Vector3();
+      if (state.modelBBox) {
+        state.modelBBox.getCenter(effectCenter);
+        if (holder) effectCenter.applyMatrix4(holder.object3D.matrixWorld);
+      } else if (state.markWorldPos) {
+        effectCenter.copy(state.markWorldPos);
+        if (holder) effectCenter.applyMatrix4(holder.object3D.matrixWorld);
+      }
 
+      // Phase 1 (0-400ms): Intensify shake + spawn swirling smoke
+      var shakeStart = Date.now();
+      function intensifyShake() {
+        var elapsed = Date.now() - shakeStart;
+        if (elapsed < 400 && holder) {
+          var amp = THREE.MathUtils.degToRad(12);
+          var freq = 15;
+          holder.object3D.rotation.z = Math.sin(elapsed * 0.001 * freq) * amp;
+          holder.object3D.rotation.x = Math.sin(elapsed * 0.001 * freq * 0.7) * amp * 0.6;
+          requestAnimationFrame(intensifyShake);
+        }
+      }
+      intensifyShake();
+
+      // Phase 2 (200ms): Start smoke building around model
+      setTimeout(function () {
+        smokeEruption(self.el, effectCenter);
+      }, 200);
+
+      // Phase 2b (300ms): Burst particles from mark
+      setTimeout(function () {
+        if (state.markWorldPos) {
+          var burstPos = state.markWorldPos.clone();
+          var holder = document.getElementById("model-holder");
+          if (holder) burstPos.applyMatrix4(holder.object3D.matrixWorld);
+          burstParticles(self.el, burstPos, state.markNormal || new THREE.Vector3(0, 1, 0));
+        }
+      }, 300);
+
+      // Phase 3 (500ms): Purple-blue flash overlay + extra lightning
+      setTimeout(function () {
+        var flash = document.getElementById("flash-overlay");
+        if (flash) {
+          flash.classList.add("active");
+          setTimeout(function () { flash.classList.remove("active"); }, 500);
+        }
+
+        // Extra lightning bolts during flash
+        for (var i = 0; i < 5; i++) {
+          (function (delay) {
+            setTimeout(function () {
+              var dir = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+              ).normalize();
+              spawnLightningBolt(self.el, effectCenter.clone(), dir, 0.3 + Math.random() * 0.2);
+            }, delay * 60);
+          })(i);
+        }
+      }, 500);
+
+      // Phase 3b (600ms): Reset shake + hide current model
+      setTimeout(function () {
+        if (holder) {
+          holder.object3D.rotation.z = 0;
+          holder.object3D.rotation.x = 0;
+        }
+        state.currentEmissive = 0;
+      }, 600);
+
+      // Phase 4 (900ms): Swap models with genie reveal
       setTimeout(function () {
         self.swapModels();
-      }, swapDelay);
+      }, 900);
     },
 
     swapModels: function () {
       var realEl = document.getElementById("realModel");
       var fictEl = document.getElementById("fictionalModel");
+      var holder = document.getElementById("model-holder");
 
       // Hide mark
       if (state.markMesh) {
         state.markMesh.visible = false;
       }
 
-      if (realEl) realEl.setAttribute("visible", "false");
-      if (fictEl) fictEl.setAttribute("visible", "true");
-      state.showingFictional = true;
-
-      showItemName(state.itemName || "Fictional Item");
-
-      // Show back button
-      var backBtn = document.getElementById("back-to-main");
-      if (backBtn) {
-        setTimeout(function () {
-          backBtn.classList.add("visible");
-        }, 1000);
+      // Get model center for genie reveal effect
+      var effectCenter = new THREE.Vector3();
+      if (state.modelBBox) {
+        state.modelBBox.getCenter(effectCenter);
+        if (holder) effectCenter.applyMatrix4(holder.object3D.matrixWorld);
       }
+
+      if (state.currentModel === "real") {
+        // Real → Fictional: hide real, genie-reveal fictional
+        if (realEl) realEl.setAttribute("visible", "false");
+        if (fictEl) {
+          genieRevealModel(this.el, fictEl, effectCenter);
+        }
+        state.currentModel = "fictional";
+        showItemName(state.itemName || "Fictional Item");
+      } else {
+        // Fictional → Real: hide fictional, genie-reveal real
+        if (fictEl) fictEl.setAttribute("visible", "false");
+        if (realEl) {
+          genieRevealModel(this.el, realEl, effectCenter);
+        }
+        state.currentModel = "real";
+        showItemName(state.realName || "Real Item");
+      }
+
+      state.roundCount++;
+      console.log("🔄 Round " + state.roundCount + " complete → now showing " + state.currentModel);
+
+      // Start a new round after genie reveal animation completes
+      var self = this;
+      setTimeout(function () {
+        self.startNewRound();
+      }, 2000);
     },
 
-    /* ── Mark Glow Animation (tick) ── */
-    tick: function (time) {
-      if (!state.markMesh || !state.markRevealed) return;
+    startNewRound: function () {
+      // Reset game state for the new round
+      state.transformed = false;
+      state.markRevealed = false;
+      state.xp = 0;
+      state.lastZoneIndex = -1;
+      state.lastSparkleTime = 0;
+      state.isRubbingMark = false;
+      state.rubStartTime = 0;
+      state.currentEmissive = 0;
+      updateXPDisplay(0, CFG.xp.threshold);
 
-      // Pulse glow
-      var pulse = 0.5 + 0.5 * Math.sin(time * 0.001 * CFG.mark.pulseSpeed * Math.PI * 2);
-      var baseColor = new THREE.Color(CFG.mark.color);
-      var glowColor = new THREE.Color(CFG.mark.glowColor);
-      state.markMesh.material.color.copy(baseColor).lerp(glowColor, pulse);
+      // Remove old mark mesh
+      if (state.markMesh) {
+        var holder = document.getElementById("model-holder");
+        if (holder) holder.object3D.remove(state.markMesh);
+        if (state.markMesh.geometry) state.markMesh.geometry.dispose();
+        if (state.markMesh.material) state.markMesh.material.dispose();
+        state.markMesh = null;
+      }
+
+      // Remove old debug bounding box
+      if (state._debugBBox) {
+        var dbgParent = state._debugBBox.parent;
+        if (dbgParent) dbgParent.remove(state._debugBBox);
+        if (state._debugBBox.geometry) state._debugBBox.geometry.dispose();
+        if (state._debugBBox.material) state._debugBBox.material.dispose();
+        state._debugBBox = null;
+      }
+
+      // Remove floating indicator
+      if (state._floatingRing) {
+        var parent = state._floatingRing.parent;
+        if (parent) {
+          parent.remove(state._floatingRing);
+          if (state._floatingRing.geometry) state._floatingRing.geometry.dispose();
+          if (state._floatingRing.material) state._floatingRing.material.dispose();
+        }
+        state._floatingRing = null;
+      }
+      if (state._floatingCircle) {
+        var parent2 = state._floatingCircle.parent;
+        if (parent2) {
+          parent2.remove(state._floatingCircle);
+          if (state._floatingCircle.geometry) state._floatingCircle.geometry.dispose();
+          if (state._floatingCircle.material) state._floatingCircle.material.dispose();
+        }
+        state._floatingCircle = null;
+      }
+
+      // Place new mark on the currently visible model
+      var activeEl = state.currentModel === "fictional"
+        ? document.getElementById("fictionalModel")
+        : document.getElementById("realModel");
+      if (activeEl) {
+        var mesh = activeEl.getObject3D("mesh");
+        if (mesh) {
+          this.placeHiddenMark(mesh, activeEl);
+        }
+      }
+
+      // Update hint
+      var hint = document.getElementById("interaction-hint");
+      if (hint) hint.textContent = "Rub to find the hidden mark!";
+
+      // Hide item name display
+      var nameEl = document.getElementById("item-name-display");
+      if (nameEl) nameEl.classList.remove("visible");
+
+      console.log("🆕 New round started on " + state.currentModel + " model");
+    },
+
+    /* ── Tick: Lamp Shake + Hint Tilt + Emissive Glow + Mark Pulse ── */
+    tick: function (time) {
+      var holder = document.getElementById("model-holder");
+
+      // ── Lamp shake when rubbing mark ──
+      if (holder) {
+        if (state.isRubbingMark && !state.transformed) {
+          var elapsed = Date.now() - state.rubStartTime;
+          var xpProgress = state.xp / CFG.xp.threshold;
+          var amp = THREE.MathUtils.degToRad(3 + xpProgress * 7);
+          var freq = 8 + xpProgress * 6;
+          holder.object3D.rotation.z = Math.sin(elapsed * 0.001 * freq) * amp;
+          holder.object3D.rotation.x = Math.sin(elapsed * 0.001 * freq * 0.7) * amp * 0.5;
+        } else if (!state.transformed && !state.markRevealed) {
+          // ── Periodic hint tilt toward mark ──
+          // Every ~4 seconds, tilt briefly toward the mark's direction
+          if (state.markWorldPos && state.modelBBox) {
+            var cycle = (time * 0.001) % 4; // 4-second cycle
+            if (cycle < 1.2) {
+              // Tilt phase: smooth bell curve over 1.2s
+              var tiltT = cycle / 1.2;
+              var tiltStrength = Math.sin(tiltT * Math.PI); // 0→1→0
+              var bboxCenter = new THREE.Vector3();
+              state.modelBBox.getCenter(bboxCenter);
+
+              // Direction from center to mark in holder LOCAL space
+              var localDx = state.markWorldPos.x - bboxCenter.x;
+              var localDy = state.markWorldPos.y - bboxCenter.y;
+              var localDz = state.markWorldPos.z - bboxCenter.z;
+              var localLen = Math.sqrt(localDx * localDx + localDy * localDy + localDz * localDz);
+
+              if (localLen > 0.001) {
+                // ── Transform local direction to SCREEN space ──
+                // rotation.y is set by xrextras-two-finger-rotate (user yaw).
+                // The XZ plane rotates by rotation.y, so we undo it to get screen direction.
+                var userRotY = holder.object3D.rotation.y;
+                var cosY = Math.cos(userRotY);
+                var sinY = Math.sin(userRotY);
+
+                // Rotate local XZ by rotation.y → screen-space direction
+                // (standard Y-axis rotation matrix applied to direction vector)
+                var screenX = localDx * cosY + localDz * sinY;   // + = right on screen
+                var screenZ = -localDx * sinY + localDz * cosY;  // + = toward camera
+                var screenY = localDy;                             // + = up
+
+                var screenLen = Math.sqrt(screenX * screenX + screenY * screenY + screenZ * screenZ);
+                var nx = screenX / screenLen;
+                var ny = screenY / screenLen;
+                var nz = screenZ / screenLen;
+
+                var tiltAmp = THREE.MathUtils.degToRad(10);
+
+                // rotation.z (last in XYZ Euler order) = always screen left/right
+                // Mark on screen-right (nx>0) → lean right → rotation.z < 0
+                var targetZ = -nx * tiltAmp * tiltStrength;
+
+                // rotation.x (first in XYZ Euler order) = pitch, but its screen effect
+                // depends on rotation.y. For small tilt angles the coupling error is
+                // sin(10°)·sin(ry) ≈ 0.17·sin(ry) — acceptable.
+                // Mark toward camera (nz>0) → bow forward → rotation.x > 0
+                var targetX = nz * tiltAmp * tiltStrength;
+
+                // For marks primarily on top/bottom (+Y/-Y), nod to expose the face
+                // Mark on top (ny>0) → tilt backward → rotation.x < 0 (exposes top to camera)
+                if (Math.abs(ny) > Math.abs(nx) && Math.abs(ny) > Math.abs(nz)) {
+                  targetX = -ny * tiltAmp * 0.6 * tiltStrength;
+                }
+
+                holder.object3D.rotation.z = targetZ;
+                holder.object3D.rotation.x = targetX;
+
+                if (CFG.debug && cycle < 0.05) {
+                  console.log("🔄 Tilt: userRotY=" + (userRotY * 180 / Math.PI).toFixed(1) + "°",
+                    "local(" + localDx.toFixed(3) + "," + localDy.toFixed(3) + "," + localDz.toFixed(3) + ")",
+                    "→ screen(" + nx.toFixed(2) + "," + ny.toFixed(2) + "," + nz.toFixed(2) + ")",
+                    "→ tilt(z=" + (targetZ * 180 / Math.PI).toFixed(1) + "°, x=" + (targetX * 180 / Math.PI).toFixed(1) + "°)");
+                }
+              } else if (CFG.debug) {
+                console.warn("⚠️ Tilt: mark too close to center, len=" + localLen.toFixed(6));
+              }
+            } else {
+              // Rest phase: smooth return (preserve rotation.y)
+              holder.object3D.rotation.z *= 0.92;
+              holder.object3D.rotation.x *= 0.92;
+              if (Math.abs(holder.object3D.rotation.z) < 0.001) holder.object3D.rotation.z = 0;
+              if (Math.abs(holder.object3D.rotation.x) < 0.001) holder.object3D.rotation.x = 0;
+            }
+          } else {
+            // No mark yet, just smooth return
+            holder.object3D.rotation.z *= 0.9;
+            holder.object3D.rotation.x *= 0.9;
+            if (Math.abs(holder.object3D.rotation.z) < 0.001) holder.object3D.rotation.z = 0;
+            if (Math.abs(holder.object3D.rotation.x) < 0.001) holder.object3D.rotation.x = 0;
+          }
+        } else if (!state.transformed) {
+          // Mark already revealed, smooth return
+          holder.object3D.rotation.z *= 0.9;
+          holder.object3D.rotation.x *= 0.9;
+          if (Math.abs(holder.object3D.rotation.z) < 0.001) holder.object3D.rotation.z = 0;
+          if (Math.abs(holder.object3D.rotation.x) < 0.001) holder.object3D.rotation.x = 0;
+        }
+      }
+
+      // ── Model emissive glow ──
+      var targetEmissive = state.isRubbingMark ? (state.xp / CFG.xp.threshold) * 0.3 : 0;
+      state.currentEmissive += (targetEmissive - state.currentEmissive) * 0.1;
+
+      if (state.currentEmissive > 0.005) {
+        var activeEl = state.currentModel === "fictional"
+          ? document.getElementById("fictionalModel")
+          : document.getElementById("realModel");
+        if (activeEl) {
+          var mesh = activeEl.getObject3D("mesh");
+          if (mesh) {
+            mesh.traverse(function (node) {
+              if (node.isMesh && node.material) {
+                var mats = Array.isArray(node.material) ? node.material : [node.material];
+                mats.forEach(function (mat) {
+                  if (mat.emissive) {
+                    mat.emissive.setHex(0x4A148C);
+                    mat.emissiveIntensity = state.currentEmissive;
+                    mat.needsUpdate = true;
+                  }
+                });
+              }
+            });
+          }
+        }
+      }
+
+      // ── Mark glow pulse ──
+      if (state.markMesh && state.markRevealed) {
+        var pulse = 0.5 + 0.5 * Math.sin(time * 0.001 * CFG.mark.pulseSpeed * Math.PI * 2);
+        var baseColor = new THREE.Color(CFG.mark.color);
+        var glowColor = new THREE.Color(CFG.mark.glowColor);
+        state.markMesh.material.color.copy(baseColor).lerp(glowColor, pulse);
+      }
     },
 
     remove: function () {

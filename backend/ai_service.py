@@ -152,12 +152,12 @@ def reload_system_prompt():
     log("TEMPLATE", "✅ System prompt loaded from prompt.md")
 
     # Try to extract AR_INTERACTIONS from template
-    # Look for patterns like "Tap": "description"
-    ar_pattern = r'["\']?(Tap|Rotate|Track|Wall)["\']?\s*[:=]\s*["\']([^"\']+)["\']'
+    # Look for patterns like "Rub": description
+    ar_pattern = r'["\']?(Rub|Rotate|Track|Blow)["\']?\s*[:=]\s*["\']?([^"\'"\n]+)["\']?'
     matches = re.findall(ar_pattern, template_text, re.IGNORECASE)
     if matches:
         for ar_type, description in matches:
-            AR_INTERACTIONS[ar_type.capitalize()] = description
+            AR_INTERACTIONS[ar_type.capitalize()] = description.strip()
         log("TEMPLATE", f"✅ Extracted AR_INTERACTIONS: {list(AR_INTERACTIONS.keys())}")
     else:
         AR_INTERACTIONS = AR_INTERACTIONS_FALLBACK.copy()
@@ -504,17 +504,13 @@ Photo Item Category: {photo_analysis.get('photo_item_category', 'object')}
 In this event:
 - The Fictional Location should share the same basic-level category as the Photo Place Category
 - The Fictional Item or Character should share the same basic-level category as the Photo Item Category
-- Choose an Event Action Category that fits naturally with the story:
-  * "Touch" for actions like touching, tapping, pressing, or making physical contact
-  * "Turning" for actions like rotating, spinning, turning, or twisting
-  * "Following" for actions like following, tracking, chasing, or pursuing
 
 Output Format:
 Fictional Event {event_num}: (within 40 words)
 Fictional Location: (one short phrase)
 Fictional Item or Character: (one short phrase)
 Fictional Action: (one or two phrases)
-Event Action Category: (choose one: Touch, Turning, or Following)"""
+Event Action Category: (choose one: Contact, Rotation, Source-Path-Goal, or Force)"""
 
     response = OPENAI_CLIENT.chat.completions.create(
             model=AI_MODEL,
@@ -538,8 +534,8 @@ Event Action Category: (choose one: Touch, Turning, or Following)"""
         "item_or_character": "",
         "event_action": "",
         "action": "",
-        "event_action_category": "Touch",  # Default, will be overwritten by AI response
-        "action_category": "Touch",
+        "event_action_category": "Contact",  # Default, will be overwritten by AI response
+        "action_category": "Contact",
         "ar_interaction": "",
         "3d_item": ""
     }
@@ -571,23 +567,26 @@ Event Action Category: (choose one: Touch, Turning, or Following)"""
         # Parse Event Action Category (AI chooses based on story context)
         elif lower_line.startswith("event action category:"):
             category = line.split(":", 1)[1].strip().lower()
-            if "touch" in category:
-                result["event_action_category"] = "Touch"
-                result["action_category"] = "Touch"
-            elif "turning" in category or "turn" in category or "rotate" in category:
-                result["event_action_category"] = "Turning"
-                result["action_category"] = "Turning"
-            elif "following" in category or "follow" in category or "track" in category:
-                result["event_action_category"] = "Following"
-                result["action_category"] = "Following"
+            if "contact" in category:
+                result["event_action_category"] = "Contact"
+                result["action_category"] = "Contact"
+            elif "rotation" in category or "cycle" in category:
+                result["event_action_category"] = "Rotation"
+                result["action_category"] = "Rotation"
+            elif "source" in category or "path" in category or "goal" in category or "track" in category:
+                result["event_action_category"] = "Source-Path-Goal"
+                result["action_category"] = "Source-Path-Goal"
+            elif "force" in category or "blow" in category:
+                result["event_action_category"] = "Force"
+                result["action_category"] = "Force"
         # Legacy: also support "Event Action:" for backward compatibility
         elif lower_line.startswith("event action:") and not lower_line.startswith("event action category"):
             value = line.split(":", 1)[1].strip()
             result["event_action"] = value
             result["action"] = value
 
-    # Map action category to AR interaction type (Touch->Tap, Turning->Rotate, Following->Track)
-    ar_type = ACTION_TO_AR.get(result["event_action_category"], "Tap")
+    # Map action category to AR interaction type (Contact->Rub, Rotation->Rotate, Source-Path-Goal->Track, Force->Blow)
+    ar_type = ACTION_TO_AR.get(result["event_action_category"], "Rub")
     result["ar_interaction"] = AR_INTERACTIONS.get(ar_type, "")
     result["ar_interaction_type"] = ar_type
     result["3d_item"] = f"3D {result['fictional_item_or_character']}"

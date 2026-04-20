@@ -3376,23 +3376,26 @@ class StoryController {
     const arInteractionDesc = $("ar-interaction-desc");
 
     const interactionType =
-      event.ar_interaction || event.arInteraction || "Tap";
+      event.ar_interaction_type || event.arInteractionType || "Rub";
 
     // Set interaction icon based on type
     const interactionIcons = {
-      Tap: "👆",
+      Rub: "👆",
       Rotate: "🔄",
       Track: "🎯",
+      Blow: "💨",
     };
 
     // Set interaction description based on type (synced with app.py AR_INTERACTIONS)
-    // Tap -> Tap folder, Rotate -> RotateItem folder, Track -> Track folder
+    // Rub -> Rub folder, Rotate -> RotateItem folder, Track -> Track folder, Blow -> Blow folder
     const interactionDescriptions = {
-      Tap: "Tap at some animated marks on the surface of a 3D object; the fictional item or character then appears.",
+      Rub: "Rub different parts of the 3D object; at a certain part, the object turns into another 3D object.",
       Rotate:
-        "Use two fingers to rotate the 3D object; at 180°, the object turns transparent and reveals the fictional item or character inside.",
+        "Rotate the 3D object clockwise or counterclockwise; after completing certain cycles, the object turns into another 3D object.",
       Track:
-        "Hold the camera to track the slowly moving 3D object (in mid-air); after tracking for a while, the fictional item or character appears.",
+        "Hold the camera to track the slowly moving 3D object in midair; after tracking for a while, the object turns into another 3D object.",
+      Blow:
+        "Blow to the 3D object; after blowing for a while, the object turns into another 3D object.",
     };
 
     if (arInteractionType) {
@@ -3405,7 +3408,7 @@ class StoryController {
       arInteractionDesc.textContent =
         event.ar_interaction_description ||
         interactionDescriptions[interactionType] ||
-        interactionDescriptions.Tap;
+        interactionDescriptions.Rub;
     }
 
     // Update original photo

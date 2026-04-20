@@ -272,8 +272,8 @@ export async function processPhotoEvent(journeyId, photoFile, onProgress) {
     actionCategory: event.event_action_category || event.action_category || "",
 
     // AR Interaction
-    ar_interaction: event.ar_interaction || "Tap",
-    ar_interaction_type: event.ar_interaction_type || "Tap",
+    ar_interaction: event.ar_interaction || "Rub",
+    ar_interaction_type: event.ar_interaction_type || "Rub",
     ar_interaction_description: event.ar_interaction_description || "",
     item_3d: event["3d_item"] || "",
 

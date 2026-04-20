@@ -74,21 +74,21 @@
         #xp-icon {
             width: 36px;
             height: 36px;
-            background: radial-gradient(circle, #FFD740 30%, #FF9100 100%);
+            background: radial-gradient(circle, #B388FF 30%, #7C4DFF 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 18px;
-            box-shadow: 0 0 12px rgba(255, 193, 7, 0.5);
+            box-shadow: 0 0 12px rgba(124, 77, 255, 0.5);
         }
 
         #xp-value {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 20px;
             font-weight: 700;
-            color: #FFD740;
-            text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+            color: #B388FF;
+            text-shadow: 0 0 8px rgba(124, 77, 255, 0.5);
         }
 
         /* ── XP Progress Bar ── */
@@ -108,15 +108,18 @@
         #xp-bar-fill {
             height: 100%;
             width: 0%;
-            background: linear-gradient(90deg, #FFD740 0%, #FF9100 100%);
+            background: linear-gradient(90deg, #B388FF 0%, #7C4DFF 100%);
             border-radius: 3px;
+            transition: width 0.2s ease, box-shadow 0.3s ease;
             transition: width 0.2s ease;
-            box-shadow: 0 0 6px rgba(255, 193, 7, 0.4);
+            box-shadow: 0 0 6px rgba(124, 77, 255, 0.4);
         }
 
         /* ── Touch Ripple (screen overlay) ── */
         #touch-ripple {
             position: fixed;
+            left: 0;
+            top: 0;
             width: 80px;
             height: 80px;
             border-radius: 50%;
@@ -125,25 +128,27 @@
             z-index: 999;
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.5);
-            transition: opacity 0.15s, transform 0.15s;
+            transition: opacity 0.1s;
+            will-change: transform, opacity;
         }
 
         #touch-ripple.active {
             opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
         }
 
         /* ── Proximity Ring (arc indicator around ripple) ── */
         #proximity-ring {
             position: fixed;
+            left: 0;
+            top: 0;
             width: 120px;
             height: 120px;
             border-radius: 50%;
             pointer-events: none;
             z-index: 998;
             opacity: 0;
-            transform: translate(-50%, -50%);
-            transition: opacity 0.2s;
+            transition: opacity 0.15s;
+            will-change: transform, opacity;
             -webkit-mask-image: radial-gradient(transparent 42%, black 43%, black 50%, transparent 51%);
             mask-image: radial-gradient(transparent 42%, black 43%, black 50%, transparent 51%);
         }
@@ -166,7 +171,7 @@
             pointer-events: none;
             z-index: 1001;
             opacity: 0;
-            text-shadow: 0 0 20px currentColor, 0 2px 8px rgba(0,0,0,0.5);
+            text-shadow: 0 0 20px currentColor, 0 2px 8px rgba(0, 0, 0, 0.5);
         }
 
         #zone-pop.pop {
@@ -174,11 +179,59 @@
         }
 
         @keyframes zonePop {
-            0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-            20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-            40%  { transform: translate(-50%, -50%) scale(0.95); }
-            60%  { transform: translate(-50%, -50%) scale(1); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+
+            40% {
+                transform: translate(-50%, -50%) scale(0.95);
+            }
+
+            60% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        /* ── Flash Overlay (transformation burst) ── */
+        #flash-overlay {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle, rgba(100, 80, 220, 0.85) 0%, rgba(60, 20, 180, 0.5) 35%, rgba(30, 10, 120, 0.3) 60%, transparent 80%);
+            z-index: 1200;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease-in;
+        }
+
+        #flash-overlay.active {
+            opacity: 1;
+            transition: opacity 0.05s ease-in;
+            animation: flashPulse 0.4s ease-out;
+        }
+
+        @keyframes flashPulse {
+            0% {
+                background: radial-gradient(circle, rgba(140, 100, 255, 0.95) 0%, rgba(80, 40, 220, 0.6) 40%, transparent 70%);
+            }
+
+            50% {
+                background: radial-gradient(circle, rgba(180, 160, 255, 1) 0%, rgba(100, 60, 240, 0.7) 30%, rgba(40, 20, 160, 0.3) 60%, transparent 80%);
+            }
+
+            100% {
+                background: radial-gradient(circle, rgba(100, 80, 220, 0.85) 0%, rgba(60, 20, 180, 0.5) 35%, transparent 70%);
+            }
         }
 
         /* ── Item Name Display ── */
@@ -346,7 +399,7 @@
 
 <body>
     <script src="ar-config.js"></script>
-    <script src="bundle.js"></script>
+    <script src="bundle.js?v=20260417"></script>
 
     <!-- Pre-AR Overlay -->
     <div id="pre-ar-overlay">
@@ -376,6 +429,9 @@
 
     <!-- Zone transition pop -->
     <div id="zone-pop"></div>
+
+    <!-- Flash overlay (transformation burst) -->
+    <div id="flash-overlay"></div>
 
     <!-- XP counter -->
     <div id="xp-counter">
@@ -412,8 +468,7 @@
         <a-light type="hemisphere" intensity="0.4" color="#87CEEB" groundcolor="#8B7355"></a-light>
 
         <!-- Model holder (supports drag/pinch) -->
-        <a-entity id="model-holder" position="0 0 -2" xrextras-two-finger-rotate xrextras-pinch-scale
-            scale="1 1 1">
+        <a-entity id="model-holder" position="0 0 -2" xrextras-two-finger-rotate xrextras-pinch-scale scale="1 1 1">
             <a-entity id="realModel" class="cantap" position="0 0 0" shadow="cast: true; receive: false"></a-entity>
         </a-entity>
 

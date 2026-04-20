@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RigAnything</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Header Toolbar -->
+        <header id="header">
+            <div class="header-left">
+                <h1>🦴 RigAnything</h1>
+                <span id="session-badge" class="badge hidden"></span>
+            </div>
+            <div class="header-actions">
+                <button id="btn-new" class="btn btn-secondary hidden" title="Upload new model">📦 New Model</button>
+                <button id="btn-rig" class="btn btn-accent hidden" title="Start Rigging">▶ Rig</button>
+                <button id="btn-download" class="btn btn-primary hidden" title="Download GLB">⬇ Download GLB</button>
+            </div>
+        </header>
+
+        <!-- Three.js Viewer -->
+        <div id="viewer-container">
+            <canvas id="three-canvas"></canvas>
+
+            <!-- Upload Overlay -->
+            <div id="upload-overlay">
+                <div class="upload-box">
+                    <div class="upload-icon">📦</div>
+                    <p>Drop GLB file here<br>or click to choose</p>
+                    <input type="file" id="file-input" accept=".glb,.gltf,.obj,.fbx" hidden>
+                    <button id="btn-choose-file" class="btn btn-primary">Choose File</button>
+                    <div id="examples-section">
+                        <div class="divider">or select an example</div>
+                        <div id="examples-list" class="examples-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Overlay -->
+            <div id="loading-overlay" class="hidden">
+                <div class="loading-box">
+                    <div class="spinner"></div>
+                    <p id="loading-text">Processing...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Bar -->
+        <div id="controls-bar" class="hidden">
+            <label><input type="checkbox" id="chk-mesh" checked> Mesh</label>
+            <label><input type="checkbox" id="chk-skeleton" checked> Skeleton</label>
+            <label><input type="checkbox" id="chk-weights"> Weight Paint</label>
+            <label class="joint-select-label">
+                Joint:
+                <select id="sel-joint"></select>
+            </label>
+            <label><input type="checkbox" id="chk-wireframe"> Wireframe</label>
+        </div>
+
+        <!-- Status Bar -->
+        <div id="status-bar">
+            <span id="status-text">Ready — Upload a GLB file to begin</span>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -295,23 +295,28 @@ WORLD_DISPLAY_NAMES = {
 }
 
 ACTION_TO_AR = {
-    "Touch": "Rub",
+    # Primary keys: image-schema categories from prompt.md
+    "Contact": "Rub",
+    "Rotation": "Rotate",
+    "Rotation and Cycle": "Rotate",
+    "Source-Path-Goal": "Track",
+    "Force": "Blow",
+    # Synonyms the AI might return
     "Rubbing": "Rub",
+    "Rub": "Rub",
+    "Touch": "Rub",
     "Turning": "Rotate",
     "Rotating": "Rotate",
     "Following": "Track",
     "Tracking": "Track",
     "Blowing": "Blow",
-    "Placing": "Wall"
 }
 
 AR_INTERACTIONS_FALLBACK = {
     "Rub": "Rub to find the hidden mark.",
-    "Tap": "Tap to reveal the item.",
-    "Rotate": "Rotate item to reveal.",
+    "Rotate": "Rotate to reveal.",
     "Track": "Track to unlock.",
     "Blow": "Blow to transform.",
-    "Wall": "Place on wall to reveal."
 }
 
 # ==========================================

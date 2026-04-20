@@ -1,5 +1,5 @@
 window.RUB_CONFIG = {
-  debug: true,
+  debug: false,
   // Hidden mark placement
   mark: {
     radius: 0.04,             // World-space radius of the circular mark on model surface

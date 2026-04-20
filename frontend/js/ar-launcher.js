@@ -108,7 +108,7 @@ function launchARInteraction() {
     currentEvent.ar_interaction_type ||
     event.arInteractionType ||
     currentEvent.arInteractionType ||
-    "Tap";
+    "Rub";
   console.log(`🎯 Interaction type: ${interactionType}`);
   console.log(`📋 Event data:`, event);
 
@@ -144,7 +144,7 @@ function launchARInteraction() {
 
   // Select project URL based on interaction type
   const projectUrl =
-    AR_INTERACTION_URLS[interactionType] || AR_INTERACTION_URLS.Tap;
+    AR_INTERACTION_URLS[interactionType] || AR_INTERACTION_URLS.Rub;
 
   // Build current page return URL with hash for deep-linking
   const returnUrl =

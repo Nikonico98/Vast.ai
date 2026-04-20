@@ -24,7 +24,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from config import (
-    FRONTEND_FOLDER, DATA_FOLDER, DATA_FOLDER_TEST,
+    BASE_DIR, FRONTEND_FOLDER, DATA_FOLDER, DATA_FOLDER_TEST,
     UPLOAD_FOLDER, RESULT_FOLDER, TEMPLATE_FILE,
     ALLOWED_EXTENSIONS, MAX_FILE_SIZE, SERVER_PORT, DEBUG_MODE, SECRET_KEY,
     VALID_IMAGINARY_WORLDS, WORLD_DISPLAY_NAMES, ACTION_TO_AR, AR_INTERACTIONS_FALLBACK,
@@ -1225,16 +1225,6 @@ def _process_photo_event(journey_id, photo):
 
 Please analyze this photo and create Event {event_num}.
 
-IMPORTANT: Choose an Event Action Category that fits naturally with the story and the object in the photo:
-- "Touch" for actions like touching, tapping, pressing, or making physical contact
-- "Turning" for actions like rotating, spinning, turning, or twisting  
-- "Following" for actions like following, tracking, chasing, or pursuing
-
-The AR Interaction will be mapped from your chosen action:
-- Touch → Tap (tap on 3D object to reveal fictional item)
-- Turning → Rotate (rotate 3D object to reveal fictional item inside)
-- Following → Track (track moving 3D object to reveal fictional item)
-
 Respond in this EXACT format:
 
 Photo Place: (one short phrase describing the location/setting)
@@ -1242,20 +1232,20 @@ Photo Place Category: (one short phrase - basic-level category)
 Photo Item: (one or two key objects visible)
 Photo Item Category: (one short phrase - basic-level category)
 
-Fictional Event: (30-40 word narrative)
-Fictional Location: (a location in the {world_label} world matching Photo Place Category)
-Fictional Item: (a fictional version matching Photo Item Category)
-Fictional Action: (what the hero does with the item)
-Event Action Category: (choose one: Touch, Turning, or Following)
+Fictional Event {event_num}: (within 40 words)
+Fictional Location: (one short phrase)
+Fictional Item or Character: (one short phrase)
+Fictional Action: (one or two phrases)
+Event Action Category: (choose one: Contact, Rotation, Source-Path-Goal, or Force)
 
-AR Interaction: (describe the AR interaction based on your chosen action category)
+AR Interaction: (within 20 words)
 3D Item or Character: (one or two phrases)"""
 
     ai_response = chat_with_context(journey, user_message, image_base64=photo_base64, task_type="photo_event")
 
     # Parse response
     photo_analysis = {"photo_place": "", "photo_place_category": "", "photo_item": "", "photo_item_category": ""}
-    event_data = {"fictional_event": "", "fictional_location": "", "fictional_item_or_character": "", "event_action": "", "event_action_category": "Touch", "ar_interaction": "", "3d_item": ""}
+    event_data = {"fictional_event": "", "fictional_location": "", "fictional_item_or_character": "", "event_action": "", "event_action_category": "Contact", "ar_interaction": "", "3d_item": ""}
 
     lines = ai_response.split('\n')
     for line in lines:
@@ -1280,18 +1270,20 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
             event_data["event_action"] = line.split(":", 1)[1].strip()
         elif lower_line.startswith("event action category:"):
             category = line.split(":", 1)[1].strip().lower()
-            if "touch" in category:
-                event_data["event_action_category"] = "Touch"
-            elif "turning" in category or "turn" in category or "rotate" in category:
-                event_data["event_action_category"] = "Turning"
-            elif "following" in category or "follow" in category or "track" in category:
-                event_data["event_action_category"] = "Following"
+            if "contact" in category:
+                event_data["event_action_category"] = "Contact"
+            elif "rotation" in category or "cycle" in category:
+                event_data["event_action_category"] = "Rotation"
+            elif "source" in category or "path" in category or "goal" in category or "track" in category:
+                event_data["event_action_category"] = "Source-Path-Goal"
+            elif "force" in category or "blow" in category:
+                event_data["event_action_category"] = "Force"
         elif lower_line.startswith("ar interaction:"):
             event_data["ar_interaction"] = line.split(":", 1)[1].strip()
         elif lower_line.startswith("3d item") or lower_line.startswith("3d character"):
             event_data["3d_item"] = line.split(":", 1)[1].strip()
 
-    ar_type = ACTION_TO_AR.get(event_data["event_action_category"], "Tap")
+    ar_type = ACTION_TO_AR.get(event_data["event_action_category"], "Rub")
     ar_interaction_desc = ai_service.AR_INTERACTIONS.get(ar_type, AR_INTERACTIONS_FALLBACK.get(ar_type, ""))
 
     # Generate fictional image
@@ -1326,11 +1318,11 @@ AR Interaction: (describe the AR interaction based on your chosen action categor
         "fictional_location": event_data.get("fictional_location", ""),
         "fictional_item_or_character": event_data.get("fictional_item_or_character", ""),
         "event_action": event_data.get("event_action", ""),
-        "event_action_category": event_data.get("event_action_category", "Touch"),
+        "event_action_category": event_data.get("event_action_category", "Contact"),
         "location": event_data.get("fictional_location", ""),
         "item_or_character": event_data.get("fictional_item_or_character", ""),
         "action": event_data.get("event_action", ""),
-        "action_category": event_data.get("event_action_category", "Touch"),
+        "action_category": event_data.get("event_action_category", "Contact"),
         "ar_interaction": event_data.get("ar_interaction", "") or ar_interaction_desc,
         "ar_interaction_type": ar_type,
         "ar_interaction_description": ar_interaction_desc,
@@ -1721,6 +1713,103 @@ def api_animate_upload():
     f.save(str(dest))
 
     return jsonify(path=str(dest))
+
+
+# ==========================================
+# RigAnything API Routes
+# ==========================================
+import rig_service
+
+RIG_FRONTEND = BASE_DIR.parent / "RigAnythingTest"
+
+@app.route('/rig/')
+def serve_rig_frontend():
+    return send_from_directory(str(RIG_FRONTEND), 'index.html')
+
+@app.route('/rig/<path:filename>')
+def serve_rig_static(filename):
+    return send_from_directory(str(RIG_FRONTEND), filename)
+
+@app.route('/api/upload', methods=['POST'])
+def api_rig_upload():
+    """Upload a GLB file or load an example for rigging."""
+    if 'example' in request.form:
+        try:
+            result = rig_service.upload_example(request.form['example'])
+            return jsonify(result)
+        except FileNotFoundError as e:
+            return jsonify(error=str(e)), 404
+    if 'file' not in request.files:
+        return jsonify(error="No file provided"), 400
+    f = request.files['file']
+    if not f.filename:
+        return jsonify(error="No filename"), 400
+    try:
+        result = rig_service.upload_model(f)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+@app.route('/api/examples')
+def api_rig_examples():
+    return jsonify(rig_service.list_examples())
+
+@app.route('/api/rig/mesh/<session_id>')
+def api_rig_serve_mesh(session_id):
+    """Serve the uploaded GLB file for Three.js preview."""
+    session = rig_service.get_session(session_id)
+    if not session:
+        return jsonify(error="Session not found"), 404
+    glb_path = Path(session["glb_path"])
+    return send_from_directory(str(glb_path.parent), glb_path.name)
+
+@app.route('/api/rig/<session_id>', methods=['POST'])
+def api_rig_run(session_id):
+    """Run RigAnything inference on the uploaded model."""
+    try:
+        result = rig_service.run_rig(session_id)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify(error=str(e)), 404
+    except ConnectionError as e:
+        return jsonify(error=str(e)), 503
+    except RuntimeError as e:
+        return jsonify(error=str(e)), 500
+
+@app.route('/api/weights/<session_id>')
+def api_rig_weights(session_id):
+    """Get weight paint data for a specific joint."""
+    joint_idx = request.args.get('joint', 0, type=int)
+    try:
+        result = rig_service.get_weights(session_id, joint_idx)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify(error=str(e)), 404
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+@app.route('/api/export/<session_id>', methods=['POST'])
+def api_rig_export(session_id):
+    """Export rigged model as GLB."""
+    try:
+        result = rig_service.export_rigged(session_id)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify(error=str(e)), 404
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+@app.route('/api/rig/download/<session_id>')
+def api_rig_download(session_id):
+    """Download the rigged GLB file."""
+    session = rig_service.get_session(session_id)
+    if not session or not session.get("rigged_glb_path"):
+        return jsonify(error="Rigged model not available"), 404
+    glb_path = Path(session["rigged_glb_path"])
+    return send_from_directory(
+        str(glb_path.parent), glb_path.name,
+        as_attachment=True, download_name="rigged_output.glb"
+    )
 
 
 # ==========================================
