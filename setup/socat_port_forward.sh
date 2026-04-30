@@ -26,8 +26,11 @@ case "${1:-start}" in
             apt-get install -y socat 2>/dev/null
         fi
 
-        # 停止已有的 socat 转发
+        # 停止已有的 socat 转发，强制释放端口
         pkill -f "socat TCP-LISTEN:${LISTEN_PORT}" 2>/dev/null
+        # Force-release the port in case another process holds it
+        fuser -k "${LISTEN_PORT}/tcp" 2>/dev/null || true
+        sleep 1
 
         # 启动转发
         socat TCP-LISTEN:${LISTEN_PORT},fork,reuseaddr TCP:127.0.0.1:${TARGET_PORT} &

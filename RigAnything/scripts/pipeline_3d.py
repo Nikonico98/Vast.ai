@@ -30,7 +30,7 @@ from typing import List
 
 from config import (
     WORKSPACE, SAM3_ENV, SAM3_REPO, SAM3D_ENV, SAM3D_REPO, SAM3D_CHECKPOINT,
-    HF_TOKEN, TEMP_FOLDER, RESULT_FOLDER, RIGANYTHING_DIR
+    HF_TOKEN, TEMP_FOLDER, RESULT_FOLDER, RIGANYTHING_DIR, RIGANYTHING_REPO
 )
 from job_manager import (
     log, load_jobs, save_jobs, update_job_status,

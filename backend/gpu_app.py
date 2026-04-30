@@ -129,6 +129,7 @@ config.HF_TOKEN = HF_TOKEN
 config.TEMP_FOLDER = TEMP_DIR
 config.RESULT_FOLDER = RESULT_DIR
 config.JOBS_FILE = JOBS_FILE
+config.RIGANYTHING_REPO = str(config.RIGANYTHING_DIR)
 
 # Now import GPU-related modules
 from gpu_pool import GPU_POOL

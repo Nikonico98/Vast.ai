@@ -87,6 +87,7 @@ conda activate $SAM3_ENV
 echo "   ✅ Activated conda environment: $SAM3_ENV"
 
 export GPU_SERVICE_PORT=$GPU_PORT
+export PYTHONPATH="$BACKEND_DIR:$PROJECT_DIR/RigAnything/scripts:$PROJECT_DIR/RigAnything:${PYTHONPATH}"
 
 nohup python gpu_app.py > "$LOGS_DIR/gpu_service.log" 2>&1 &
 GPU_PID=$!

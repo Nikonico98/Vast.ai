@@ -275,71 +275,36 @@ def setup_environment():
 
 def verify_critical_files():
     """
-    Verify critical files exist before starting server
-    验证关键文件是否存在
-    
-    CRITICAL: The server will NOT start without prompt.md template file!
-    关键: 没有 prompt.md 模板文件，服务器将无法启动！
+    Verify critical files exist before starting the GPU service
+    验证 GPU 服务所需的关键文件是否存在
+
+    This deployment is the Vast.ai GPU service (gpu_app.py only).
+    It does NOT require the main-app files (app.py, database.py, templates/).
+    此部署是 Vast.ai GPU 服务，不需要主应用文件。
     """
     log("Verifying critical files | 验证关键文件", "header")
-    
+
     errors = []
     warnings = []
-    
-    # 1. Check prompt.md template (REQUIRED - no fallback!)
-    # 检查 prompt.md 模板（必需 - 没有备用方案！）
-    if not PROMPT_TEMPLATE_FILE.exists():
-        errors.append(f"❌ CRITICAL: prompt.md not found at {PROMPT_TEMPLATE_FILE}")
-        errors.append("   服务器无法启动 - 请确保 prompt.md 文件存在")
-        errors.append(f"   Expected path: {PROMPT_TEMPLATE_FILE}")
+
+    # 1. Check gpu_app.py (the actual server entrypoint on Vast.ai)
+    gpu_app_file = BACKEND_FOLDER / "gpu_app.py"
+    if not gpu_app_file.exists():
+        errors.append(f"❌ gpu_app.py not found: {gpu_app_file}")
     else:
-        # Check if file is not empty
-        content = PROMPT_TEMPLATE_FILE.read_text(encoding='utf-8')
-        if not content.strip():
-            errors.append(f"❌ CRITICAL: prompt.md is empty!")
-            errors.append("   服务器无法启动 - prompt.md 文件为空")
-        elif len(content) < 100:
-            warnings.append(f"⚠️ WARNING: prompt.md seems too short ({len(content)} chars)")
-        else:
-            log(f"✅ prompt.md found ({len(content)} chars)", "success")
-            
-            # Verify key content exists
-            if "IMAGINARY_WORLD" not in content:
-                warnings.append("⚠️ WARNING: IMAGINARY_WORLD not found in prompt.md")
-            if "AR_INTERACTIONS" not in content:
-                warnings.append("⚠️ WARNING: AR_INTERACTIONS not found in prompt.md")
-    
-    # 2. Check templates folder exists
-    if not TEMPLATE_FOLDER.exists():
-        errors.append(f"❌ Templates folder not found: {TEMPLATE_FOLDER}")
-    else:
-        log(f"✅ Templates folder exists", "success")
-    
-    # 3. Check backend/app.py exists
-    app_file = BACKEND_FOLDER / "app.py"
-    if not app_file.exists():
-        errors.append(f"❌ Backend app.py not found: {app_file}")
-    else:
-        log(f"✅ Backend app.py found", "success")
-    
-    # 4. Check .env file
+        log(f"✅ gpu_app.py found", "success")
+
+    # 2. Check .env file
     env_file = BACKEND_FOLDER / ".env"
     if not env_file.exists():
         warnings.append(f"⚠️ .env file not found (will be created)")
     else:
         log(f"✅ .env file found", "success")
-    
-    # 5. Check database.py exists
-    db_file = BACKEND_FOLDER / "database.py"
-    if not db_file.exists():
-        errors.append(f"❌ database.py not found: {db_file}")
-    else:
-        log(f"✅ database.py found", "success")
-    
+
     # Print warnings
     for warning in warnings:
         log(warning, "warning")
-    
+
     # Print errors and exit if any
     if errors:
         log("Critical errors found! | 发现关键错误！", "error")
@@ -349,7 +314,7 @@ def verify_critical_files():
         log("Please fix the above errors before continuing.", "error")
         log("请修复以上错误后再继续。", "error")
         return False
-    
+
     log("All critical files verified! | 所有关键文件验证通过！", "success")
     return True
 
@@ -728,8 +693,10 @@ def apply_frontend_patches():
     
     patch_script = PATCHES_DIR / "localstorage_persistence.py"
     if not patch_script.exists():
-        log(f"Patch script not found: {patch_script}", "warning")
-        return False
+        # Not required for the GPU service deployment on Vast.ai — skip silently
+        # GPU 服务部署不需要此补丁，静默跳过
+        log("Patch script not found, skipping (not required for GPU service)", "info")
+        return True
     
     try:
         result = subprocess.run(

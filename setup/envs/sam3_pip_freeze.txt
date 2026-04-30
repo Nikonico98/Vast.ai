@@ -105,7 +105,7 @@ nvidia-nvjitlink-cu12==12.6.85
 nvidia-nvtx-cu12==12.6.77
 openai==2.30.0
 opencv-python==4.11.0.86
-packaging @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_packaging_1769093650/work
+packaging
 pandocfilters==1.5.1
 parso==0.8.6
 pexpect==4.9.0
